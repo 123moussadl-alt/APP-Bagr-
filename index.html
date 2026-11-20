@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#15803d">
+  <title>Educ CEB Bagré — Plateforme de Gestion Scolaire</title>
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Educ CEB Bagré">
+  <meta name="apple-mobile-web-app-status-bar-style" content="#0f3d23">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+  <div id="printHeader" class="print-only">
+    <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:12px">
+      <strong style="font-size:16px;letter-spacing:.5px">EDUC CEB BAGRÉ</strong><br>
+      <span style="font-size:12px">Circonscription de Bagré — Plateforme de Gestion Scolaire</span>
+    </div>
+  </div>
+  <div id="app">
+    <div id="bootLoader" style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;color:#64748b;text-align:center;padding:24px">
+      <p>Chargement de l'application…</p>
+    </div>
+  </div>
+  <script>
+    (function () {
+      function showBootError() {
+        var loader = document.getElementById('bootLoader');
+        if (!loader) return;
+        loader.innerHTML = '<p style="color:#dc2626;max-width:520px">Impossible de charger l\'application. Vérifiez votre connexion puis rechargez la page.</p>';
+      }
+      window.addEventListener('error', showBootError);
+      window.addEventListener('unhandledrejection', showBootError);
+    })();
+  </script>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

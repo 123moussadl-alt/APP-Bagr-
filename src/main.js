@@ -1,0 +1,1292 @@
+/**
+ * EDUC CEB BAGRÉ v2 — Point d'entrée principal
+ */
+
+import { supabase, isDemoMode } from './supabaseClient.js';
+import { setupOnlineSync } from './db.js';
+import { toInternalEmail } from './supabaseClient.js';
+import { defaultSubjects, esc, formatClassName } from './utils/format.js';
+import { DEFAULT_SCHOOL_NAMES } from './utils/schools.js';
+import { isSignatureDataUrl, signatureImageHTML, signatureStorageKey, signatureUrlForProfile } from './utils/signature.js';
+
+const viewModules = {
+  login: () => import('./views/login.js'),
+  register: () => import('./views/register.js'),
+  dashboard: () => import('./views/dashboard.js'),
+  titulaire: () => import('./views/titulaire.js'),
+  directeur: () => import('./views/directeur.js'),
+  encadreur: () => import('./views/encadreur.js'),
+  'chef-ceb': () => import('./views/chef-ceb.js'),
+  'chef-personnel': () => import('./views/chef-personnel.js'),
+  statisticien: () => import('./views/statisticien.js')
+};
+
+const state = {
+  user: null,
+  profile: null,
+  view: 'login',
+  schools: [],
+  classes: [],
+  ecole: null,
+  classe: null,
+  students: [],
+  grades: [],
+  examBlancs: []
+};
+
+const appRoot = document.getElementById('app');
+const toastEl = document.getElementById('toast');
+
+// ---------------------------------------------------------------------------
+// Mode démonstration : stockage local des comptes et de la session
+// ---------------------------------------------------------------------------
+const DEMO_ACCOUNTS_KEY = 'educ_ceb_accounts';
+const DEMO_SESSION_KEY = 'educ_ceb_session';
+
+function demoGetAccounts() {
+  try {
+    const raw = localStorage.getItem(DEMO_ACCOUNTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function demoSaveAccounts(list) {
+  localStorage.setItem(DEMO_ACCOUNTS_KEY, JSON.stringify(list));
+}
+
+function demoSetSession(userId) {
+  localStorage.setItem(DEMO_SESSION_KEY, userId);
+}
+
+function demoClearSession() {
+  localStorage.removeItem(DEMO_SESSION_KEY);
+}
+
+function demoGetSessionUserId() {
+  return localStorage.getItem(DEMO_SESSION_KEY);
+}
+
+function applyDemoUser(account) {
+  state.user = { id: account.id, email: account.email };
+  state.profile = {
+    id: account.id,
+    identifiant: account.identifiant,
+    full_name: account.fullName,
+    nom: account.nom || null,
+    prenom: account.prenom || null,
+    gender: account.sexe || account.gender || null,
+    sexe: account.sexe || account.gender || null,
+    matricule: account.matricule || null,
+    date_naissance: account.date_naissance || null,
+    niveau_etude: account.niveau_etude || null,
+    date_prise_service_ceb: account.date_prise_service_ceb || null,
+    classe_tenue: account.classeTenue || null,
+    classe_niveau: account.classeNiveau || null,
+    classe_id: account.classId || null,
+    emploi: account.emploi || account.fonction || null,
+    fonction: account.emploi || account.fonction || null,
+    ecole_id: account.schoolId || null,
+    ecole_nom: account.schoolName || account.schoolId || null,
+    school_id: account.schoolId || null,
+    class_id: account.classId || null,
+    ecole_id: account.schoolId || null,
+    ecole_nom: account.schoolName || null,
+    classe_id: account.classId || null,
+    ecoles_encadrees: account.ecolesEncadrees || account.followedSchools || [],
+    structure: account.structure || (account.schoolName || 'CEB de Bagré'),
+    whatsapp_phone: account.whatsapp || account.whatsappPhone,
+    whatsapp: account.whatsapp || account.whatsappPhone,
+    role: account.role,
+    school_id: account.schoolId,
+    followed_schools: account.ecolesEncadrees || account.followedSchools || []
+  };
+  state.ecole = account.schoolId ? { id: account.schoolId, name: account.schoolName || account.schoolId } : null;
+  state.classe = account.classRecord || null;
+  routeToDashboard();
+}
+
+async function init() {
+  try {
+    if (isDemoMode) {
+      showToast('Mode démonstration : fonctionnement local sans Supabase');
+      const uid = demoGetSessionUserId();
+      if (uid) {
+        const account = demoGetAccounts().find(a => a.id === uid);
+        if (account) {
+          applyDemoUser(account);
+          return;
+        }
+        demoClearSession();
+      }
+      renderLoginView();
+      return;
+    }
+
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        state.user = session.user;
+        await loadProfile();
+        setupOnlineSync(() => {
+          showToast('Modifications hors-ligne synchronisées');
+        });
+        routeToDashboard();
+      } else {
+        state.user = null;
+        state.profile = null;
+        renderLoginView();
+      }
+    });
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      state.user = session.user;
+      await loadProfile();
+      setupOnlineSync();
+      routeToDashboard();
+    } else {
+      renderLoginView();
+    }
+  } catch (err) {
+    console.error('Erreur d\'initialisation :', err);
+    showToast('Erreur d\'initialisation : passage en mode démo local');
+    try {
+      renderLoginView();
+    } catch (e) {
+      console.error('Erreur rendu login :', e);
+      appRoot.innerHTML = '<div style="padding:2rem;color:#dc2626">Erreur de chargement de l\'application. Vérifiez la console.</div>';
+    }
+  }
+}
+
+async function loadProfile() {
+  if (!state.user) return;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', state.user.id)
+    .single();
+  if (data) state.profile = data;
+}
+
+function routeToDashboard() {
+  if (!state.profile) return;
+  if (state.isDualDirector === undefined) {
+    state.isDualDirector = (state.profile.role === 'directeur' && !!(state.profile.class_id || state.profile.classe_id));
+  }
+  switch (state.profile.role) {
+    case 'titulaire': state.view = 'titulaire'; break;
+    case 'directeur': state.view = 'directeur'; break;
+    case 'encadreur': state.view = 'encadreur'; break;
+    case 'chef_ceb': state.view = 'chef-ceb'; break;
+    case 'chef_personnel': state.view = 'chef-personnel'; break;
+    case 'statisticien': state.view = 'statisticien'; break;
+    default: state.view = 'dashboard';
+  }
+  render();
+}
+
+window.switchToClasseMode = () => {
+  if (!state.profile) return;
+  state.profile = { ...state.profile, role: 'titulaire' };
+  state.view = 'titulaire';
+  render();
+};
+
+window.switchToDirectionMode = () => {
+  if (!state.profile) return;
+  state.profile = { ...state.profile, role: 'directeur' };
+  state.view = 'directeur';
+  render();
+};
+
+function showToast(msg, duration = 3000) {
+  if (!toastEl) return;
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), duration);
+}
+
+function friendlyError(err, fallback) {
+  const msg = (err && err.message) || '';
+  if (/failed to fetch|networkerror|network error|load failed|err_internet|fetch/i.test(msg)) {
+    return 'Impossible de joindre le serveur Supabase. Vérifiez que le projet est actif et que l\'URL (.supabase.co) est correcte.';
+  }
+  return msg || fallback;
+}
+
+const viewExports = {
+  titulaire: 'Titulaire',
+  directeur: 'Directeur',
+  encadreur: 'Encadreur',
+  'chef-ceb': 'ChefCEB',
+  'chef-personnel': 'ChefPersonnel',
+  statisticien: 'Statisticien'
+};
+
+function render() {
+  if (!appRoot) return;
+  if (state.user) initPreviewBar();
+  initSettings();
+  appRoot.innerHTML = '';
+
+  const view = state.view;
+  const loader = viewModules[view];
+  if (!loader) return;
+
+  loader().then(module => {
+    if (view === 'login' || view === 'register') {
+      const renderFn = view === 'login' ? module.renderLogin : module.renderRegister;
+      const setupFn = view === 'login' ? module.setupLogin : module.setupRegister;
+      if (!renderFn) return;
+      if (view === 'login') {
+        const handlers = {
+          onRegister: () => { state.view = 'register'; render(); },
+          onLogin: handleLogin
+        };
+        appRoot.innerHTML = renderFn(handlers);
+        if (setupFn) setupFn(appRoot, handlers);
+      } else {
+        const handlers = {
+          onLogin: () => { state.view = 'login'; render(); },
+          onRegister: handleRegister
+        };
+        appRoot.innerHTML = renderFn(handlers);
+        if (setupFn) setupFn(appRoot, handlers);
+      }
+      return;
+    }
+
+    if (view === 'dashboard') {
+      appRoot.innerHTML = module.renderDashboard(state, render);
+      mountSettingsButton();
+      return;
+    }
+
+    const suffix = viewExports[view] || '';
+    const renderFn = module[`render${suffix}`] || module.default;
+    if (!renderFn) return;
+    appRoot.innerHTML = renderFn(state, render, supabase);
+    mountSettingsButton();
+
+    const setupFn = module[`setup${suffix}`];
+    if (setupFn) setupFn(appRoot, state, render, supabase);
+  }).catch(err => {
+    console.error('Erreur de rendu de la vue :', err);
+    appRoot.innerHTML = '<div style="padding:2rem;color:#dc2626">Erreur de chargement de la vue. Vérifiez la console.</div>';
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Paramètres d'affichage (thème, arrière-plan, confort)
+// ---------------------------------------------------------------------------
+const SETTINGS_KEY = 'educ_ceb_settings';
+const ENCADREUR_SCHOOLS_STORAGE_PREFIX = 'educ_ceb_ecoles_encadrees_';
+
+function parseSchoolIdList(value) {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch (error) {
+    console.warn('Liste des écoles encadrées invalide.', error);
+    return [];
+  }
+}
+
+function loadSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveSettings(next) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(next || {}));
+}
+
+function applySettings() {
+  const s = loadSettings();
+  document.body.classList.remove('bg-white', 'bg-sky', 'bg-mint', 'bg-dark', 'comfortable');
+  const bg = s.bg || '';
+  if (bg) document.body.classList.add('bg-' + bg);
+  if (s.size === 'comfortable') document.body.classList.add('comfortable');
+}
+
+async function openSettings() {
+  const existing = document.getElementById('settingsOverlay');
+  if (existing) { existing.remove(); return; }
+  const s = loadSettings();
+  const profile = state.realProfile || state.profile || {};
+  const nameParts = String(profile.full_name || '').trim().split(/\s+/);
+  const nom = profile.nom || nameParts.slice(1).join(' ');
+  const prenom = profile.prenom || nameParts[0] || '';
+  const levelOptions = ['BEPC', 'BAC', 'Licence', 'Master', 'Doctorat', 'Autre'];
+  const emploiOptions = [
+    ['PE', 'PE — Professeur des Écoles'],
+    ['PCE', 'PCE — Professeur Certifié des Écoles'],
+    ['IC', 'IC — Instituteur Certifié'],
+    ['IAC', 'IAC — Instituteur Adjoint Certifié']
+  ];
+  const classOptions = ['CP1', 'CP2', 'CE1', 'CE2', 'CM1', 'CM2'];
+  const isTitulaire = profile.role === 'titulaire';
+  const isSchoolRole = isTitulaire || profile.role === 'directeur';
+  const isEncadreur = profile.role === 'encadreur';
+  const isDistrictRole = ['chef_ceb', 'chef_personnel', 'statisticien'].includes(profile.role);
+  const canAssignClass = isSchoolRole;
+  let schools = [];
+  let schoolsError = null;
+  if (isDemoMode) {
+    schools = [...new Set([
+      ...DEFAULT_SCHOOL_NAMES,
+      ...demoGetAccounts().map(account => account.schoolId).filter(Boolean)
+    ])]
+      .map(name => ({ id: name, name }));
+  } else {
+    try {
+      const result = await supabase.from('schools').select('id,name').order('name');
+      schools = result.data || [];
+      schoolsError = result.error;
+    } catch (error) {
+      schoolsError = error;
+    }
+  }
+  const profileSchoolId = profile.ecole_id || profile.school_id || '';
+  let savedSignature = signatureUrlForProfile(profile);
+  const currentSchoolMissing = profileSchoolId && !schools.some(school => String(school.id) === String(profileSchoolId));
+  const currentClass = profile.classe_niveau || profile.classe_tenue || '';
+  let savedEncadreeIds = parseSchoolIdList(profile.ecoles_encadrees);
+  if (!savedEncadreeIds.length) savedEncadreeIds = parseSchoolIdList(profile.followed_schools);
+  if (!savedEncadreeIds.length && profile.id) {
+    try {
+      savedEncadreeIds = parseSchoolIdList(localStorage.getItem(ENCADREUR_SCHOOLS_STORAGE_PREFIX + profile.id));
+    } catch (error) {
+      console.warn('Impossible de lire les écoles encadrées en local.', error);
+    }
+  }
+  const currentLevelMissing = profile.niveau_etude && !levelOptions.includes(profile.niveau_etude);
+  const currentEmploi = profile.emploi || profile.fonction || '';
+  const overlay = document.createElement('div');
+  overlay.id = 'settingsOverlay';
+  overlay.innerHTML = `
+    <div id="settingsModal">
+      <h3>⚙️ Paramètres</h3>
+      <section class="settings-section">
+        <h4>Mes paramètres</h4>
+        <div class="settings-profile-grid">
+          <div class="form-group"><label for="settingsMatricule">Matricule</label><input id="settingsMatricule" value="${esc(profile.matricule || '')}"></div>
+          <div class="form-group"><label for="settingsNom">Nom</label><input id="settingsNom" required value="${esc(nom)}"></div>
+          <div class="form-group"><label for="settingsPrenom">Prénom</label><input id="settingsPrenom" required value="${esc(prenom)}"></div>
+          <div class="form-group"><label for="settingsSexe">Sexe</label><select id="settingsSexe"><option value="">-- Choisir --</option><option value="M">M</option><option value="F">F</option></select></div>
+          <div class="form-group"><label for="settingsBirth">Date de naissance</label><input id="settingsBirth" type="date" value="${esc(profile.date_naissance || '')}"></div>
+          <div class="form-group"><label for="settingsStudy">Niveau d'étude</label><select id="settingsStudy"><option value="">-- Choisir --</option>${currentLevelMissing ? `<option value="${esc(profile.niveau_etude)}">${esc(profile.niveau_etude)}</option>` : ''}${levelOptions.map(value => `<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select></div>
+          <div class="form-group"><label for="settingsEmploi">Emploi</label><select id="settingsEmploi"><option value="">-- Choisir --</option>${emploiOptions.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('')}</select></div>
+          <div class="form-group"><label for="settingsServiceDate">Date de prise de service à la CEB</label><input id="settingsServiceDate" type="date" value="${esc(profile.date_prise_service_ceb || '')}"></div>
+          ${isSchoolRole ? `<div class="form-group"><label for="settingsSchool">École</label><select id="settingsSchool"><option value="">-- Choisir --</option>${currentSchoolMissing ? `<option value="${esc(profileSchoolId)}">${esc(profile.ecole_nom || profile.school_id)}</option>` : ''}${schools.map(school => `<option value="${esc(school.id)}">${esc(school.name)}</option>`).join('')}</select></div>` : ''}
+          ${canAssignClass ? `<div class="form-group"><label for="settingsClass">Classe tenue</label><select id="settingsClass"><option value="">-- Choisir --</option>${classOptions.map(value => `<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select></div>` : ''}
+          ${isEncadreur ? `<div class="form-group" style="grid-column:1/-1"><label>Écoles encadrées / Zone d'encadrement</label><div id="settingsEncadreeSchools" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px">${schools.map(school => `<label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff"><input type="checkbox" name="settingsEncadreeSchool" value="${esc(school.id)}" ${savedEncadreeIds.includes(String(school.id)) ? 'checked' : ''}><span>${esc(school.name)}</span></label>`).join('')}</div></div>` : ''}
+          ${isDistrictRole ? `<div class="form-group"><label for="settingsStructure">Structure</label><input id="settingsStructure" value="CEB de Bagré" readonly></div>` : ''}
+          <div class="form-group"><label for="settingsWhatsApp">Contact WhatsApp</label><input id="settingsWhatsApp" type="tel" value="${esc(profile.whatsapp || profile.whatsapp_phone || '')}"></div>
+          <div class="form-group settings-signature-field">
+            <label>Signature</label>
+            <div id="settingsSignaturePreview">${savedSignature ? signatureImageHTML(savedSignature, 'Signature enregistrée') : '<span class="signature-empty">Aucune signature enregistrée</span>'}</div>
+            <button type="button" class="btn secondary" id="settingsSignatureOpen">Signer / Modifier ma signature</button>
+          </div>
+        </div>
+        <p id="settingsProfileStatus" role="status" aria-live="polite"></p>
+        <div class="settings-actions"><button class="btn" id="settingsProfileSave">Enregistrer mes paramètres</button></div>
+      </section>
+      <section class="settings-section">
+        <h4>Options</h4>
+        <div class="settings-profile-grid">
+          <div class="form-group">
+            <label for="setBg">Arrière-plan</label>
+            <select id="setBg">
+              <option value="">Dégradé vert-bleu (défaut)</option>
+              <option value="white">Blanc</option>
+              <option value="sky">Bleu ciel</option>
+              <option value="mint">Vert menthe</option>
+              <option value="dark">Sombre</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="setSize">Confort d'affichage</label>
+            <select id="setSize">
+              <option value="">Standard</option>
+              <option value="comfortable">Confortable (texte plus grand)</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-actions"><button class="btn" id="setSave">Enregistrer l'apparence</button></div>
+      </section>
+      <div class="settings-actions">
+        <button class="btn secondary" id="setClose">Fermer</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const bgSel = overlay.querySelector('#setBg');
+  const sizeSel = overlay.querySelector('#setSize');
+  const sexeSel = overlay.querySelector('#settingsSexe');
+  const studySel = overlay.querySelector('#settingsStudy');
+  const emploiSel = overlay.querySelector('#settingsEmploi');
+  const schoolSel = overlay.querySelector('#settingsSchool');
+  const classSel = overlay.querySelector('#settingsClass');
+  if (bgSel) bgSel.value = s.bg || '';
+  if (sizeSel) sizeSel.value = s.size || '';
+  if (sexeSel) sexeSel.value = profile.sexe || profile.gender || '';
+  if (studySel) studySel.value = profile.niveau_etude || '';
+  if (emploiSel) emploiSel.value = currentEmploi;
+  if (schoolSel) schoolSel.value = profileSchoolId;
+  if (classSel) classSel.value = currentClass;
+  const status = overlay.querySelector('#settingsProfileStatus');
+  if (schoolsError && status) {
+    status.textContent = 'Impossible de charger la liste des écoles : ' + schoolsError.message;
+    status.style.color = '#dc2626';
+  }
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.querySelector('#setClose').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#settingsSignatureOpen').addEventListener('click', () => {
+    const signatureOverlay = document.createElement('div');
+    signatureOverlay.id = 'signatureModalOverlay';
+    signatureOverlay.innerHTML = `
+      <section id="signatureModal" role="dialog" aria-modal="true" aria-labelledby="signatureModalTitle">
+        <div class="signature-modal-heading">
+          <div>
+            <h4 id="signatureModalTitle">Ma signature</h4>
+            <p>Signez dans la zone blanche avec votre doigt ou votre souris.</p>
+          </div>
+          <button type="button" class="signature-close" aria-label="Fermer">×</button>
+        </div>
+        <div class="signature-pad-shell">
+          <canvas id="signatureCanvas" class="signature-canvas" aria-label="Zone de signature tactile"></canvas>
+        </div>
+        <p id="signatureSaveStatus" role="status" aria-live="polite"></p>
+        <div class="signature-modal-actions">
+          <button type="button" class="btn secondary" id="signatureClear">Effacer</button>
+          <button type="button" class="btn" id="signatureValidate">Valider la signature</button>
+        </div>
+      </section>`;
+    overlay.appendChild(signatureOverlay);
+    const canvas = signatureOverlay.querySelector('#signatureCanvas');
+    const context = canvas.getContext('2d');
+    const canvasRatio = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * canvasRatio);
+    canvas.height = Math.round(rect.height * canvasRatio);
+    context.scale(canvasRatio, canvasRatio);
+    context.lineWidth = 2.4;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.strokeStyle = '#111827';
+    let drawing = false;
+    let hasInk = false;
+    const pointFrom = (x, y) => {
+      const bounds = canvas.getBoundingClientRect();
+      return { x: x - bounds.left, y: y - bounds.top };
+    };
+    const beginAt = (point) => {
+      drawing = true;
+      context.beginPath();
+      context.moveTo(point.x, point.y);
+    };
+    const drawAt = (point) => {
+      if (!drawing) return;
+      context.lineTo(point.x, point.y);
+      context.stroke();
+      hasInk = true;
+    };
+    const endDrawing = () => { drawing = false; };
+    canvas.addEventListener('mousedown', event => beginAt(pointFrom(event.clientX, event.clientY)));
+    canvas.addEventListener('mousemove', event => drawAt(pointFrom(event.clientX, event.clientY)));
+    canvas.addEventListener('mouseup', endDrawing);
+    canvas.addEventListener('mouseleave', endDrawing);
+    canvas.addEventListener('touchstart', event => {
+      event.preventDefault();
+      const touch = event.changedTouches[0];
+      beginAt(pointFrom(touch.clientX, touch.clientY));
+    }, { passive: false });
+    canvas.addEventListener('touchmove', event => {
+      event.preventDefault();
+      const touch = event.changedTouches[0];
+      drawAt(pointFrom(touch.clientX, touch.clientY));
+    }, { passive: false });
+    canvas.addEventListener('touchend', event => {
+      event.preventDefault();
+      endDrawing();
+    }, { passive: false });
+    canvas.addEventListener('touchcancel', endDrawing);
+
+    signatureOverlay.querySelector('.signature-close').addEventListener('click', () => signatureOverlay.remove());
+    signatureOverlay.addEventListener('click', event => {
+      if (event.target === signatureOverlay) signatureOverlay.remove();
+    });
+    signatureOverlay.querySelector('#signatureClear').addEventListener('click', () => {
+      context.clearRect(0, 0, rect.width, rect.height);
+      hasInk = false;
+    });
+    signatureOverlay.querySelector('#signatureValidate').addEventListener('click', async event => {
+      const validateButton = event.currentTarget;
+      const signatureStatus = signatureOverlay.querySelector('#signatureSaveStatus');
+      if (!hasInk) {
+        signatureStatus.textContent = 'Veuillez signer avant de valider.';
+        signatureStatus.style.color = '#dc2626';
+        return;
+      }
+      const userId = state.user && state.user.id ? state.user.id : profile.id;
+      if (!userId) {
+        signatureStatus.textContent = 'Identifiant utilisateur introuvable.';
+        signatureStatus.style.color = '#dc2626';
+        return;
+      }
+      validateButton.disabled = true;
+      signatureStatus.textContent = 'Enregistrement de la signature…';
+      signatureStatus.style.color = '#475569';
+      try {
+        const signatureUrl = canvas.toDataURL('image/png');
+        if (!isSignatureDataUrl(signatureUrl)) throw new Error('La signature générée est invalide.');
+        if (isDemoMode) {
+          const accounts = demoGetAccounts();
+          const accountIndex = accounts.findIndex(item => item.id === userId);
+          if (accountIndex < 0) throw new Error('Profil local introuvable.');
+          accounts[accountIndex] = { ...accounts[accountIndex], signature_url: signatureUrl };
+          demoSaveAccounts(accounts);
+        } else {
+          const { data: existingProfile, error: lookupError } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', userId)
+            .maybeSingle();
+          if (lookupError) throw lookupError;
+          if (existingProfile) {
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ signature_url: signatureUrl })
+              .eq('id', userId);
+            if (updateError) throw updateError;
+          } else {
+            if (!profile.role) throw new Error('Le rôle du profil est manquant.');
+            const { error: insertError } = await supabase
+              .from('profiles')
+              .insert({
+                id: userId,
+                role: profile.role,
+                identifiant: profile.identifiant || (state.user && state.user.email) || userId,
+                signature_url: signatureUrl
+              });
+            if (insertError) throw insertError;
+          }
+        }
+        localStorage.setItem(signatureStorageKey(userId), signatureUrl);
+        savedSignature = signatureUrl;
+        if (state.realProfile && state.realProfile.id === userId) {
+          state.realProfile = { ...state.realProfile, signature_url: signatureUrl };
+        }
+        if (state.profile && state.profile.id === userId) {
+          state.profile = { ...state.profile, signature_url: signatureUrl };
+        }
+        if (state.preview && state.profile) state.preview = { ...state.preview, signature_url: signatureUrl };
+        const preview = overlay.querySelector('#settingsSignaturePreview');
+        preview.innerHTML = signatureImageHTML(signatureUrl, 'Signature enregistrée');
+        signatureStatus.textContent = 'Signature enregistrée.';
+        signatureStatus.style.color = '#15803d';
+        showToast('Signature enregistrée.');
+        signatureOverlay.remove();
+        render();
+      } catch (error) {
+        console.error('Impossible d’enregistrer la signature.', error);
+        signatureStatus.textContent = error && error.message ? error.message : String(error);
+        signatureStatus.style.color = '#dc2626';
+      } finally {
+        validateButton.disabled = false;
+      }
+    });
+  });
+  overlay.querySelector('#settingsProfileSave').addEventListener('click', async (event) => {
+    const saveButton = event.currentTarget;
+    if (isEncadreur && schoolsError) {
+      status.textContent = 'Impossible d’enregistrer les écoles encadrées car la liste est indisponible : ' + (schoolsError.message || schoolsError);
+      status.style.color = '#dc2626';
+      return;
+    }
+    const nomValue = overlay.querySelector('#settingsNom').value.trim();
+    const prenomValue = overlay.querySelector('#settingsPrenom').value.trim();
+    const sexeValue = sexeSel.value;
+    if (!nomValue || !prenomValue || !['M', 'F'].includes(sexeValue)) {
+      status.textContent = 'Veuillez renseigner le nom, le prénom et le sexe.';
+      status.style.color = '#dc2626';
+      return;
+    }
+    const userId = state.user && state.user.id ? state.user.id : profile.id;
+    if (!userId) {
+      status.textContent = 'Identifiant utilisateur introuvable.';
+      status.style.color = '#dc2626';
+      return;
+    }
+    const whatsappValue = overlay.querySelector('#settingsWhatsApp').value.trim();
+    const schoolId = isSchoolRole && schoolSel ? (schoolSel.value || null) : null;
+    const school = schools.find(item => String(item.id) === String(schoolId)) || null;
+    const classLevel = classSel ? (classSel.value || null) : null;
+    const shouldLinkClass = canAssignClass && !!classLevel && classLevel !== 'Aucune';
+    const directorProfile = profile.role === 'directeur' || !!state.isDualDirector;
+    const ecolesEncadrees = isEncadreur
+      ? Array.from(overlay.querySelectorAll('input[name="settingsEncadreeSchool"]:checked')).map(input => input.value)
+      : [];
+    const structure = isDistrictRole || isEncadreur
+      ? 'CEB de Bagré'
+      : (school ? school.name : null);
+    saveButton.disabled = true;
+    status.textContent = 'Enregistrement de vos paramètres…';
+    status.style.color = '#475569';
+    try {
+      if (shouldLinkClass && !schoolId) {
+        throw new Error('Choisissez une école avant d’affecter une classe.');
+      }
+
+      let linkedClass = null;
+      let classId = null;
+      if (shouldLinkClass) {
+        if (isDemoMode) {
+          const accounts = demoGetAccounts();
+          const account = accounts.find(item => item.id === userId);
+          const previousClass = account && account.classRecord;
+          linkedClass = previousClass && previousClass.school_id === schoolId && previousClass.level === classLevel
+            ? previousClass
+            : {
+              id: `demo-class-${schoolId}-${classLevel}`,
+              name: classLevel,
+              level: classLevel,
+              school_id: schoolId,
+              titulaire_id: userId,
+              titulaire_nom: `${nomValue} ${prenomValue}`.trim(),
+              co_titulaires: [userId],
+              subjects: defaultSubjects(classLevel)
+            };
+        } else {
+          const { data: existingClass, error: classLookupError } = await supabase
+            .from('classes')
+            .select('*')
+            .eq('school_id', schoolId)
+            .eq('level', classLevel)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          if (classLookupError) throw classLookupError;
+
+          if (existingClass) {
+            const coTeachers = Array.isArray(existingClass.co_titulaires) ? existingClass.co_titulaires : [];
+            const updatedCoTeachers = coTeachers.includes(userId) ? coTeachers : [...coTeachers, userId];
+            const { error: classUpdateError } = await supabase
+              .from('classes')
+              .update({ co_titulaires: updatedCoTeachers })
+              .eq('id', existingClass.id);
+            if (classUpdateError) throw classUpdateError;
+            linkedClass = { ...existingClass, co_titulaires: updatedCoTeachers };
+          } else {
+            const { data: createdClass, error: classInsertError } = await supabase
+              .from('classes')
+              .insert({
+                name: classLevel,
+                level: classLevel,
+                school_id: schoolId,
+                titulaire_id: userId,
+                titulaire_nom: `${nomValue} ${prenomValue}`.trim(),
+                co_titulaires: [userId],
+                year: '2026-2027',
+                subjects: defaultSubjects(classLevel)
+              })
+              .select('*')
+              .single();
+            if (classInsertError) throw classInsertError;
+            linkedClass = createdClass;
+          }
+
+        }
+        classId = linkedClass.id;
+      }
+
+      const fullName = `${prenomValue} ${nomValue}`.trim();
+      const nomComplet = `${nomValue} ${prenomValue}`.trim();
+      const classTenue = canAssignClass ? classLevel : null;
+      const classNiveau = canAssignClass && classLevel ? classLevel : null;
+      const legacyPhone = whatsappValue || profile.whatsapp_phone || '';
+      const profilePayload = {
+        matricule: overlay.querySelector('#settingsMatricule').value.trim() || null,
+        nom: nomValue,
+        prenom: prenomValue,
+        nom_complet: nomComplet,
+        sexe: sexeValue,
+        date_naissance: overlay.querySelector('#settingsBirth').value || null,
+        niveau_etude: studySel.value || null,
+        emploi: emploiSel.value || null,
+        fonction: emploiSel.value || null,
+        date_prise_service_ceb: overlay.querySelector('#settingsServiceDate').value || null,
+        ecole_id: schoolId,
+        ecole_nom: school ? school.name : (schoolId ? profile.ecole_nom || null : null),
+        classe_id: classId,
+        classe_niveau: classNiveau,
+        classe_tenue: classTenue,
+        ecoles_encadrees: ecolesEncadrees,
+        followed_schools: ecolesEncadrees,
+        structure,
+        whatsapp: whatsappValue || null,
+        telephone: whatsappValue || null,
+        signature_url: savedSignature || null,
+        full_name: fullName,
+        gender: sexeValue,
+        school_id: schoolId,
+        class_id: classId,
+        whatsapp_phone: legacyPhone
+      };
+
+      if (isDemoMode) {
+        const accounts = demoGetAccounts();
+        const accountIndex = accounts.findIndex(item => item.id === userId);
+        if (accountIndex < 0) throw new Error('Profil local introuvable.');
+        accounts[accountIndex] = {
+          ...accounts[accountIndex],
+          ...profilePayload,
+          fullName,
+          schoolId,
+          schoolName: school ? school.name : '',
+          ecolesEncadrees,
+          followedSchools: ecolesEncadrees,
+          structure,
+          classId,
+          classLevel: classNiveau,
+          classRecord: linkedClass,
+          classeTenue: classTenue,
+          classeNiveau: classNiveau,
+          whatsappPhone: legacyPhone
+        };
+        demoSaveAccounts(accounts);
+      } else {
+        const { data: existingProfile, error: lookupError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', userId)
+          .maybeSingle();
+        if (lookupError) throw lookupError;
+        if (existingProfile) {
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update(profilePayload)
+            .eq('id', userId);
+          if (updateError) throw updateError;
+        } else {
+          if (!profile.role) throw new Error('Le rôle du profil est manquant.');
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              ...profilePayload,
+              id: userId,
+              role: profile.role,
+              identifiant: profile.identifiant || (state.user && state.user.email) || userId
+            });
+          if (insertError) throw insertError;
+        }
+      }
+
+      if (linkedClass && !isDemoMode) {
+        const { error: teacherLinkError } = await supabase
+          .from('class_teachers')
+          .upsert(
+            { class_id: linkedClass.id, teacher_id: userId },
+            { onConflict: 'class_id,teacher_id', ignoreDuplicates: true }
+          );
+        if (teacherLinkError) throw teacherLinkError;
+      }
+
+      try {
+        localStorage.setItem(ENCADREUR_SCHOOLS_STORAGE_PREFIX + userId, JSON.stringify(ecolesEncadrees));
+      } catch (storageError) {
+        console.warn('Impossible de sauvegarder localement les écoles encadrées.', storageError);
+      }
+
+      const updatedProfile = { ...profile, id: userId, ...profilePayload };
+      if (state.realProfile && state.realProfile.id === userId) state.realProfile = updatedProfile;
+      if (state.preview && state.realProfile) {
+        const previewName = state.profile.full_name;
+        state.profile = {
+          ...state.profile,
+          ...updatedProfile,
+          role: state.preview.role,
+          full_name: previewName
+        };
+        state.preview = { ...state.preview, schoolId, classId };
+      } else {
+        state.profile = updatedProfile;
+      }
+      const wasDirectorClassMode = directorProfile && state.profile.role === 'titulaire';
+      state.isDualDirector = directorProfile && !!classId;
+      if (wasDirectorClassMode && !classId) {
+        state.profile = { ...state.profile, role: 'directeur' };
+        state.view = 'directeur';
+      }
+      state.ecole = school;
+      state.classe = linkedClass;
+      if (school && !state.schools.some(item => item.id === school.id)) state.schools = [...state.schools, school];
+      if (linkedClass && !state.classes.some(item => item.id === linkedClass.id)) state.classes = [...state.classes, linkedClass];
+      const brand = document.querySelector('.role-brand span');
+      if (brand) {
+        const roleNames = { titulaire: 'Titulaire', directeur: 'Directeur', encadreur: 'Encadreur', chef_ceb: 'Chef CEB', chef_personnel: 'Chef du Personnel', statisticien: 'Statisticien' };
+        brand.textContent = `${roleNames[state.profile.role] || 'Utilisateur'} — ${state.profile.full_name}`;
+      }
+      status.textContent = 'Paramètres enregistrés.';
+      status.style.color = '#15803d';
+      render();
+      showToast('Paramètres enregistrés.');
+    } catch (error) {
+      console.error('Impossible d’enregistrer le profil.', error);
+      status.textContent = error && error.message ? error.message : String(error);
+      status.style.color = '#dc2626';
+    } finally {
+      saveButton.disabled = false;
+    }
+  });
+  overlay.querySelector('#setSave').addEventListener('click', () => {
+    const next = { bg: (bgSel && bgSel.value) || '', size: (sizeSel && sizeSel.value) || '' };
+    saveSettings(next);
+    applySettings();
+    overlay.remove();
+    showToast('Paramètres enregistrés.');
+  });
+}
+
+function initSettings() {
+  applySettings();
+  const oldButton = document.getElementById('settingsBtn');
+  if (oldButton) oldButton.remove();
+}
+
+function mountSettingsButton() {
+  const target = document.querySelector('.role-footer') || document.querySelector('.topbar-left');
+  if (!target || target.querySelector('[data-action="open-settings"]')) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'btn-settings';
+  button.dataset.action = 'open-settings';
+  button.textContent = '⚙️ Paramètres';
+  button.addEventListener('click', openSettings);
+  const logoutButton = target.querySelector('.btn-logout');
+  if (logoutButton) target.insertBefore(button, logoutButton);
+  else target.appendChild(button);
+}
+
+// ---------------------------------------------------------------------------
+// Mode Aperçu Concepteur (super-admin) : basculer instantanément entre les vues
+// de tous les rôles, avec un sélecteur d'école / classe, sans se déconnecter.
+// ---------------------------------------------------------------------------
+const PREVIEW_ROLES = [
+  ['titulaire', '👨‍🏫 Titulaire'],
+  ['directeur', '🏫 Directeur'],
+  ['encadreur', '🧭 Encadreur'],
+  ['chef_ceb', '🏛️ Chef CEB'],
+  ['chef_personnel', '👥 Chef du Personnel'],
+  ['statisticien', '📊 Statisticien']
+];
+
+let previewFabEl = null;
+let previewBarEl = null;
+
+function viewForRole(role) {
+  return {
+    titulaire: 'titulaire',
+    directeur: 'directeur',
+    encadreur: 'encadreur',
+    chef_ceb: 'chef-ceb',
+    chef_personnel: 'chef-personnel',
+    statisticien: 'statisticien'
+  }[role] || 'dashboard';
+}
+
+function initPreviewBar() {
+  if (previewFabEl || !state.user) return;
+  previewFabEl = document.createElement('button');
+  previewFabEl.id = 'previewFab';
+  previewFabEl.textContent = '👁 Mode Concepteur';
+  previewFabEl.title = 'Tester toutes les vues';
+  previewFabEl.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:9999;background:#7c3aed;color:#fff;border:none;border-radius:24px;padding:10px 16px;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3)';
+  previewFabEl.addEventListener('click', togglePreviewBar);
+  document.body.appendChild(previewFabEl);
+}
+
+async function togglePreviewBar() {
+  if (previewBarEl) {
+    previewBarEl.remove();
+    previewBarEl = null;
+    exitPreview();
+    return;
+  }
+  previewBarEl = document.createElement('div');
+  previewBarEl.id = 'previewBar';
+  previewBarEl.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999;background:#111827;color:#fff;padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,.4);font-size:13px';
+  document.body.appendChild(previewBarEl);
+  await renderPreviewBar();
+}
+
+async function renderPreviewBar() {
+  if (!previewBarEl) return;
+  let schools = [];
+  try {
+    const r = await supabase.from('schools').select('id,name').order('name');
+    schools = r.data || [];
+  } catch (e) { schools = []; }
+
+  previewBarEl.innerHTML = `
+    <strong style="color:#a78bfa;white-space:nowrap">👁 APERÇU CONCEPTEUR</strong>
+    ${PREVIEW_ROLES.map(([r, l]) => `<button class="pv-role" data-role="${r}" style="background:#1f2937;color:#fff;border:1px solid #374151;border-radius:6px;padding:6px 10px;font-weight:600;cursor:pointer">${l}</button>`).join('')}
+    <span style="flex:1"></span>
+    <select id="pvSchool" style="background:#1f2937;color:#fff;border:1px solid #374151;border-radius:6px;padding:6px">
+      <option value="">Toutes les écoles</option>
+      ${schools.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}
+    </select>
+    <select id="pvClass" style="background:#1f2937;color:#fff;border:1px solid #374151;border-radius:6px;padding:6px">
+      <option value="">Toutes les classes</option>
+    </select>
+    <button id="pvExit" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer">✕ Quitter l'aperçu</button>
+  `;
+  previewBarEl.querySelectorAll('.pv-role').forEach(btn => {
+    btn.addEventListener('click', () => enterPreview(btn.dataset.role));
+  });
+  const schoolSel = previewBarEl.querySelector('#pvSchool');
+  schoolSel.addEventListener('change', () => loadPreviewClasses(schoolSel.value));
+  previewBarEl.querySelector('#pvExit').addEventListener('click', togglePreviewBar);
+}
+
+async function loadPreviewClasses(schoolId) {
+  const sel = previewBarEl && previewBarEl.querySelector('#pvClass');
+  if (!sel) return;
+  if (!schoolId) {
+    sel.innerHTML = '<option value="">Toutes les classes</option>';
+    return;
+  }
+  let classes = [];
+  try {
+    const r = await supabase.from('classes').select('id,name,level').eq('school_id', schoolId).order('name');
+    classes = r.data || [];
+  } catch (e) { classes = []; }
+  sel.innerHTML = '<option value="">Toutes les classes</option>' +
+    classes.map(c => `<option value="${esc(c.id)}">${esc(formatClassName(c))}</option>`).join('');
+}
+
+function enterPreview(role) {
+  if (!state.user) return;
+  if (!state.realProfile) state.realProfile = state.profile;
+  const schoolId = (previewBarEl && previewBarEl.querySelector('#pvSchool') && previewBarEl.querySelector('#pvSchool').value) || null;
+  const classId = (previewBarEl && previewBarEl.querySelector('#pvClass') && previewBarEl.querySelector('#pvClass').value) || null;
+  state.preview = { role, schoolId, classId };
+  state.profile = {
+    id: state.user.id,
+    identifiant: state.realProfile.identifiant,
+    full_name: '👁 Aperçu',
+    role,
+    school_id: schoolId,
+    class_id: classId,
+    followed_schools: schoolId ? [schoolId] : []
+  };
+  if (previewBarEl) {
+    previewBarEl.querySelectorAll('.pv-role').forEach(b => {
+      b.style.background = (b.dataset.role === role) ? '#7c3aed' : '#1f2937';
+    });
+  }
+  state.view = viewForRole(role);
+  render();
+}
+
+function exitPreview() {
+  state.preview = null;
+  if (state.realProfile) {
+    state.profile = state.realProfile;
+    state.realProfile = null;
+  }
+  if (state.profile) {
+    state.view = viewForRole(state.profile.role);
+    render();
+  }
+}
+
+function renderLoginView() {
+  state.view = 'login';
+  render();
+}
+
+async function handleLogin({ identifiant, password }) {
+  const cleanId = (identifiant || '').trim();
+
+  if (isDemoMode) {
+    const account = demoGetAccounts().find(
+      a => a.identifiant === cleanId && a.password === password
+    );
+    if (!account) {
+      showToast('Identifiant ou mot de passe incorrect.');
+      throw new Error('invalid_credentials');
+    }
+    demoSetSession(account.id);
+    applyDemoUser(account);
+    showToast('Connexion réussie.');
+    return;
+  }
+
+  const email = toInternalEmail(cleanId);
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    showToast(friendlyError(error, 'Erreur de connexion'));
+    throw error;
+  }
+}
+
+async function ensureSchoolId(schoolName) {
+  const name = (schoolName || '').trim();
+  if (!name) return null;
+  const { data: existing, error: findError } = await supabase
+    .from('schools')
+    .select('id')
+    .eq('name', name)
+    .limit(1);
+  if (findError) throw findError;
+  if (existing && existing.length > 0) return existing[0].id;
+
+  const { data: created, error: createError } = await supabase
+    .from('schools')
+    .insert({ name, ceb: 'BAGRÉ' })
+    .select('id')
+    .single();
+  if (createError) throw createError;
+  return created.id;
+}
+
+async function handleRegister({ identifiant, password, matricule, nom, prenom, sexe, role, emploi, schoolName, classLevel, className, whatsapp, classId, followedSchools, structure }) {
+  const cleanId = (identifiant || '').trim();
+  const email = toInternalEmail(cleanId);
+  const isSchoolRole = role === 'titulaire' || role === 'directeur';
+  const isEncadreur = role === 'encadreur';
+  const cleanSchoolName = isSchoolRole ? ((schoolName || '').trim() || null) : null;
+  const finalFollowed = isEncadreur && Array.isArray(followedSchools) ? [...new Set(followedSchools.map(String))] : [];
+  const cleanNom = (nom || '').trim();
+  const cleanPrenom = (prenom || '').trim();
+  const fullName = (cleanPrenom + ' ' + cleanNom).trim();
+  const cleanWhatsapp = (whatsapp || '').trim();
+  const cleanSexe = sexe || null;
+  const cleanMatricule = (matricule || '').trim() || null;
+  const cleanEmploi = ['PE', 'PCE', 'IC', 'IAC'].includes(String(emploi || '').trim().toUpperCase())
+    ? String(emploi).trim().toUpperCase()
+    : null;
+  const classeTenue = isSchoolRole ? classLevel || null : null;
+  const profileStructure = isSchoolRole ? cleanSchoolName : (structure || 'CEB de Bagré');
+
+  if (isDemoMode) {
+    const accounts = demoGetAccounts();
+    if (accounts.some(a => a.identifiant === cleanId)) {
+      showToast('Cet identifiant est déjà utilisé. Choisissez-en un autre.');
+      throw new Error('duplicate_identifiant');
+    }
+
+    const demoUserId = 'user-' + Date.now();
+    const demoClass = isSchoolRole && classLevel
+      ? {
+        id: `demo-class-${cleanSchoolName || 'sans-ecole'}-${classLevel}`,
+        name: (className || '').trim() || classLevel,
+        level: classLevel,
+        school_id: cleanSchoolName,
+        titulaire_id: demoUserId,
+        titulaire_nom: `${cleanNom} ${cleanPrenom}`.trim(),
+        co_titulaires: [demoUserId],
+        subjects: defaultSubjects(classLevel)
+      }
+      : null;
+    const account = {
+      id: demoUserId,
+      email,
+      identifiant: cleanId,
+      password,
+      fullName,
+      nom: cleanNom,
+      prenom: cleanPrenom,
+      sexe: cleanSexe,
+      matricule: cleanMatricule,
+      classeTenue,
+      emploi: cleanEmploi,
+      fonction: cleanEmploi,
+      whatsapp: cleanWhatsapp,
+      whatsappPhone: cleanWhatsapp,
+      role,
+      schoolId: cleanSchoolName,
+      schoolName: cleanSchoolName,
+      ecolesEncadrees: finalFollowed,
+      followedSchools: finalFollowed,
+      structure: profileStructure,
+      classId: demoClass ? demoClass.id : (classId || null),
+      classRecord: demoClass,
+      classLevel: isSchoolRole ? classLevel || null : null,
+      className: isSchoolRole ? (className || '').trim() || null : null,
+      ecole_id: cleanSchoolName,
+      ecole_nom: cleanSchoolName,
+      createdAt: new Date().toISOString()
+    };
+    accounts.push(account);
+    demoSaveAccounts(accounts);
+    try {
+      localStorage.setItem(ENCADREUR_SCHOOLS_STORAGE_PREFIX + account.id, JSON.stringify(finalFollowed));
+    } catch (storageError) {
+      console.warn('Impossible de sauvegarder localement les écoles encadrées.', storageError);
+    }
+    demoSetSession(account.id);
+    showToast('Compte créé avec succès !');
+    applyDemoUser(account);
+    return;
+  }
+
+  // --- Mode Supabase ---
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) {
+    showToast(friendlyError(error, 'Erreur d\'inscription'));
+    throw error;
+  }
+
+  if (!data.user) {
+    showToast('Inscription impossible. Réessayez.');
+    throw new Error('no_user');
+  }
+
+  if (!data.session) {
+    showToast('Compte créé. Vérifiez votre e-mail pour activer votre compte, puis connectez-vous.');
+    state.view = 'login';
+    render();
+    return;
+  }
+
+  let schoolId = null;
+  if (cleanSchoolName) {
+    try {
+      schoolId = await ensureSchoolId(cleanSchoolName);
+    } catch (schoolError) {
+      showToast('Impossible d’affecter l’école : ' + schoolError.message);
+      throw schoolError;
+    }
+  }
+
+  const { error: profileError } = await supabase.from('profiles').insert({
+    id: data.user.id,
+    identifiant: cleanId,
+    full_name: fullName,
+    nom: cleanNom,
+    prenom: cleanPrenom,
+    gender: cleanSexe,
+    sexe: cleanSexe,
+    matricule: cleanMatricule,
+    classe_tenue: classeTenue,
+    classe_niveau: isSchoolRole ? classLevel || null : null,
+    emploi: cleanEmploi,
+    fonction: cleanEmploi,
+    whatsapp_phone: cleanWhatsapp,
+    whatsapp: cleanWhatsapp,
+    ecole_id: schoolId,
+    ecole_nom: cleanSchoolName,
+    classe_id: classId || null,
+    ecoles_encadrees: finalFollowed,
+    followed_schools: finalFollowed,
+    structure: profileStructure,
+    role,
+    school_id: schoolId,
+    class_id: classId || null
+  });
+  if (profileError) {
+    showToast(profileError.message);
+    throw profileError;
+  }
+
+  let createdClassId = classId || null;
+  if (isSchoolRole && classLevel && !createdClassId) {
+    const name = (className && className.trim()) || classLevel;
+    const { data: newClass, error: classError } = await supabase.from('classes').insert({
+      name,
+      level: classLevel,
+      school_id: schoolId,
+      titulaire_id: data.user.id,
+      titulaire_nom: `${cleanNom} ${cleanPrenom}`.trim(),
+      co_titulaires: [data.user.id],
+      year: '2026-2027',
+      subjects: defaultSubjects(classLevel)
+    }).select('id').single();
+    if (classError) throw classError;
+    if (newClass && newClass.id) {
+      createdClassId = newClass.id;
+      const { error: classProfileError } = await supabase.from('profiles')
+        .update({ class_id: newClass.id, classe_id: newClass.id })
+        .eq('id', data.user.id);
+      if (classProfileError) throw classProfileError;
+      const { error: teacherLinkError } = await supabase.from('class_teachers').upsert(
+        { class_id: newClass.id, teacher_id: data.user.id },
+        { onConflict: 'class_id,teacher_id', ignoreDuplicates: true }
+      );
+      if (teacherLinkError) throw teacherLinkError;
+    }
+  }
+
+  try {
+    localStorage.setItem(ENCADREUR_SCHOOLS_STORAGE_PREFIX + data.user.id, JSON.stringify(finalFollowed));
+  } catch (storageError) {
+    console.warn('Impossible de sauvegarder localement les écoles encadrées.', storageError);
+  }
+
+  state.user = data.user;
+  state.profile = {
+    id: data.user.id,
+    identifiant: cleanId,
+    full_name: fullName,
+    nom: cleanNom,
+    prenom: cleanPrenom,
+    gender: cleanSexe,
+    sexe: cleanSexe,
+    matricule: cleanMatricule,
+    classe_tenue: classeTenue,
+    classe_niveau: isSchoolRole ? classLevel || null : null,
+    classe_id: createdClassId,
+    emploi: cleanEmploi,
+    fonction: cleanEmploi,
+    whatsapp_phone: cleanWhatsapp,
+    whatsapp: cleanWhatsapp,
+    role,
+    ecole_id: schoolId,
+    ecole_nom: cleanSchoolName,
+    school_id: schoolId,
+    class_id: createdClassId,
+    ecoles_encadrees: finalFollowed,
+    followed_schools: finalFollowed,
+    structure: profileStructure
+  };
+  state.ecole = schoolId ? { id: schoolId, name: cleanSchoolName } : null;
+  state.classe = createdClassId ? { id: createdClassId, name: className || classLevel, level: classLevel, school_id: schoolId } : null;
+  showToast('Compte créé avec succès !');
+  routeToDashboard();
+}
+
+window.navigateTo = (view) => {
+  state.view = view;
+  render();
+};
+
+window.logout = async () => {
+  if (isDemoMode) {
+    demoClearSession();
+  } else {
+    await supabase.auth.signOut();
+  }
+  state.user = null;
+  state.profile = null;
+  state.preview = null;
+  state.realProfile = null;
+  state.isDualDirector = undefined;
+  if (previewBarEl) { previewBarEl.remove(); previewBarEl = null; }
+  if (previewFabEl) { previewFabEl.remove(); previewFabEl = null; }
+  state.view = 'login';
+  render();
+};
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', init);
+}

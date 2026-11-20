@@ -1,0 +1,51 @@
+@echo off
+chcp 65001 >nul
+title TRD - Specifications Techniques (Application Gestion Scolaire BF)
+color 0B
+
+echo ============================================================================
+echo DOCUMENT D'ARCHITECTURE TECHNIQUE - VERSION 1.0
+echo TRD - Specifications Techniques (Technical Requirements Document)
+echo Architecture Systeme, Modele de Donnees et Algorithmes de Calcul
+echo ============================================================================
+echo.
+echo [1. ARCHITECTURE GENERALE ET CHOIX TECHNOLOGIQUES]
+echo - Approche hybride "Offline-First" (hors-ligne prioritaire + sync cloud).
+echo - Client (Mobile ^& Desktop/Web) : Flutter (Dart) - base de code unique.
+echo - Base Locale (Hors-ligne) : SQLite (Drift / Sqflite) ou Hive.
+echo - Backend ^& API REST : Node.js (NestJS/Express) ou Laravel (PHP).
+echo - Base Cloud : PostgreSQL.
+echo - Moteur PDF / Excel : Packages Dart `pdf` + `excel` cote client (A4).
+echo.
+echo [2. MODELE CONCEPTUEL DE DONNEES]
+echo - users    : id, full_name, phone_or_email, password_hash, role, created_at
+echo - schools  : id, user_id, ceb_name, school_name, director_name, year_label
+echo - classes  : id, school_id, class_name, titulaire_1, titulaire_2, pai_subject
+echo - students : id, class_id, order_num, full_name, gender, birth_date, is_edi, handicap_type
+echo - subjects : id, class_id, name, max_score, coefficient, display_order
+echo - grades   : id, student_id, subject_id, term (1..3), score_value, is_absent
+echo.
+echo [3. ALGORITHMES DE CALCUL]
+echo   3.1. Moyenne avec neutralisation du 'A' :
+echo        - Filtrer M_comp = matieres ou is_absent == false.
+echo        - Total_Obt = Somme(score_value) sur M_comp.
+echo        - Total_Max = Somme(max_score * coefficient) sur M_comp.
+echo        - Moyenne = (Total_Obt / Total_Max) * 10 (ou 'A' si Total_Max == 0).
+echo   3.2. Classement (Rang) :
+echo        - Tri decroissant des moyennes valides.
+echo        - Gestion des ex-aequo et genre ('1er' si M, '1ere' si F, '2e'...).
+echo   3.3. Statistiques de Synthese :
+echo        - Repartition par tranches : [9;10], [8;9[, [7;8[, [6;7[, [5;6[, ^<5.
+echo        - Reussite par matiere : G, %%G, F, %%F, T, %%T (notes ^>= max_score/2).
+echo.
+echo [4. MISE EN PAGE DES EXPORTS (PDF / IMPRESSION)]
+echo - En-tete Gauche : Circonscription d'Education de Base de [NOM_CEB] /
+echo                    Ecole : [NOM_ECOLE] / Classe : [NOM_CLASSE]
+echo - En-tete Droit  : BURKINA FASO / Devise nationale / Annee : [ANNEE]
+echo - Format : A4 Paysage (grilles et syntheses), A4 Portrait (bulletins).
+echo.
+echo [5. SECURITE ET SYNCHRONISATION]
+echo - Synchronisation differentielle horodatee (updated_at).
+echo - Authentification JWT, chiffrement TLS/HTTPS, export secours (.json/.xlsx).
+echo ============================================================================
+pause

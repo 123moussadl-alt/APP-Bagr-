@@ -1,0 +1,53 @@
+@echo off
+chcp 65001 >nul
+title PRD - Specifications Produit (Application Gestion Scolaire BF)
+color 0A
+
+echo ============================================================================
+echo DOCUMENT DE CONCEPTION PRODUIT - VERSION 1.0
+echo PRD - Specifications Produit (Product Requirements Document)
+echo Application Multiplateforme de Gestion Scolaire (Contexte Burkina Faso)
+echo ============================================================================
+echo.
+echo [1. VISION ET CONTEXTE DU PROJET]
+echo - Objectif : Application multiplateforme (Windows/Mac/Web et Android/iOS)
+echo   pour les enseignants et directeurs d'ecoles primaires au Burkina Faso.
+echo - Digitalisation du cahier de notes traditionnel (modele CEB) : calcul
+echo   automatique des totaux, moyennes, rangs, syntheses et propositions.
+echo.
+echo [2. UTILISATEURS CIBLES]
+echo - Enseignant / Titulaire : Cree sa classe, enregistre les eleves, configure
+echo   les matieres/baremes, saisit les notes, gere les absences ('A').
+echo - Directeur / Directrice : Supervise les classes, verifie les statistiques
+echo   (taux de reussite par genre/matiere, PAI) et valide les syntheses CEB.
+echo.
+echo [3. EXIGENCES FONCTIONNELLES]
+echo   3.1. Authentification ^& Parametrage :
+echo        - Compte securise (identifiant / mot de passe ou telephone).
+echo        - Fiche Identification : CEB, Ecole, Directeur, Titulaire(s),
+echo          Annee scolaire (ex. 2026-2027), Classe (CM1, CM2), PAI, %%Debut.
+echo   3.2. Gestion des Classes et des Eleves :
+echo        - Registre : Ordre, Nom et Prenoms, Sexe (M/F), Date de naissance,
+echo          Statut (Nouveau/Redoublant), EDI, Handicap (ESH).
+echo        - Decompte dynamique des effectifs (G, F, T).
+echo   3.3. Configuration des Matieres et Baremes :
+echo        - Matieres standards : Redaction, Dictee, Etude de texte, Presentation,
+echo          Sciences, Hist-Geo, ECP, Operations, Probleme, Anglais, Lecture,
+echo          Recit/Chant, Dessin.
+echo        - Note maximale (ex. /10, /20) ou coefficient personnalisable.
+echo   3.4. Saisie des Notes et Gestion des Absences ('A') :
+echo        - Bouton rapide 'A' pour signaler une absence.
+echo        - Neutralisation du 'A' : la matiere est exclue du denominateur
+echo          pour ne pas penaliser l'eleve absent.
+echo   3.5. Moteur de Calcul Automatique :
+echo        - Total : Somme des notes numeriques obtenues ('A' vaut 0 au numerateur).
+echo        - Moyenne : (Total obtenu / Total max des matieres composees) * 10.
+echo        - Rang : Classement decroissant (1er/1ere, 2e, 3e... avec ex-aequo).
+echo        - Moyenne Annuelle : Moyenne des 3 trimestres composes.
+echo   3.6. Etats de Sortie et Syntheses :
+echo        - En-tete gauche : CEB, Ecole, Classe.
+echo        - En-tete droit : BURKINA FASO, devise officielle, Annee scolaire.
+echo        - Bilan trimestriel (tranches 9, 8, 7, 6, 5, ^<5 et taux par matiere).
+echo        - Exports : PDF pret a imprimer et Excel (.xlsx).
+echo ============================================================================
+pause
