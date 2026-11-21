@@ -931,9 +931,7 @@ function mountSettingsButton() {
     actions.prepend(identity);
   }
   const profile = state.profile || {};
-  const functionLabel = getAgentFunction(profile);
-  identity.textContent = [profile.full_name || 'Utilisateur', functionLabel !== '—' ? functionLabel : '']
-    .filter(Boolean).join(' · ');
+  identity.textContent = profile.full_name || 'Utilisateur';
 
   let settingsButton = actions.querySelector('[data-action="open-settings"]');
   if (!settingsButton) {
@@ -953,13 +951,8 @@ function mountSettingsButton() {
       adminButton.className = 'btn-settings btn-admin-principal';
       adminButton.dataset.action = 'open-admin';
       adminButton.textContent = '🛡️ Admin Principal';
-      adminButton.addEventListener('click', () => {
-        if (!isPrincipalAdmin()) return;
-        state.view = 'admin-principal';
-        render();
-      });
+      adminButton.addEventListener('click', openAdminPrincipal);
     }
-    actions.insertBefore(adminButton, settingsButton);
   } else if (adminButton) {
     adminButton.remove();
   }
@@ -972,12 +965,26 @@ function mountSettingsButton() {
     actions.appendChild(logoutButton);
     const footer = logoutButton.closest('.role-footer');
     if (footer) footer.remove();
+    const oldLeftActions = logoutButton.closest('.topbar-left');
+    if (oldLeftActions && !oldLeftActions.children.length) oldLeftActions.remove();
   }
   actions.insertBefore(settingsButton, logoutButton || null);
+  if (adminButton) actions.appendChild(adminButton);
 }
 
 function isPrincipalAdmin() {
   return !isDemoMode && state.authenticatedAppRole === 'super_admin';
+}
+
+function openAdminPrincipal() {
+  if (!isPrincipalAdmin()) return;
+  if (state.preview) {
+    state.preview = null;
+    state.profile = state.realProfile;
+    state.realProfile = null;
+  }
+  state.view = 'admin-principal';
+  render();
 }
 
 // ---------------------------------------------------------------------------
@@ -993,14 +1000,9 @@ const PREVIEW_ROLES = [
   ['statisticien', '📊 Statisticien']
 ];
 
-let previewFabEl = null;
 let previewBarEl = null;
 
 function removePreviewBar() {
-  if (previewFabEl) {
-    previewFabEl.remove();
-    previewFabEl = null;
-  }
   if (previewBarEl) {
     previewBarEl.remove();
     previewBarEl = null;
@@ -1019,28 +1021,12 @@ function viewForRole(role) {
 }
 
 function initPreviewBar() {
-  if (previewFabEl || !isPrincipalAdmin()) return;
-  previewFabEl = document.createElement('button');
-  previewFabEl.id = 'previewFab';
-  previewFabEl.textContent = '👁 Mode Concepteur';
-  previewFabEl.title = 'Tester toutes les vues';
-  previewFabEl.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:9999;background:#7c3aed;color:#fff;border:none;border-radius:24px;padding:10px 16px;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3)';
-  previewFabEl.addEventListener('click', togglePreviewBar);
-  document.body.appendChild(previewFabEl);
-}
-
-async function togglePreviewBar() {
-  if (previewBarEl) {
-    previewBarEl.remove();
-    previewBarEl = null;
-    exitPreview();
-    return;
-  }
+  if (previewBarEl || !isPrincipalAdmin()) return;
   previewBarEl = document.createElement('div');
   previewBarEl.id = 'previewBar';
-  previewBarEl.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999;background:#111827;color:#fff;padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,.4);font-size:13px';
-  document.body.appendChild(previewBarEl);
-  await renderPreviewBar();
+  previewBarEl.setAttribute('aria-label', 'Outils de l’Administrateur Principal');
+  document.body.prepend(previewBarEl);
+  renderPreviewBar();
 }
 
 async function renderPreviewBar() {
@@ -1054,7 +1040,7 @@ async function renderPreviewBar() {
   }
 
   previewBarEl.innerHTML = `
-    <strong style="color:#a78bfa;white-space:nowrap">👁 APERÇU CONCEPTEUR</strong>
+    <strong style="color:#a78bfa;white-space:nowrap">🛡️ ADMIN PRINCIPAL</strong>
     ${PREVIEW_ROLES.map(([r, l]) => `<button class="pv-role" data-role="${r}" style="background:#1f2937;color:#fff;border:1px solid #374151;border-radius:6px;padding:6px 10px;font-weight:600;cursor:pointer">${l}</button>`).join('')}
     <span style="flex:1"></span>
     <select id="pvSchool" style="background:#1f2937;color:#fff;border:1px solid #374151;border-radius:6px;padding:6px">
@@ -1064,14 +1050,16 @@ async function renderPreviewBar() {
     <select id="pvClass" style="background:#1f2937;color:#fff;border:1px solid #374151;border-radius:6px;padding:6px">
       <option value="">Toutes les classes</option>
     </select>
-    <button id="pvExit" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer">✕ Quitter l'aperçu</button>
+    <button id="pvAccounts" style="background:#7c2d12;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer">Gestion des comptes</button>
+    <button id="pvExit" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer">↩ Mon espace</button>
   `;
   previewBarEl.querySelectorAll('.pv-role').forEach(btn => {
     btn.addEventListener('click', () => enterPreview(btn.dataset.role));
   });
   const schoolSel = previewBarEl.querySelector('#pvSchool');
   schoolSel.addEventListener('change', () => loadPreviewClasses(schoolSel.value));
-  previewBarEl.querySelector('#pvExit').addEventListener('click', togglePreviewBar);
+  previewBarEl.querySelector('#pvAccounts').addEventListener('click', openAdminPrincipal);
+  previewBarEl.querySelector('#pvExit').addEventListener('click', exitPreview);
 }
 
 async function loadPreviewClasses(schoolId) {
@@ -1120,6 +1108,7 @@ function enterPreview(role) {
 }
 
 function exitPreview() {
+  if (!isPrincipalAdmin()) return;
   state.preview = null;
   if (state.realProfile) {
     state.profile = state.realProfile;
@@ -1436,7 +1425,6 @@ window.logout = async () => {
   state.isDualDirector = undefined;
   state.activeSchoolYear = '2026-2027';
   if (previewBarEl) { previewBarEl.remove(); previewBarEl = null; }
-  if (previewFabEl) { previewFabEl.remove(); previewFabEl = null; }
   state.view = 'login';
   render();
 };
