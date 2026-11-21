@@ -1,5 +1,6 @@
 import { getEmploymentOptions } from '../utils/agents.js';
 import { esc } from '../utils/format.js';
+import { DEFAULT_ACTIVE_SCHOOL_YEAR, fetchActiveSchoolYear } from '../utils/school-year.js';
 
 const ADMIN_ROLES = [
   ['titulaire', 'Agent'],
@@ -152,21 +153,21 @@ export function setupAdminPrincipal(container, state, render, supabase) {
   }
 
   async function loadAdminData() {
-    const [profilesResult, schoolsResult, yearResult] = await Promise.all([
+    const [profilesResult, schoolsResult, activeSchoolYear] = await Promise.all([
       supabase.from('profiles')
         .select('id,identifiant,full_name,role,emploi,fonction,school_id,ecole_id,ecole_nom,ecoles_encadrees,followed_schools')
         .order('full_name'),
       supabase.from('schools').select('id,name').order('name'),
-      supabase.rpc('get_active_school_year')
+      fetchActiveSchoolYear(supabase)
     ]);
-    const error = profilesResult.error || schoolsResult.error || yearResult.error;
+    const error = profilesResult.error || schoolsResult.error;
     if (error) {
       accountStatus.textContent = `Impossible de charger le panneau : ${error.message}`;
       accountStatus.style.color = '#b91c1c';
       return;
     }
     schools = schoolsResult.data || [];
-    schoolYearInput.value = yearResult.data || state.activeSchoolYear || '2026-2027';
+    schoolYearInput.value = activeSchoolYear || state.activeSchoolYear || DEFAULT_ACTIVE_SCHOOL_YEAR;
     renderAccounts(profilesResult.data || []);
     accountStatus.textContent = `${(profilesResult.data || []).length} compte(s).`;
   }

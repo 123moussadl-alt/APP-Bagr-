@@ -8,10 +8,12 @@ import { toInternalEmail } from './supabaseClient.js';
 import { defaultSubjects, esc, formatClassName } from './utils/format.js';
 import { getAgentFunction, getEmploymentOptions, getRoleFunction, normalizeEmployment } from './utils/agents.js';
 import { DEFAULT_SCHOOL_NAMES, mergeSchoolChoices } from './utils/schools.js';
+import { DEFAULT_ACTIVE_SCHOOL_YEAR, fetchActiveSchoolYear } from './utils/school-year.js';
 import { isSignatureDataUrl, signatureImageHTML, signatureStorageKey, signatureUrlForProfile } from './utils/signature.js';
 
 const viewModules = {
   login: () => import('./views/login.js'),
+  'admin-login': () => import('./views/login.js'),
   register: () => import('./views/register.js'),
   dashboard: () => import('./views/dashboard.js'),
   titulaire: () => import('./views/titulaire.js'),
@@ -27,7 +29,7 @@ const state = {
   user: null,
   profile: null,
   authenticatedAppRole: null,
-  activeSchoolYear: '2026-2027',
+  activeSchoolYear: DEFAULT_ACTIVE_SCHOOL_YEAR,
   view: 'login',
   schools: [],
   classes: [],
@@ -149,7 +151,7 @@ async function init() {
         state.profile = null;
         state.authenticatedAppRole = null;
         state.authenticatedRole = null;
-        state.activeSchoolYear = '2026-2027';
+        state.activeSchoolYear = DEFAULT_ACTIVE_SCHOOL_YEAR;
         renderLoginView();
       }
     });
@@ -191,19 +193,13 @@ async function loadProfile() {
     state.profile = data;
     state.authenticatedRole = data.role;
   }
-  const { data: activeYear, error: yearError } = await supabase.rpc('get_active_school_year');
-  if (yearError) {
-    console.error('Impossible de charger l’année scolaire active :', yearError);
-    showToast('Année scolaire active indisponible : vérifiez la migration de configuration.');
-  } else if (activeYear) {
-    state.activeSchoolYear = activeYear;
-  }
+  state.activeSchoolYear = await fetchActiveSchoolYear(supabase);
 }
 
 function routeToDashboard() {
   if (!state.profile) return;
-  if (new URLSearchParams(window.location.search).get('admin') === '1' && isPrincipalAdmin()) {
-    state.view = 'admin-principal';
+  if (isAdminEntryRequested()) {
+    state.view = isPrincipalAdmin() ? 'admin-principal' : 'admin-login';
     render();
     return;
   }
@@ -278,11 +274,16 @@ function render() {
   if (!loader) return;
 
   loader().then(module => {
-    if (view === 'login' || view === 'register') {
-      const renderFn = view === 'login' ? module.renderLogin : module.renderRegister;
-      const setupFn = view === 'login' ? module.setupLogin : module.setupRegister;
+    if (view === 'login' || view === 'admin-login' || view === 'register') {
+      const isLoginView = view === 'login' || view === 'admin-login';
+      const renderFn = view === 'register'
+        ? module.renderRegister
+        : view === 'admin-login'
+          ? module.renderAdminLogin
+          : module.renderLogin;
+      const setupFn = isLoginView ? module.setupLogin : module.setupRegister;
       if (!renderFn) return;
-      if (view === 'login') {
+      if (isLoginView) {
         const handlers = {
           onRegister: () => { state.view = 'register'; render(); },
           onLogin: handleLogin,
@@ -1145,8 +1146,13 @@ function exitPreview() {
 }
 
 function renderLoginView() {
-  state.view = 'login';
+  state.view = isAdminEntryRequested() ? 'admin-login' : 'login';
   render();
+}
+
+function isAdminEntryRequested() {
+  return new URLSearchParams(window.location.search).get('admin') === '1' ||
+    window.location.hash.toLowerCase() === '#admin';
 }
 
 let deferredInstallPrompt = null;
@@ -1467,10 +1473,9 @@ window.logout = async () => {
   state.preview = null;
   state.realProfile = null;
   state.isDualDirector = undefined;
-  state.activeSchoolYear = '2026-2027';
+  state.activeSchoolYear = DEFAULT_ACTIVE_SCHOOL_YEAR;
   if (previewBarEl) { previewBarEl.remove(); previewBarEl = null; }
-  state.view = 'login';
-  render();
+  renderLoginView();
 };
 
 function preventClipboardInteraction(event) {
@@ -1496,6 +1501,11 @@ if (typeof window !== 'undefined') {
   window.addEventListener('appinstalled', () => {
     deferredInstallPrompt = null;
     showToast('Application installée.');
+  });
+  window.addEventListener('hashchange', () => {
+    if (!isAdminEntryRequested() && state.view !== 'admin-login' && state.view !== 'admin-principal') return;
+    if (state.profile) routeToDashboard();
+    else renderLoginView();
   });
   window.addEventListener('DOMContentLoaded', init);
 }
