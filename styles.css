@@ -76,6 +76,11 @@ button, input, select, textarea { font: inherit; }
 
 .brand-text strong { display: block; font-size: 14px; }
 .brand-text span { display: block; font-size: 10.5px; color: #cbd5e1; }
+.brand, .brand-text, .role-brand, .auth-header h1 {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
 
 .class-picker-box {
   padding: 10px 14px;
@@ -860,6 +865,29 @@ th {
 .flag-star { color: var(--bf-yellow); font-size: 14px; line-height: 18px; }
 .auth-header h1 { margin: 0 0 8px 0; color: var(--bf-green-dark); font-size: 22px; }
 .auth-header p { color: var(--ink-muted); font-size: 13px; margin: 0; }
+.auth-admin-access {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin-top: 12px;
+}
+.auth-admin-access small {
+  max-width: 260px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  text-align: right;
+}
+.auth-admin-link {
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.auth-admin-link:hover, .auth-admin-link:focus-visible { color: var(--bf-green-dark); }
 .auth-form { display: flex; flex-direction: column; gap: 14px; }
 .form-group { display: flex; flex-direction: column; gap: 5px; }
 .form-group label { font-size: 12px; font-weight: 700; color: #334155; }
