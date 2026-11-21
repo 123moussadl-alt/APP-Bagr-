@@ -6,7 +6,7 @@
 import { esc, formatClassName } from '../utils/format.js';
 import { downloadCSV, printPage, wirePDFExportButton, wireWordExportButton } from '../utils/export.js';
 import * as XLSX from 'xlsx';
-import { getAgentEmployment, getAgentNameParts } from '../utils/agents.js';
+import { getAgentEmployment, getAgentFunction, getAgentNameParts } from '../utils/agents.js';
 import { getClassResult } from '../utils/stats.js';
 import { openPreview } from '../utils/preview.js';
 import { profileMatchesVisa, signatureBlockHTML, signatureUrlForProfile } from '../utils/signature.js';
@@ -196,14 +196,8 @@ export function setupChefCEB(container, state, render, supabase) {
   }
 
   function staffRoleLabel(profile) {
-    const labels = {
-      encadreur: 'Encadreur',
-      'chef-personnel': 'Chef du Personnel',
-      chef_personnel: 'Chef du Personnel',
-      statisticien: 'Statisticien',
-      chef_ceb: 'Chef de la CEB'
-    };
-    return labels[profile.role] || profile.role || 'Agent de la CEB';
+    const label = getAgentFunction(profile);
+    return label === '—' ? 'Agent de la CEB' : label;
   }
 
   function staffGender(profile) {
@@ -214,8 +208,8 @@ export function setupChefCEB(container, state, render, supabase) {
   function currentStaffRows() {
     const schoolTab = activeStaffTab === 'schools';
     const headers = schoolTab
-      ? ['N°', 'Matricule', 'Nom', 'Prénom', 'Sexe (M/F)', 'Emploi (PE/PCE)', 'Poste (Titulaire/Directeur)', 'École', 'Classe tenue', 'Contact WhatsApp']
-      : ['N°', 'Matricule', 'Nom', 'Prénom', 'Sexe (M/F)', 'Emploi (PE/PCE)', 'Fonction à la CEB', 'Contact WhatsApp'];
+      ? ['N°', 'Matricule', 'Nom', 'Prénom', 'Sexe (M/F)', 'Emploi', 'Fonction', 'École', 'Classe tenue', 'Contact WhatsApp']
+      : ['N°', 'Matricule', 'Nom', 'Prénom', 'Sexe (M/F)', 'Emploi', 'Fonction', 'Contact WhatsApp'];
     const rows = staffProfilesForTab().map((profile, index) => {
       const { nom, prenom } = getAgentNameParts(profile);
       const phone = profile.whatsapp || profile.whatsapp_phone || profile.telephone || '';
@@ -228,7 +222,7 @@ export function setupChefCEB(container, state, render, supabase) {
           prenom || '—',
           staffGender(profile),
           getAgentEmployment(profile),
-          profile.role === 'directeur' ? 'Directeur' : 'Titulaire',
+          getAgentFunction(profile),
           staffSchoolName(profile),
           staffClassName(profile),
           phone || '—'
@@ -600,12 +594,29 @@ export function setupChefCEB(container, state, render, supabase) {
   }
 
   async function renderEcoles() {
-    const { data: databaseSchools, error } = await supabase.from('schools').select('*').order('name');
+    const [schoolsResult, directorsResult] = await Promise.all([
+      supabase.from('schools').select('*').order('name'),
+      supabase.from('profiles')
+        .select('id,role,school_id,ecole_id,ecole_nom,full_name,nom,prenom,whatsapp,whatsapp_phone,telephone')
+        .eq('role', 'directeur')
+        .order('full_name')
+    ]);
+    const error = schoolsResult.error || directorsResult.error;
     if (error) {
-      viewContainer.innerHTML = `<div class="card" role="alert" style="color:#b91c1c">Impossible de charger les écoles : ${esc(error.message)}</div>`;
+      viewContainer.innerHTML = `<div class="card" role="alert" style="color:#b91c1c">Impossible de charger les écoles et leurs directeurs : ${esc(error.message)}</div>`;
       return;
     }
-    const schoolList = mergeSchoolChoices(databaseSchools || []);
+    const schoolList = mergeSchoolChoices(schoolsResult.data || []);
+    const directorsBySchoolId = new Map();
+    const directorsBySchoolName = new Map();
+    (directorsResult.data || []).forEach(director => {
+      const schoolId = director.school_id || director.ecole_id;
+      if (schoolId && !directorsBySchoolId.has(String(schoolId))) {
+        directorsBySchoolId.set(String(schoolId), director);
+      }
+      const schoolName = String(director.ecole_nom || '').trim().normalize('NFC').toLocaleLowerCase('fr-FR');
+      if (schoolName && !directorsBySchoolName.has(schoolName)) directorsBySchoolName.set(schoolName, director);
+    });
     viewContainer.innerHTML = `
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
@@ -631,21 +642,71 @@ export function setupChefCEB(container, state, render, supabase) {
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>École</th><th>Directeur</th></tr></thead>
+            <thead><tr><th>N°</th><th>École</th><th>Directeur / Directrice</th><th>Contact / Téléphone</th></tr></thead>
             <tbody>
-              ${schoolList.map((s, i) => `
-                <tr>
-                  <td>${i + 1}</td>
-                  <td><strong>${esc(s.name)}</strong></td>
-                  <td>${esc(s.director_name || '—')}</td>
-                </tr>
-              `).join('') || '<tr><td colspan="3">Aucune école</td></tr>'}
+              ${schoolList.map((s, i) => {
+                const director = directorsBySchoolId.get(String(s.id)) ||
+                  directorsBySchoolName.get(String(s.name || '').trim().normalize('NFC').toLocaleLowerCase('fr-FR'));
+                const directorName = director
+                  ? [director.prenom, director.nom].filter(Boolean).join(' ') || director.full_name || s.director_name || '—'
+                  : s.director_name || '—';
+                const contact = director
+                  ? director.whatsapp || director.whatsapp_phone || director.telephone || ''
+                  : '';
+                return `
+                  <tr>
+                    <td>${i + 1}</td>
+                    <td><strong>${esc(s.name)}</strong></td>
+                    <td>${esc(directorName)}</td>
+                    <td>${director ? `
+                      <div class="ceb-school-contact">
+                        <input type="tel" value="${esc(contact)}" data-director-contact aria-label="Contact de ${esc(directorName)}" placeholder="+226 ...">
+                        <button type="button" class="btn secondary" data-action="director-contact-save" data-profile-id="${esc(director.id)}">Enregistrer</button>
+                        <span data-contact-status role="status" aria-live="polite"></span>
+                      </div>` : '—'}</td>
+                  </tr>
+                `;
+              }).join('') || '<tr><td colspan="4">Aucune école</td></tr>'}
             </tbody>
           </table>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:24px">${signatureBlockHTML('Le Chef de la CEB', chefCebSigners)}</div>
       </div>
     `;
+  }
+
+  async function saveDirectorContact(button) {
+    const row = button.closest('tr');
+    const input = row && row.querySelector('[data-director-contact]');
+    const status = row && row.querySelector('[data-contact-status]');
+    const profileId = button.dataset.profileId;
+    if (!profileId || !input) return;
+    const contact = input.value.trim() || null;
+    button.disabled = true;
+    if (status) {
+      status.textContent = 'Enregistrement…';
+      status.style.color = '#475569';
+    }
+    try {
+      const { data, error } = await supabase.from('profiles').update({
+        whatsapp: contact,
+        whatsapp_phone: contact,
+        telephone: contact
+      }).eq('id', profileId).select('id').maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('Profil du directeur introuvable ou non modifiable.');
+      if (status) {
+        status.textContent = 'Enregistré.';
+        status.style.color = '#15803d';
+      }
+    } catch (error) {
+      if (status) {
+        status.textContent = `Échec : ${error.message || error}`;
+        status.style.color = '#b91c1c';
+      }
+    } finally {
+      button.disabled = false;
+    }
   }
 
   async function saveSchool() {
@@ -902,6 +963,8 @@ export function setupChefCEB(container, state, render, supabase) {
       if (editor) editor.hidden = !editor.hidden;
     } else if (a === 'school-save') {
       await saveSchool();
+    } else if (a === 'director-contact-save') {
+      await saveDirectorContact(btn);
     }
   });
 

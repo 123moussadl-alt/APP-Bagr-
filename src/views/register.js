@@ -5,6 +5,7 @@
 
 import { isDemoMode, supabase } from '../supabaseClient.js';
 import { DEFAULT_SCHOOL_NAMES, mergeSchoolChoices } from '../utils/schools.js';
+import { getEmploymentOptions } from '../utils/agents.js';
 import { esc } from '../utils/format.js';
 
 export function renderRegister({ onLogin, onRegister }) {
@@ -43,25 +44,24 @@ export function renderRegister({ onLogin, onRegister }) {
             </select>
           </div>
           <div class="form-group">
-            <label>Rôle</label>
+            <label>Fonction</label>
             <select name="role" id="roleSelect" required>
-              <option value="">-- Choisir un rôle --</option>
-              <option value="titulaire">Titulaire de classe</option>
-              <option value="directeur">Directeur d'école</option>
+              <option value="">-- Choisir une fonction --</option>
+              <option value="titulaire">Agent</option>
+              <option value="directeur">Directeur</option>
               <option value="encadreur">Encadreur</option>
-              <option value="chef_ceb">Chef CEB</option>
+              <option value="chef_ceb">Chef de la CEB</option>
               <option value="chef_personnel">Chef du Personnel</option>
               <option value="statisticien">Statisticien</option>
             </select>
           </div>
           <div class="form-group">
             <label>Emploi</label>
-            <select name="emploi">
-              <option value="">-- Choisir (optionnel) --</option>
+            <select name="emploi" id="employmentSelect" required disabled>
+              <option value="">-- Choisir un emploi --</option>
               <option value="PE">PE — Professeur des Écoles</option>
               <option value="PCE">PCE — Professeur Certifié des Écoles</option>
-              <option value="IC">IC — Instituteur Certifié</option>
-              <option value="IAC">IAC — Instituteur Adjoint Certifié</option>
+              <option value="IEPNF">IEPNF — Inspecteur de l'Éducation Préscolaire et Non Formelle</option>
             </select>
           </div>
 
@@ -78,7 +78,7 @@ export function renderRegister({ onLogin, onRegister }) {
               <div class="form-group">
                 <label for="classLevelSelect" id="classLevelLabel">Classe tenue — Niveau</label>
                 <select name="classLevel" id="classLevelSelect">
-                  <option value="">-- Choisir le niveau (ou plus tard) --</option>
+                  <option value="">-- Choisir le niveau --</option>
                   <option value="CP1">CP1</option>
                   <option value="CP2">CP2</option>
                   <option value="CE1">CE1</option>
@@ -134,6 +134,7 @@ export function renderRegister({ onLogin, onRegister }) {
 export function setupRegister(container, { onLogin, onRegister }) {
   const form = container.querySelector('#registerForm');
   const roleSelect = container.querySelector('#roleSelect');
+  const employmentSelect = container.querySelector('#employmentSelect');
   const roleFields = container.querySelector('#roleFields');
   const schoolClassFields = container.querySelector('#schoolClassFields');
   const encadreurSchoolsGroup = container.querySelector('#encadreurSchoolsGroup');
@@ -181,8 +182,19 @@ export function setupRegister(container, { onLogin, onRegister }) {
     const isEncadreur = role === 'encadreur';
     const isDistrictRole = ['chef_ceb', 'chef_personnel', 'statisticien'].includes(role);
     const canAssignClass = role === 'titulaire' || role === 'directeur';
-    const isTitulaire = role === 'titulaire';
     const hasClassLevel = classLevelSelect && classLevelSelect.value && classLevelSelect.value !== 'Aucune';
+
+    if (employmentSelect) {
+      const currentEmployment = employmentSelect.value;
+      const employmentOptions = getEmploymentOptions(role);
+      employmentSelect.innerHTML = '<option value="">-- Choisir un emploi --</option>' +
+        employmentOptions.map(option => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('');
+      employmentSelect.disabled = !role;
+      employmentSelect.required = !!role;
+      employmentSelect.value = employmentOptions.length === 1
+        ? employmentOptions[0].value
+        : (employmentOptions.some(option => option.value === currentEmployment) ? currentEmployment : '');
+    }
 
     if (roleFields) roleFields.style.display = role ? 'block' : 'none';
     if (schoolClassFields) schoolClassFields.style.display = needsSchool ? 'block' : 'none';
@@ -195,7 +207,7 @@ export function setupRegister(container, { onLogin, onRegister }) {
     if (titulaireClassGroup) titulaireClassGroup.style.display = canAssignClass ? 'block' : 'none';
     if (classLevelSelect) {
       classLevelSelect.disabled = !canAssignClass;
-      classLevelSelect.required = isTitulaire;
+      classLevelSelect.required = canAssignClass;
     }
     if (classLevelLabel) classLevelLabel.textContent = 'Classe tenue — Niveau';
     if (classNameGroup) classNameGroup.style.display = canAssignClass && hasClassLevel ? 'block' : 'none';

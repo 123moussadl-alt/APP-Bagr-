@@ -16,7 +16,7 @@ import {
   schoolTermSynthesisCSVRows
 } from '../utils/synthese-ecole.js';
 import {
-  agentMonths, computeAgentMonthlyRows, formatISODate, getAgentEmployment, getAgentNameParts,
+  agentMonths, computeAgentMonthlyRows, formatISODate, getAgentEmployment, getAgentFunction, getAgentNameParts,
   getCurrentSchoolYearStart, getSchoolMonthPeriod, isWeekday, mergeAgentAttendanceRecords,
   monthNameForDate, previousWorkingDate, readDailyAgentBackup, readLocalAgentRecordsForPeriod,
   writeDailyAgentBackup
@@ -419,7 +419,7 @@ export function setupDirecteur(container, state, render, supabase) {
           <h3>Appel Journalier des Agents — ${esc((agentSchool && agentSchool.name) || 'École')}</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>N°</th><th>Matricule</th><th>Nom</th><th>Prénom</th><th>Emploi</th><th>Présence</th><th>Observation</th></tr></thead>
+              <thead><tr><th>N°</th><th>Matricule</th><th>Nom</th><th>Prénom</th><th>Emploi</th><th>Fonction</th><th>Présence</th><th>Observation</th></tr></thead>
               <tbody id="agentAttendanceRows"></tbody>
             </table>
           </div>
@@ -525,6 +525,7 @@ export function setupDirecteur(container, state, render, supabase) {
         <td>${esc(nom || '—')}</td>
         <td>${esc(prenom || '—')}</td>
         <td>${esc(getAgentEmployment(agent))}</td>
+        <td>${esc(getAgentFunction(agent))}</td>
         <td style="white-space:nowrap">
           <button type="button" class="btn" data-action="agent-set-presence" data-agent-id="${esc(id)}" data-present="true"
             style="padding:5px 10px;${present ? 'background:#16a34a;color:#fff' : 'background:#e2e8f0;color:#334155'}">Oui</button>
@@ -533,7 +534,7 @@ export function setupDirecteur(container, state, render, supabase) {
         </td>
         <td><input class="agent-observation" data-agent-id="${esc(id)}" value="${esc(value.observation || '')}" aria-label="Observation pour ${esc(nom)}"></td>
       </tr>`;
-    }).join('') || '<tr><td colspan="7">Aucun agent inscrit dans cette école.</td></tr>';
+    }).join('') || '<tr><td colspan="8">Aucun agent inscrit dans cette école.</td></tr>';
   }
 
   async function saveDailyAgentAttendance() {
@@ -611,7 +612,7 @@ export function setupDirecteur(container, state, render, supabase) {
       const { nom, prenom } = getAgentNameParts(row.agent);
       return `<tr>
         <td>${row.number}</td><td>${esc(row.agent.matricule || row.agent.identifiant || '—')}</td>
-        <td>${esc(nom || '—')}</td><td>${esc(prenom || '—')}</td><td>${esc(getAgentEmployment(row.agent))}</td>
+        <td>${esc(nom || '—')}</td><td>${esc(prenom || '—')}</td><td>${esc(getAgentEmployment(row.agent))}</td><td>${esc(getAgentFunction(row.agent))}</td>
         <td>${row.daysPointed}</td><td>${row.presences}</td><td>${row.absences}</td>
         <td>${row.rate.toFixed(1)}%</td><td>${esc(row.observations || '—')}</td>
       </tr>`;
@@ -630,9 +631,9 @@ export function setupDirecteur(container, state, render, supabase) {
           <span style="float:right">${monthDates.size} jour(s) ouvré(s) pointé(s)</span></p>
         <div class="table-wrap">
           <table style="width:100%;border-collapse:collapse;font-size:12px">
-            <thead><tr>${['N°','Matricule','Nom','Prénom','Emploi','Jours ouvrés pointés','Présences (jours)','Absences (jours)','Taux de présence (%)','Observations du mois']
+            <thead><tr>${['N°','Matricule','Nom','Prénom','Emploi','Fonction','Jours ouvrés pointés','Présences (jours)','Absences (jours)','Taux de présence (%)','Observations du mois']
               .map(title => `<th style="border:1px solid #334155;padding:6px">${title}</th>`).join('')}</tr></thead>
-            <tbody>${rows || '<tr><td colspan="10">Aucun agent</td></tr>'}</tbody>
+            <tbody>${rows || '<tr><td colspan="11">Aucun agent</td></tr>'}</tbody>
           </table>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:32px">
@@ -651,14 +652,14 @@ export function setupDirecteur(container, state, render, supabase) {
 
   function exportAgentMonthlyCSV() {
     const rows = [[
-      'N°', 'Matricule', 'Nom', 'Prénom', 'Emploi', 'Jours ouvrés pointés',
+      'N°', 'Matricule', 'Nom', 'Prénom', 'Emploi', 'Fonction', 'Jours ouvrés pointés',
       'Présences (jours)', 'Absences (jours)', 'Taux de présence (%)', 'Observations du mois'
     ]];
     agentMonthlyRows.forEach(row => {
       const { nom, prenom } = getAgentNameParts(row.agent);
       rows.push([
         row.number, row.agent.matricule || row.agent.identifiant || '', nom, prenom,
-        getAgentEmployment(row.agent), row.daysPointed, row.presences, row.absences,
+        getAgentEmployment(row.agent), getAgentFunction(row.agent), row.daysPointed, row.presences, row.absences,
         `${row.rate.toFixed(1)}%`, row.observations
       ]);
     });
@@ -666,13 +667,13 @@ export function setupDirecteur(container, state, render, supabase) {
   }
 
   function exportAgentDailyCSV() {
-    const rows = [['N°', 'Matricule', 'Nom', 'Prénom', 'Emploi', 'Présence', 'Observation']];
+    const rows = [['N°', 'Matricule', 'Nom', 'Prénom', 'Emploi', 'Fonction', 'Présence', 'Observation']];
     dailyAgentRecords().forEach((record, index) => {
       const agent = agentProfiles[index];
       const { nom, prenom } = getAgentNameParts(agent);
       rows.push([
         index + 1, agent.matricule || agent.identifiant || '', nom, prenom,
-        getAgentEmployment(agent), record.present ? 'Oui' : 'Non', record.observation
+        getAgentEmployment(agent), getAgentFunction(agent), record.present ? 'Oui' : 'Non', record.observation
       ]);
     });
     downloadCSV(`Appel_agents_${agentCurrentDate}.csv`, rows);

@@ -1225,13 +1225,59 @@ body.comfortable .role-main .card { padding: 22px; }
 @media (max-height: 520px) {
   #signatureModalOverlay { align-items: flex-start; }
 }
-.btn-settings {
-  display: block; width: 100%; margin-bottom: 8px; padding: 10px;
-  border: 1px solid rgba(255,255,255,.55); border-radius: 6px;
-  background: #166534; color: #fff; font-size: 13px; font-weight: 800; cursor: pointer;
+.account-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
-.btn-settings:hover { background: #15803d; }
-.topbar-left .btn-settings { display: inline-block; width: auto; margin: 0 8px 0 0; }
+.account-header-identity {
+  max-width: 320px;
+  overflow: hidden;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #0f3d23;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-header-actions .btn-settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(255,255,255,.55);
+  border-radius: 6px;
+  background: #166534;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.account-header-actions .btn-settings:hover { background: #15803d; }
+.account-header-actions .btn-logout {
+  width: auto;
+  min-height: 40px;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+.ceb-school-contact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 250px;
+}
+.ceb-school-contact input { width: 150px; min-height: 38px; }
+.ceb-school-contact [data-contact-status] { font-size: 11px; }
 
 /* ============================================================================
    RESPONSIVE MOBILE (360px – 430px)
@@ -1243,6 +1289,13 @@ body.comfortable .role-main .card { padding: 22px; }
   .role-nav .nav-item { flex: 0 0 auto; padding: 8px 10px; }
   .role-topbar { padding: 12px 14px; }
   .role-topbar h1 { font-size: 16px; }
+  .role-topbar .account-header-actions,
+  .topbar .account-header-actions { flex: 1 1 100%; justify-content: stretch; }
+  .dashboard .topbar { height: auto; min-height: 65px; flex-wrap: wrap; gap: 8px; padding: 10px; }
+  .dashboard .topbar-right { flex: 1 1 100%; flex-wrap: wrap; justify-content: stretch; }
+  .account-header-identity { flex: 1 1 100%; max-width: none; text-align: center; }
+  .account-header-actions .btn-settings,
+  .account-header-actions .btn-logout { flex: 1 1 140px; width: auto; }
   .role-main { padding: 12px; }
   .role-main .card { padding: 12px; }
   .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }

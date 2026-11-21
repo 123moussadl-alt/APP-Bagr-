@@ -58,7 +58,58 @@ export function getAgentNameParts(profile) {
   return { nom, prenom };
 }
 
-const EMPLOI_CODES = new Set(['PE', 'PCE', 'IC', 'IAC']);
+const EMPLOYMENT_OPTIONS = [
+  { value: 'PE', label: 'PE — Professeur des Écoles' },
+  { value: 'PCE', label: 'PCE — Professeur Certifié des Écoles' },
+  { value: 'IEPNF', label: "IEPNF — Inspecteur de l'Éducation Préscolaire et Non Formelle" }
+];
+
+const FUNCTION_BY_ROLE = {
+  titulaire: 'Agent',
+  directeur: 'Directeur',
+  encadreur: 'Encadreur',
+  chef_personnel: 'Chef du Personnel',
+  'chef-personnel': 'Chef du Personnel',
+  statisticien: 'Statisticien',
+  chef_ceb: 'Chef de la CEB'
+};
+
+const LEGACY_FUNCTION_LABELS = new Map([
+  ['agent', 'Agent'],
+  ['titulaire', 'Agent'],
+  ['directeur', 'Directeur'],
+  ['encadreur', 'Encadreur'],
+  ['chef du personnel', 'Chef du Personnel'],
+  ['chef-personnel', 'Chef du Personnel'],
+  ['statisticien', 'Statisticien'],
+  ['chef de la ceb', 'Chef de la CEB'],
+  ['chef ceb', 'Chef de la CEB']
+]);
+
+const EMPLOI_CODES = new Set(EMPLOYMENT_OPTIONS.map(option => option.value));
+
+export function getRoleFunction(role) {
+  return FUNCTION_BY_ROLE[String(role || '').trim()] || '';
+}
+
+export function getAgentFunction(profile = {}) {
+  const roleFunction = getRoleFunction(profile.role);
+  if (roleFunction) return roleFunction;
+  const legacyFunction = String(profile.fonction || '').trim().toLowerCase();
+  return LEGACY_FUNCTION_LABELS.get(legacyFunction) || '—';
+}
+
+export function getEmploymentOptions(role) {
+  if (role === 'encadreur' || role === 'chef_ceb') {
+    return EMPLOYMENT_OPTIONS.filter(option => option.value === 'IEPNF');
+  }
+  return EMPLOYMENT_OPTIONS.filter(option => option.value !== 'IEPNF');
+}
+
+export function normalizeEmployment(value, role) {
+  const employment = String(value || '').trim().toUpperCase();
+  return getEmploymentOptions(role).some(option => option.value === employment) ? employment : '';
+}
 
 export function getAgentEmployment(profile) {
   const normalize = value => String(value || '').trim().toUpperCase();

@@ -21,11 +21,35 @@ alter table public.profiles
   add column if not exists structure text default 'CEB de Bagré',
   add column if not exists signature_url text,
   add column if not exists whatsapp text,
+  add column if not exists whatsapp_phone text,
   add column if not exists telephone text;
 
 alter table public.classes
   add column if not exists titulaire_nom text,
   add column if not exists co_titulaires uuid[] not null default '{}';
+
+update public.profiles
+set emploi = case
+      when role::text in ('encadreur', 'chef_ceb') then 'IEPNF'
+      when upper(trim(coalesce(emploi, ''))) in ('PE', 'PCE') then upper(trim(emploi))
+      when upper(trim(coalesce(fonction, ''))) in ('PE', 'PCE') then upper(trim(fonction))
+      else null
+    end,
+    fonction = case role::text
+      when 'titulaire' then 'Agent'
+      when 'directeur' then 'Directeur'
+      when 'encadreur' then 'Encadreur'
+      when 'chef_personnel' then 'Chef du Personnel'
+      when 'chef-personnel' then 'Chef du Personnel'
+      when 'statisticien' then 'Statisticien'
+      when 'chef_ceb' then 'Chef de la CEB'
+      else case
+        when upper(trim(coalesce(fonction, ''))) in ('PE', 'PCE', 'IC', 'IAC', 'IEPNF') then null
+        else fonction
+      end
+    end
+where role::text in ('titulaire', 'directeur', 'encadreur', 'chef_personnel', 'chef-personnel', 'statisticien', 'chef_ceb')
+   or upper(trim(coalesce(fonction, ''))) in ('PE', 'PCE', 'IC', 'IAC', 'IEPNF');
 
 update public.schools as legacy
 set name = official.name, ceb = 'BAGRÉ'
@@ -35,7 +59,7 @@ from (values
   ('École B de Bagré', 'Bagré Périmètre "B"'),
   ('Bagré Centre B', 'Bagré Périmètre "B"'),
   ('École C de Bagré', 'Bagré Peulh'),
-  ('École de Dirlakou', 'Dirlakou'),
+  ('École de Dirlakou', 'Sangaboulé'),
   ('École de Goudayéré', 'Goudayéré'),
   ('Boakla', 'Bouakla')
 ) as official(legacy_name, name)
@@ -48,9 +72,47 @@ where lower(trim(legacy.name)) = lower(trim(official.legacy_name))
   );
 
 update public.schools
+set ceb = 'BAGRÉ'
+where lower(trim(name)) = 'sangaboulé';
+
+with legacy_school as (
+  select id,
+    row_number() over (
+      order by case lower(trim(name))
+        when 'école de dirlakou' then 1
+        when 'école de dirlakoula' then 2
+        when 'dirlakou' then 3
+        when 'dirlakoula' then 4
+        when 'sangabouli' then 5
+        when 'sanga boulé' then 6
+        else 7
+      end, id
+    ) as position
+  from public.schools
+  where lower(trim(name)) in (
+    'école de dirlakou', 'école de dirlakoula',
+    'dirlakou', 'dirlakoula', 'sangabouli', 'sanga boulé'
+  )
+)
+update public.schools as legacy
+set name = 'Sangaboulé', ceb = 'BAGRÉ'
+from legacy_school
+where legacy.id = legacy_school.id
+  and legacy_school.position = 1
+  and not exists (
+    select 1
+    from public.schools existing
+    where existing.id <> legacy.id
+      and lower(trim(existing.name)) = 'sangaboulé'
+  );
+
+update public.schools
 set ceb = 'ARCHIVE'
 where upper(trim(coalesce(ceb, ''))) = 'BAGRÉ'
-  and lower(trim(name)) in ('dirlakou', 'sangabouli', 'zabo');
+  and lower(trim(name)) in (
+    'dirlakou', 'dirlakoula', 'école de dirlakou', 'école de dirlakoula',
+    'sangabouli', 'sanga boulé', 'zabo'
+  );
 
 insert into public.schools (name, ceb)
 select official.name, 'BAGRÉ'
@@ -77,6 +139,7 @@ from (values
   ('Poussouwaka'),
   ('Kalakoudi'),
   ('Saint Bénoît Abbé'),
+  ('Sangaboulé'),
   ('Sabiloul Falah'),
   ('Sabiloul Houda'),
   ('Sabiloul Raçad')
@@ -226,6 +289,23 @@ create policy profiles_update_self on public.profiles
   for update to authenticated
   using (auth.uid() = id)
   with check (auth.uid() = id);
+
+drop policy if exists profiles_read_chef_ceb_directory on public.profiles;
+create policy profiles_read_chef_ceb_directory on public.profiles
+  for select to authenticated
+  using (public.current_agent_app_role() = 'chef_ceb');
+
+drop policy if exists profiles_update_chef_ceb_director_contact on public.profiles;
+create policy profiles_update_chef_ceb_director_contact on public.profiles
+  for update to authenticated
+  using (
+    public.current_agent_app_role() = 'chef_ceb'
+    and role::text = 'directeur'
+  )
+  with check (
+    public.current_agent_app_role() = 'chef_ceb'
+    and role::text = 'directeur'
+  );
 
 drop policy if exists profiles_read_class_teachers on public.profiles;
 create policy profiles_read_class_teachers on public.profiles

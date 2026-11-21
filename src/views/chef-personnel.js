@@ -1,7 +1,7 @@
 /**
  * Vue Chef du Personnel — Lecture seule
  * Annuaire complet du personnel (CEB ou par école) + comptages H/F/Total.
- * Colonnes : identité, dates de service, niveau d'étude, emploi, école, classe et WhatsApp.
+ * Colonnes : identité, dates de service, niveau d'étude, emploi, fonction, école, classe et WhatsApp.
  * Pattern : render (HTML) + setup (logique + délégation d'événements)
  */
 
@@ -11,7 +11,7 @@ import { openPreview } from '../utils/preview.js';
 import { signatureBlockHTML } from '../utils/signature.js';
 import { mergeSchoolChoices } from '../utils/schools.js';
 import {
-  agentMonths, computeAgentMonthlyRows, getAgentEmployment, getAgentNameParts,
+  agentMonths, computeAgentMonthlyRows, getAgentEmployment, getAgentFunction, getAgentNameParts,
   getCurrentSchoolYearStart, getSchoolMonthPeriod, mergeAgentAttendanceRecords,
   readLocalAgentRecordsForPeriod
 } from '../utils/agents.js';
@@ -160,7 +160,7 @@ export function setupChefPersonnel(container, state, render, supabase) {
         <div class="table-wrap">
           <table class="personnel-directory-table">
             <thead>
-              <tr><th>N°</th><th>Matricule</th><th>Nom</th><th>Prénom</th><th>Sexe (M/F)</th><th>Date de naissance</th><th>Niveau d'étude</th><th>Emploi</th><th>Date prise de service CEB</th><th>École</th><th>Classe tenue</th><th>Contact WhatsApp</th></tr>
+              <tr><th>N°</th><th>Matricule</th><th>Nom</th><th>Prénom</th><th>Sexe (M/F)</th><th>Date de naissance</th><th>Niveau d'étude</th><th>Emploi</th><th>Fonction</th><th>Date prise de service CEB</th><th>École</th><th>Classe tenue</th><th>Contact WhatsApp</th></tr>
             </thead>
             <tbody>
               ${filtered.map((p, i) => {
@@ -177,13 +177,14 @@ export function setupChefPersonnel(container, state, render, supabase) {
                     <td>${esc(formatProfileDate(p.date_naissance))}</td>
                     <td>${esc(p.niveau_etude || '—')}</td>
                     <td>${esc(getAgentEmployment(p))}</td>
+                    <td>${esc(getAgentFunction(p))}</td>
                     <td>${esc(formatProfileDate(p.date_prise_service_ceb))}</td>
                     <td>${esc(schoolName(p.school_id) || '—')}</td>
                     <td>${esc(classeTenue(p))}</td>
                     <td>${link}</td>
                   </tr>
                 `;
-              }).join('') || '<tr><td colspan="12">Aucun agent</td></tr>'}
+              }).join('') || '<tr><td colspan="13">Aucun agent</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -215,7 +216,7 @@ export function setupChefPersonnel(container, state, render, supabase) {
     const filtered = currentFilter === 'all'
       ? allProfiles
       : allProfiles.filter(p => p.school_id === currentFilter);
-    const rows = [['N°', 'Matricule', 'Nom', 'Prénom', 'Sexe (M/F)', 'Date de naissance', "Niveau d'étude", 'Emploi', 'Date prise de service CEB', 'École', 'Classe tenue', 'Contact WhatsApp']];
+    const rows = [['N°', 'Matricule', 'Nom', 'Prénom', 'Sexe (M/F)', 'Date de naissance', "Niveau d'étude", 'Emploi', 'Fonction', 'Date prise de service CEB', 'École', 'Classe tenue', 'Contact WhatsApp']];
     filtered.forEach((p, i) => {
       const { nom, prenom } = personNames(p);
       rows.push([
@@ -227,6 +228,7 @@ export function setupChefPersonnel(container, state, render, supabase) {
         p.date_naissance ? formatProfileDate(p.date_naissance) : '',
         p.niveau_etude || '',
         getAgentEmployment(p),
+        getAgentFunction(p),
         p.date_prise_service_ceb ? formatProfileDate(p.date_prise_service_ceb) : '',
         schoolName(p.school_id),
         classeTenue(p),

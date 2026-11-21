@@ -6,6 +6,7 @@ import { supabase, isDemoMode } from './supabaseClient.js';
 import { setupOnlineSync } from './db.js';
 import { toInternalEmail } from './supabaseClient.js';
 import { defaultSubjects, esc, formatClassName } from './utils/format.js';
+import { getAgentFunction, getEmploymentOptions, getRoleFunction, normalizeEmployment } from './utils/agents.js';
 import { DEFAULT_SCHOOL_NAMES, mergeSchoolChoices } from './utils/schools.js';
 import { isSignatureDataUrl, signatureImageHTML, signatureStorageKey, signatureUrlForProfile } from './utils/signature.js';
 
@@ -85,8 +86,8 @@ function applyDemoUser(account) {
     classe_tenue: account.classeTenue || null,
     classe_niveau: account.classeNiveau || null,
     classe_id: account.classId || null,
-    emploi: account.emploi || account.fonction || null,
-    fonction: account.emploi || account.fonction || null,
+    emploi: normalizeEmployment(account.emploi || account.fonction, account.role) || null,
+    fonction: getRoleFunction(account.role) || null,
     ecole_id: account.schoolId || null,
     ecole_nom: account.schoolName || account.schoolId || null,
     school_id: account.schoolId || null,
@@ -325,17 +326,12 @@ async function openSettings() {
   const nom = profile.nom || nameParts.slice(1).join(' ');
   const prenom = profile.prenom || nameParts[0] || '';
   const levelOptions = ['BEPC', 'BAC', 'Licence', 'Master', 'Doctorat', 'Autre'];
-  const emploiOptions = [
-    ['PE', 'PE — Professeur des Écoles'],
-    ['PCE', 'PCE — Professeur Certifié des Écoles'],
-    ['IC', 'IC — Instituteur Certifié'],
-    ['IAC', 'IAC — Instituteur Adjoint Certifié']
-  ];
+  const profileRole = state.isDualDirector && profile.role === 'titulaire' ? 'directeur' : profile.role;
+  const emploiOptions = getEmploymentOptions(profileRole);
   const classOptions = ['CP1', 'CP2', 'CE1', 'CE2', 'CM1', 'CM2'];
-  const isTitulaire = profile.role === 'titulaire';
-  const isSchoolRole = isTitulaire || profile.role === 'directeur';
-  const isEncadreur = profile.role === 'encadreur';
-  const isDistrictRole = ['chef_ceb', 'chef_personnel', 'statisticien'].includes(profile.role);
+  const isSchoolRole = profileRole === 'titulaire' || profileRole === 'directeur';
+  const isEncadreur = profileRole === 'encadreur';
+  const isDistrictRole = ['chef_ceb', 'chef_personnel', 'chef-personnel', 'statisticien'].includes(profileRole);
   const canAssignClass = isSchoolRole;
   let schools = mergeSchoolChoices();
   let schoolsError = null;
@@ -367,7 +363,9 @@ async function openSettings() {
     }
   }
   const currentLevelMissing = profile.niveau_etude && !levelOptions.includes(profile.niveau_etude);
-  const currentEmploi = profile.emploi || profile.fonction || '';
+  const currentEmploi = normalizeEmployment(profile.emploi || profile.fonction, profileRole) ||
+    (emploiOptions.length === 1 ? emploiOptions[0].value : '');
+  const currentFonction = getAgentFunction({ ...profile, role: profileRole });
   const overlay = document.createElement('div');
   overlay.id = 'settingsOverlay';
   overlay.innerHTML = `
@@ -382,10 +380,11 @@ async function openSettings() {
           <div class="form-group"><label for="settingsSexe">Sexe</label><select id="settingsSexe"><option value="">-- Choisir --</option><option value="M">M</option><option value="F">F</option></select></div>
           <div class="form-group"><label for="settingsBirth">Date de naissance</label><input id="settingsBirth" type="date" value="${esc(profile.date_naissance || '')}"></div>
           <div class="form-group"><label for="settingsStudy">Niveau d'étude</label><select id="settingsStudy"><option value="">-- Choisir --</option>${currentLevelMissing ? `<option value="${esc(profile.niveau_etude)}">${esc(profile.niveau_etude)}</option>` : ''}${levelOptions.map(value => `<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select></div>
-          <div class="form-group"><label for="settingsEmploi">Emploi</label><select id="settingsEmploi"><option value="">-- Choisir --</option>${emploiOptions.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('')}</select></div>
+          <div class="form-group"><label for="settingsEmploi">Emploi</label><select id="settingsEmploi" required><option value="">-- Choisir --</option>${emploiOptions.map(option => `<option value="${esc(option.value)}">${esc(option.label)}</option>`).join('')}</select></div>
+          <div class="form-group"><label for="settingsFunction">Fonction</label><input id="settingsFunction" value="${esc(currentFonction)}" readonly aria-readonly="true"><small>La fonction détermine les accès et ne peut pas être modifiée depuis ce profil.</small></div>
           <div class="form-group"><label for="settingsServiceDate">Date de prise de service à la CEB</label><input id="settingsServiceDate" type="date" value="${esc(profile.date_prise_service_ceb || '')}"></div>
           ${isSchoolRole ? `<div class="form-group"><label for="settingsSchool">École</label><select id="settingsSchool"><option value="">-- Choisir --</option>${schools.map(school => `<option value="${esc(school.id)}">${esc(school.name)}</option>`).join('')}</select></div>` : ''}
-          ${canAssignClass ? `<div class="form-group"><label for="settingsClass">Classe tenue</label><select id="settingsClass"><option value="">-- Choisir --</option>${classOptions.map(value => `<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select></div>` : ''}
+          ${canAssignClass ? `<div class="form-group"><label for="settingsClass">Classe tenue</label><select id="settingsClass" required><option value="">-- Choisir --</option>${classOptions.map(value => `<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select></div>` : ''}
           ${isEncadreur ? `<div class="form-group" style="grid-column:1/-1"><label>Écoles encadrées / Zone d'encadrement</label><div id="settingsEncadreeSchools" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px">${schools.map(school => `<label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff"><input type="checkbox" name="settingsEncadreeSchool" value="${esc(school.id)}" ${savedEncadreeIds.includes(String(school.id)) ? 'checked' : ''}><span>${esc(school.name)}</span></label>`).join('')}</div></div>` : ''}
           ${isDistrictRole ? `<div class="form-group"><label for="settingsStructure">Structure</label><input id="settingsStructure" value="CEB de Bagré" readonly></div>` : ''}
           <div class="form-group"><label for="settingsWhatsApp">Contact WhatsApp</label><input id="settingsWhatsApp" type="tel" value="${esc(profile.whatsapp || profile.whatsapp_phone || '')}"></div>
@@ -614,8 +613,9 @@ async function openSettings() {
     const nomValue = overlay.querySelector('#settingsNom').value.trim();
     const prenomValue = overlay.querySelector('#settingsPrenom').value.trim();
     const sexeValue = sexeSel.value;
-    if (!nomValue || !prenomValue || !['M', 'F'].includes(sexeValue)) {
-      status.textContent = 'Veuillez renseigner le nom, le prénom et le sexe.';
+    const emploiValue = normalizeEmployment(emploiSel.value, profileRole);
+    if (!nomValue || !prenomValue || !['M', 'F'].includes(sexeValue) || !emploiValue || (canAssignClass && !classSel.value)) {
+      status.textContent = 'Veuillez renseigner le nom, le prénom, le sexe, un emploi valide et la classe tenue si nécessaire.';
       status.style.color = '#dc2626';
       return;
     }
@@ -732,8 +732,8 @@ async function openSettings() {
         sexe: sexeValue,
         date_naissance: overlay.querySelector('#settingsBirth').value || null,
         niveau_etude: studySel.value || null,
-        emploi: emploiSel.value || null,
-        fonction: emploiSel.value || null,
+        emploi: emploiValue,
+        fonction: currentFonction,
         date_prise_service_ceb: overlay.querySelector('#settingsServiceDate').value || null,
         ecole_id: schoolId,
         ecole_nom: school ? school.name : (schoolId ? profile.ecole_nom || null : null),
@@ -874,17 +874,51 @@ function initSettings() {
 }
 
 function mountSettingsButton() {
-  const target = document.querySelector('.role-footer') || document.querySelector('.topbar-left');
-  if (!target || target.querySelector('[data-action="open-settings"]')) return;
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'btn-settings';
-  button.dataset.action = 'open-settings';
-  button.textContent = '⚙️ Paramètres';
-  button.addEventListener('click', openSettings);
-  const logoutButton = target.querySelector('.btn-logout');
-  if (logoutButton) target.insertBefore(button, logoutButton);
-  else target.appendChild(button);
+  const roleHeader = document.querySelector('.role-topbar');
+  const header = roleHeader || document.querySelector('.topbar');
+  if (!header) return;
+  let actions = roleHeader
+    ? header.querySelector('.account-header-actions')
+    : header.querySelector('.topbar-right');
+  if (!actions) {
+    actions = document.createElement('div');
+    header.appendChild(actions);
+  }
+  actions.classList.add('account-header-actions');
+
+  const oldBadge = header.querySelector('.user-badge');
+  if (oldBadge) oldBadge.remove();
+  let identity = actions.querySelector('.account-header-identity');
+  if (!identity) {
+    identity = document.createElement('span');
+    identity.className = 'account-header-identity';
+    actions.prepend(identity);
+  }
+  const profile = state.profile || {};
+  const functionLabel = getAgentFunction(profile);
+  identity.textContent = [profile.full_name || 'Utilisateur', functionLabel !== '—' ? functionLabel : '']
+    .filter(Boolean).join(' · ');
+
+  let settingsButton = actions.querySelector('[data-action="open-settings"]');
+  if (!settingsButton) {
+    settingsButton = document.createElement('button');
+    settingsButton.type = 'button';
+    settingsButton.className = 'btn-settings';
+    settingsButton.dataset.action = 'open-settings';
+    settingsButton.addEventListener('click', openSettings);
+  }
+  settingsButton.textContent = '⚙️ Mes paramètres';
+
+  const logoutButton = document.querySelector('.btn-logout') ||
+    header.querySelector('.topbar-left button[onclick*="logout"]');
+  if (logoutButton) {
+    logoutButton.className = 'btn-logout';
+    logoutButton.textContent = 'Déconnexion';
+    actions.appendChild(logoutButton);
+    const footer = logoutButton.closest('.role-footer');
+    if (footer) footer.remove();
+  }
+  actions.insertBefore(settingsButton, logoutButton || null);
 }
 
 // ---------------------------------------------------------------------------
@@ -1101,9 +1135,12 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
   const cleanWhatsapp = (whatsapp || '').trim();
   const cleanSexe = sexe || null;
   const cleanMatricule = (matricule || '').trim() || null;
-  const cleanEmploi = ['PE', 'PCE', 'IC', 'IAC'].includes(String(emploi || '').trim().toUpperCase())
-    ? String(emploi).trim().toUpperCase()
-    : null;
+  const cleanEmploi = normalizeEmployment(emploi, role);
+  const cleanFonction = getRoleFunction(role);
+  if (!cleanFonction || !cleanEmploi) {
+    showToast('Choisissez une fonction et un emploi correspondant.');
+    throw new Error('invalid_function_or_employment');
+  }
   const classeTenue = isSchoolRole ? classLevel || null : null;
   const profileStructure = isSchoolRole ? cleanSchoolName : (structure || 'CEB de Bagré');
 
@@ -1139,7 +1176,7 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
       matricule: cleanMatricule,
       classeTenue,
       emploi: cleanEmploi,
-      fonction: cleanEmploi,
+      fonction: cleanFonction,
       whatsapp: cleanWhatsapp,
       whatsappPhone: cleanWhatsapp,
       role,
@@ -1219,7 +1256,7 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
     classe_tenue: classeTenue,
     classe_niveau: isSchoolRole ? classLevel || null : null,
     emploi: cleanEmploi,
-    fonction: cleanEmploi,
+    fonction: cleanFonction,
     whatsapp_phone: cleanWhatsapp,
     whatsapp: cleanWhatsapp,
     ecole_id: schoolId,
@@ -1285,7 +1322,7 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
     classe_niveau: isSchoolRole ? classLevel || null : null,
     classe_id: createdClassId,
     emploi: cleanEmploi,
-    fonction: cleanEmploi,
+    fonction: cleanFonction,
     whatsapp_phone: cleanWhatsapp,
     whatsapp: cleanWhatsapp,
     role,
