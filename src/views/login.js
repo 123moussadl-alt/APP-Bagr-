@@ -68,7 +68,6 @@ export function setupLogin(container, { onRegister, onLogin }) {
       const identifier = form && form.querySelector('[name="identifiant"]');
       if (identifier) {
         identifier.placeholder = 'Identifiant Administrateur Principal';
-        identifier.focus();
       }
     });
   }
