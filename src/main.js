@@ -19,12 +19,15 @@ const viewModules = {
   encadreur: () => import('./views/encadreur.js'),
   'chef-ceb': () => import('./views/chef-ceb.js'),
   'chef-personnel': () => import('./views/chef-personnel.js'),
-  statisticien: () => import('./views/statisticien.js')
+  statisticien: () => import('./views/statisticien.js'),
+  'admin-principal': () => import('./views/admin-principal.js')
 };
 
 const state = {
   user: null,
   profile: null,
+  authenticatedAppRole: null,
+  activeSchoolYear: '2026-2027',
   view: 'login',
   schools: [],
   classes: [],
@@ -70,7 +73,9 @@ function demoGetSessionUserId() {
 }
 
 function applyDemoUser(account) {
+  const role = 'titulaire';
   state.user = { id: account.id, email: account.email };
+  state.authenticatedRole = role;
   state.profile = {
     id: account.id,
     identifiant: account.identifiant,
@@ -86,8 +91,8 @@ function applyDemoUser(account) {
     classe_tenue: account.classeTenue || null,
     classe_niveau: account.classeNiveau || null,
     classe_id: account.classId || null,
-    emploi: normalizeEmployment(account.emploi || account.fonction, account.role) || null,
-    fonction: getRoleFunction(account.role) || null,
+    emploi: normalizeEmployment(account.emploi || account.fonction, role) || null,
+    fonction: getRoleFunction(role) || null,
     ecole_id: account.schoolId || null,
     ecole_nom: account.schoolName || account.schoolId || null,
     school_id: account.schoolId || null,
@@ -99,7 +104,7 @@ function applyDemoUser(account) {
     structure: account.structure || (account.schoolName || 'CEB de Bagré'),
     whatsapp_phone: account.whatsapp || account.whatsappPhone,
     whatsapp: account.whatsapp || account.whatsappPhone,
-    role: account.role,
+    role,
     school_id: account.schoolId,
     followed_schools: account.ecolesEncadrees || account.followedSchools || []
   };
@@ -128,14 +133,23 @@ async function init() {
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
         state.user = session.user;
-        await loadProfile();
-        setupOnlineSync(() => {
-          showToast('Modifications hors-ligne synchronisées');
-        });
-        routeToDashboard();
+        try {
+          await loadProfile();
+          setupOnlineSync(() => {
+            showToast('Modifications hors-ligne synchronisées');
+          });
+          routeToDashboard();
+        } catch (error) {
+          console.error('Impossible de charger le compte authentifié :', error);
+          showToast('Impossible de charger votre compte. Vérifiez votre connexion ou contactez l’administrateur.');
+          renderLoginView();
+        }
       } else {
         state.user = null;
         state.profile = null;
+        state.authenticatedAppRole = null;
+        state.authenticatedRole = null;
+        state.activeSchoolYear = '2026-2027';
         renderLoginView();
       }
     });
@@ -151,7 +165,7 @@ async function init() {
     }
   } catch (err) {
     console.error('Erreur d\'initialisation :', err);
-    showToast('Erreur d\'initialisation : passage en mode démo local');
+    showToast('Erreur d’initialisation. Vérifiez la connexion et la configuration de la base.');
     try {
       renderLoginView();
     } catch (e) {
@@ -163,12 +177,27 @@ async function init() {
 
 async function loadProfile() {
   if (!state.user) return;
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user) throw authError || new Error('Authenticated user not found.');
+  state.user = authData.user;
+  state.authenticatedAppRole = authData.user.app_metadata?.role || null;
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', state.user.id)
     .single();
-  if (data) state.profile = data;
+  if (error) throw error;
+  if (data) {
+    state.profile = data;
+    state.authenticatedRole = data.role;
+  }
+  const { data: activeYear, error: yearError } = await supabase.rpc('get_active_school_year');
+  if (yearError) {
+    console.error('Impossible de charger l’année scolaire active :', yearError);
+    showToast('Année scolaire active indisponible : vérifiez la migration de configuration.');
+  } else if (activeYear) {
+    state.activeSchoolYear = activeYear;
+  }
 }
 
 function routeToDashboard() {
@@ -189,14 +218,14 @@ function routeToDashboard() {
 }
 
 window.switchToClasseMode = () => {
-  if (!state.profile) return;
+  if (!state.profile || (state.authenticatedRole !== 'directeur' && !state.preview)) return;
   state.profile = { ...state.profile, role: 'titulaire' };
   state.view = 'titulaire';
   render();
 };
 
 window.switchToDirectionMode = () => {
-  if (!state.profile) return;
+  if (!state.profile || (state.authenticatedRole !== 'directeur' && !state.preview)) return;
   state.profile = { ...state.profile, role: 'directeur' };
   state.view = 'directeur';
   render();
@@ -223,14 +252,21 @@ const viewExports = {
   encadreur: 'Encadreur',
   'chef-ceb': 'ChefCEB',
   'chef-personnel': 'ChefPersonnel',
-  statisticien: 'Statisticien'
+  statisticien: 'Statisticien',
+  'admin-principal': 'AdminPrincipal'
 };
 
 function render() {
   if (!appRoot) return;
-  if (state.user) initPreviewBar();
+  if (isPrincipalAdmin()) initPreviewBar();
+  else removePreviewBar();
   initSettings();
   appRoot.innerHTML = '';
+
+  if (state.view === 'admin-principal' && !isPrincipalAdmin()) {
+    state.view = 'dashboard';
+    showToast('Accès réservé à l’Administrateur Principal.');
+  }
 
   const view = state.view;
   const loader = viewModules[view];
@@ -706,7 +742,7 @@ async function openSettings() {
                 titulaire_id: userId,
                 titulaire_nom: `${nomValue} ${prenomValue}`.trim(),
                 co_titulaires: [userId],
-                year: '2026-2027',
+                year: state.activeSchoolYear || '2026-2027',
                 subjects: defaultSubjects(classLevel)
               })
               .select('*')
@@ -909,6 +945,25 @@ function mountSettingsButton() {
   }
   settingsButton.textContent = '⚙️ Mes paramètres';
 
+  let adminButton = actions.querySelector('[data-action="open-admin"]');
+  if (isPrincipalAdmin()) {
+    if (!adminButton) {
+      adminButton = document.createElement('button');
+      adminButton.type = 'button';
+      adminButton.className = 'btn-settings btn-admin-principal';
+      adminButton.dataset.action = 'open-admin';
+      adminButton.textContent = '🛡️ Admin Principal';
+      adminButton.addEventListener('click', () => {
+        if (!isPrincipalAdmin()) return;
+        state.view = 'admin-principal';
+        render();
+      });
+    }
+    actions.insertBefore(adminButton, settingsButton);
+  } else if (adminButton) {
+    adminButton.remove();
+  }
+
   const logoutButton = document.querySelector('.btn-logout') ||
     header.querySelector('.topbar-left button[onclick*="logout"]');
   if (logoutButton) {
@@ -919,6 +974,10 @@ function mountSettingsButton() {
     if (footer) footer.remove();
   }
   actions.insertBefore(settingsButton, logoutButton || null);
+}
+
+function isPrincipalAdmin() {
+  return !isDemoMode && state.authenticatedAppRole === 'super_admin';
 }
 
 // ---------------------------------------------------------------------------
@@ -937,6 +996,17 @@ const PREVIEW_ROLES = [
 let previewFabEl = null;
 let previewBarEl = null;
 
+function removePreviewBar() {
+  if (previewFabEl) {
+    previewFabEl.remove();
+    previewFabEl = null;
+  }
+  if (previewBarEl) {
+    previewBarEl.remove();
+    previewBarEl = null;
+  }
+}
+
 function viewForRole(role) {
   return {
     titulaire: 'titulaire',
@@ -949,7 +1019,7 @@ function viewForRole(role) {
 }
 
 function initPreviewBar() {
-  if (previewFabEl || !state.user) return;
+  if (previewFabEl || !isPrincipalAdmin()) return;
   previewFabEl = document.createElement('button');
   previewFabEl.id = 'previewFab';
   previewFabEl.textContent = '👁 Mode Concepteur';
@@ -1026,7 +1096,7 @@ async function loadPreviewClasses(schoolId) {
 }
 
 function enterPreview(role) {
-  if (!state.user) return;
+  if (!isPrincipalAdmin()) return;
   if (!state.realProfile) state.realProfile = state.profile;
   const schoolId = (previewBarEl && previewBarEl.querySelector('#pvSchool') && previewBarEl.querySelector('#pvSchool').value) || null;
   const classId = (previewBarEl && previewBarEl.querySelector('#pvClass') && previewBarEl.querySelector('#pvClass').value) || null;
@@ -1123,6 +1193,10 @@ async function resolveSchoolId(selection) {
 }
 
 async function handleRegister({ identifiant, password, matricule, nom, prenom, sexe, role, emploi, schoolName, schoolId: selectedSchoolId, classLevel, className, whatsapp, classId, followedSchools, structure }) {
+  if (role !== 'titulaire') {
+    showToast('Les autres fonctions sont attribuées par un administrateur après vérification.');
+    throw new Error('role_registration_requires_admin');
+  }
   const cleanId = (identifiant || '').trim();
   const email = toInternalEmail(cleanId);
   const isSchoolRole = role === 'titulaire' || role === 'directeur';
@@ -1284,7 +1358,7 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
       titulaire_id: data.user.id,
       titulaire_nom: `${cleanNom} ${cleanPrenom}`.trim(),
       co_titulaires: [data.user.id],
-      year: '2026-2027',
+      year: state.activeSchoolYear || '2026-2027',
       subjects: defaultSubjects(classLevel)
     }).select('id').single();
     if (classError) throw classError;
@@ -1309,6 +1383,8 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
   }
 
   state.user = data.user;
+  state.authenticatedAppRole = null;
+  state.authenticatedRole = role;
   state.profile = {
     id: data.user.id,
     identifiant: cleanId,
@@ -1353,9 +1429,12 @@ window.logout = async () => {
   }
   state.user = null;
   state.profile = null;
+  state.authenticatedAppRole = null;
+  state.authenticatedRole = null;
   state.preview = null;
   state.realProfile = null;
   state.isDualDirector = undefined;
+  state.activeSchoolYear = '2026-2027';
   if (previewBarEl) { previewBarEl.remove(); previewBarEl = null; }
   if (previewFabEl) { previewFabEl.remove(); previewFabEl = null; }
   state.view = 'login';

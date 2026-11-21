@@ -1263,22 +1263,14 @@ body.comfortable .role-main .card { padding: 22px; }
   white-space: nowrap;
 }
 .account-header-actions .btn-settings:hover { background: #15803d; }
+.account-header-actions .btn-admin-principal { background: #7c2d12; }
+.account-header-actions .btn-admin-principal:hover { background: #9a3412; }
 .account-header-actions .btn-logout {
   width: auto;
   min-height: 40px;
   padding: 8px 12px;
   white-space: nowrap;
 }
-.ceb-school-contact {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  min-width: 250px;
-}
-.ceb-school-contact input { width: 150px; min-height: 38px; }
-.ceb-school-contact [data-contact-status] { font-size: 11px; }
-
 /* ============================================================================
    RESPONSIVE MOBILE (360px – 430px)
    ============================================================================ */

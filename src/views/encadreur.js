@@ -208,7 +208,7 @@ export function setupEncadreur(container, state, render, supabase) {
     const { data: students } = await supabase.from('students').select('*').eq('class_id', classId);
     const { data: presences } = await supabase.from('presences').select('*').eq('classe_id', classId);
     const absences = (presences || []).filter(p => p.statut === 'A');
-    const startYear = parseInt((cls.year || '2026-2027').split('-')[0], 10) || 2026;
+    const startYear = parseInt((cls.year || state.activeSchoolYear || '2026-2027').split('-')[0], 10) || 2026;
     const { data: configs } = await supabase.from('registre_configs').select('*').eq('classe_id', classId);
     const joursPointesByMonth = {};
     const closedMonths = new Set();

@@ -1,5 +1,5 @@
 /**
- * Vue Chef CEB — Lecture seule stricte + Convocations WhatsApp
+ * Vue Chef CEB — Écoles, personnel et synthèses
  * Pattern : render (HTML shell) + setup (logique + délégation d'événements)
  */
 
@@ -35,7 +35,6 @@ export function renderChefCEB(state, render, supabase) {
           <button class="nav-item" data-view="synthese">📊 Synthèse CEB</button>
           <button class="nav-item" data-view="synthese-trim">📈 Synthèse trimestrielle</button>
           <button class="nav-item" data-view="synthese-ecole">📋 Synthèse trimestrielle d'école</button>
-          <button class="nav-item" data-view="convocation">📱 Convocations WhatsApp</button>
         </nav>
         <div class="role-footer">
           <button class="btn-logout" onclick="window.logout()">Déconnexion</button>
@@ -142,7 +141,6 @@ export function setupChefCEB(container, state, render, supabase) {
       synthese: ['Synthèse CEB', 'Examens blancs par école et synthèse globale'],
       'synthese-trim': ['Synthèse trimestrielle', 'Résultats annuels et par trimestre'],
       'synthese-ecole': ["Synthèse trimestrielle d'école", 'Bilan détaillé par école ou par classe'],
-      convocation: ['Convocations WhatsApp', 'Programmer une rencontre et sélectionner ses destinataires']
     };
     const [title, subtitle] = headings[view] || headings.ecoles;
     container.querySelector('#pageTitle').textContent = title;
@@ -155,7 +153,6 @@ export function setupChefCEB(container, state, render, supabase) {
       case 'synthese': return renderSynthese();
       case 'synthese-trim': return renderSyntheseTrim();
       case 'synthese-ecole': return renderSchoolTermSynthesis();
-      case 'convocation': return renderConvocation();
       default: return renderEcoles();
     }
   }
@@ -648,8 +645,8 @@ export function setupChefCEB(container, state, render, supabase) {
                 const director = directorsBySchoolId.get(String(s.id)) ||
                   directorsBySchoolName.get(String(s.name || '').trim().normalize('NFC').toLocaleLowerCase('fr-FR'));
                 const directorName = director
-                  ? [director.prenom, director.nom].filter(Boolean).join(' ') || director.full_name || s.director_name || '—'
-                  : s.director_name || '—';
+                  ? [director.nom, director.prenom].filter(Boolean).join(' ') || director.full_name || '—'
+                  : '—';
                 const contact = director
                   ? director.whatsapp || director.whatsapp_phone || director.telephone || ''
                   : '';
@@ -658,12 +655,7 @@ export function setupChefCEB(container, state, render, supabase) {
                     <td>${i + 1}</td>
                     <td><strong>${esc(s.name)}</strong></td>
                     <td>${esc(directorName)}</td>
-                    <td>${director ? `
-                      <div class="ceb-school-contact">
-                        <input type="tel" value="${esc(contact)}" data-director-contact aria-label="Contact de ${esc(directorName)}" placeholder="+226 ...">
-                        <button type="button" class="btn secondary" data-action="director-contact-save" data-profile-id="${esc(director.id)}">Enregistrer</button>
-                        <span data-contact-status role="status" aria-live="polite"></span>
-                      </div>` : '—'}</td>
+                    <td>${esc(contact || '—')}</td>
                   </tr>
                 `;
               }).join('') || '<tr><td colspan="4">Aucune école</td></tr>'}
@@ -673,40 +665,6 @@ export function setupChefCEB(container, state, render, supabase) {
         <div style="display:flex;justify-content:flex-end;margin-top:24px">${signatureBlockHTML('Le Chef de la CEB', chefCebSigners)}</div>
       </div>
     `;
-  }
-
-  async function saveDirectorContact(button) {
-    const row = button.closest('tr');
-    const input = row && row.querySelector('[data-director-contact]');
-    const status = row && row.querySelector('[data-contact-status]');
-    const profileId = button.dataset.profileId;
-    if (!profileId || !input) return;
-    const contact = input.value.trim() || null;
-    button.disabled = true;
-    if (status) {
-      status.textContent = 'Enregistrement…';
-      status.style.color = '#475569';
-    }
-    try {
-      const { data, error } = await supabase.from('profiles').update({
-        whatsapp: contact,
-        whatsapp_phone: contact,
-        telephone: contact
-      }).eq('id', profileId).select('id').maybeSingle();
-      if (error) throw error;
-      if (!data) throw new Error('Profil du directeur introuvable ou non modifiable.');
-      if (status) {
-        status.textContent = 'Enregistré.';
-        status.style.color = '#15803d';
-      }
-    } catch (error) {
-      if (status) {
-        status.textContent = `Échec : ${error.message || error}`;
-        status.style.color = '#b91c1c';
-      }
-    } finally {
-      button.disabled = false;
-    }
   }
 
   async function saveSchool() {
@@ -851,85 +809,6 @@ export function setupChefCEB(container, state, render, supabase) {
     }
   }
 
-  async function renderConvocation() {
-    const { data: schools } = await supabase.from('schools').select('*').order('name');
-
-    viewContainer.innerHTML = `
-      <div class="card">
-        <h3>Programmer une rencontre</h3>
-        <form id="convocationForm">
-          <div class="form-group">
-            <label>Objet</label>
-            <input type="text" name="title" required placeholder="Ex: Réunion de rentrée">
-          </div>
-          <div class="form-group">
-            <label>Date et heure</label>
-            <input type="datetime-local" name="meetingDate" required>
-          </div>
-          <div class="form-group">
-            <label>Lieu</label>
-            <input type="text" name="location" required placeholder="Ex: Salle de réunion CEB">
-          </div>
-          <div class="form-group">
-            <label>Destinataires (rôles)</label>
-            <select name="targetRoles" multiple size="4" style="width:100%">
-              <option value="titulaire">Titulaires de classe</option>
-              <option value="directeur">Directeurs d'école</option>
-              <option value="encadreur">Encadreurs</option>
-            </select>
-            <small style="color:#64748b;font-size:11px">Maintenez Ctrl pour sélectionner plusieurs</small>
-          </div>
-          <div class="form-group">
-            <label>Message de convocation</label>
-            <textarea name="message" rows="4" required>Bonjour, vous êtes convoqué à une réunion de la CEB. Objet : {objet}. Date : {date}. Lieu : {lieu}.</textarea>
-          </div>
-          <button type="submit" class="btn">Afficher les destinataires</button>
-        </form>
-      </div>
-      <div class="card" id="convocationList" style="margin-top:16px">
-        <h3>Personnes concernées</h3>
-        <div id="convocationRecipients"></div>
-      </div>
-    `;
-
-    const form = viewContainer.querySelector('#convocationForm');
-    if (form) {
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(form);
-        const roles = formData.getAll('targetRoles');
-        const message = (formData.get('message') || '')
-          .replace('{objet}', formData.get('title') || '')
-          .replace('{date}', formData.get('meetingDate') || '')
-          .replace('{lieu}', formData.get('location') || '');
-
-        const recipients = [];
-        for (const role of roles) {
-          const { data: profiles } = await supabase.from('profiles').select('*').eq('role', role);
-          (profiles || []).forEach(p => recipients.push(p));
-        }
-
-        const listEl = viewContainer.querySelector('#convocationRecipients');
-        if (!listEl) return;
-        listEl.innerHTML = recipients.map(r => {
-          const phone = (r.whatsapp_phone || '').replace('+', '');
-          const url = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(message);
-          return `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #e2e8f0">
-              <div>
-                <strong>${esc(r.full_name)}</strong><br>
-                <small style="color:#64748b">${esc(r.identifiant)}</small>
-              </div>
-              <div style="display:flex;gap:6px">
-                <a href="${url}" class="whatsapp-btn" target="_blank" rel="noopener">📱 WhatsApp</a>
-              </div>
-            </div>
-          `;
-        }).join('') || '<p>Aucun destinataire trouvé.</p>';
-      });
-    }
-  }
-
   viewContainer.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
@@ -963,8 +842,6 @@ export function setupChefCEB(container, state, render, supabase) {
       if (editor) editor.hidden = !editor.hidden;
     } else if (a === 'school-save') {
       await saveSchool();
-    } else if (a === 'director-contact-save') {
-      await saveDirectorContact(btn);
     }
   });
 

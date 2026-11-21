@@ -27,7 +27,10 @@ create table profiles (
   identifiant text unique not null,
   full_name text not null,
   whatsapp_phone text not null,
-  role text not null check (role in ('titulaire','directeur','encadreur','chef_ceb')),
+  role text not null check (role in (
+    'titulaire','directeur','encadreur','chef_ceb',
+    'chef_personnel','chef-personnel','statisticien'
+  )),
   school_id uuid references schools(id),
   class_id uuid references classes(id),
   followed_schools uuid[] default '{}',
@@ -133,7 +136,12 @@ alter table sync_queue enable row level security;
 -- POLITIQUES RLS
 -- ============================================================================
 
-create policy "profiles_own" on profiles for all using (auth.uid() = id);
+create policy "profiles_read_own" on profiles for select using (auth.uid() = id);
+create policy "profiles_insert_self" on profiles for insert
+  with check (auth.uid() = id and role = 'titulaire');
+create policy "profiles_update_self" on profiles for update
+  using (auth.uid() = id)
+  with check (auth.uid() = id and role = 'titulaire');
 create policy "profiles_read_staff" on profiles for select using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('encadreur','chef_ceb'))
 );

@@ -361,7 +361,7 @@ export function setupTitulaire(container, state, render, supabase) {
     }
 
     const { data: newClass, error } = await supabase.from('classes').insert({
-      name, level, school_id: schoolId, titulaire_id: userId, year: '2026-2027', subjects: defaultSubjects(level)
+      name, level, school_id: schoolId, titulaire_id: userId, year: state.activeSchoolYear || '2026-2027', subjects: defaultSubjects(level)
     }).select().single();
     if (error) { alert('Erreur : ' + error.message); return; }
     if (newClass && newClass.id) {
@@ -374,7 +374,7 @@ export function setupTitulaire(container, state, render, supabase) {
       localClass = newClass;
     } else {
       // Mode démo : pas d'id renvoyé par le mock
-      localClass = { id: 'local-' + Date.now(), name, level, school_id: schoolId, titulaire_id: userId, year: '2026-2027', subjects: defaultSubjects(level) };
+      localClass = { id: 'local-' + Date.now(), name, level, school_id: schoolId, titulaire_id: userId, year: state.activeSchoolYear || '2026-2027', subjects: defaultSubjects(level) };
     }
     renderSubView('maclasse');
   }
@@ -1483,7 +1483,7 @@ export function setupTitulaire(container, state, render, supabase) {
     const cls = await getMyClass();
     if (!cls) return renderClassSetup();
     currentClass = cls;
-    const startYear = parseInt((cls.year || '2026-2027').split('-')[0], 10) || 2026;
+    const startYear = parseInt((cls.year || state.activeSchoolYear || '2026-2027').split('-')[0], 10) || 2026;
     const months = REG_MONTHS.map(m => ({ name: m.name, year: startYear + m.yearOff, month: m.month }));
     const month = months[regMonthIdx] || months[0];
     const daysInMonth = new Date(month.year, month.month + 1, 0).getDate();
@@ -1753,7 +1753,7 @@ export function setupTitulaire(container, state, render, supabase) {
     const { data: presences } = await supabase.from('presences').select('*').eq('classe_id', cls.id);
     const absences = (presences || []).filter(p => p.statut === 'A');
 
-    const startYear = parseInt((cls.year || '2026-2027').split('-')[0], 10) || 2026;
+    const startYear = parseInt((cls.year || state.activeSchoolYear || '2026-2027').split('-')[0], 10) || 2026;
     const months = schoolMonths(startYear);
     const joursValidesByMonth = {};
     const closedSet = new Set();

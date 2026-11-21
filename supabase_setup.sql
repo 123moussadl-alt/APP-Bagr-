@@ -28,6 +28,29 @@ alter table public.classes
   add column if not exists titulaire_nom text,
   add column if not exists co_titulaires uuid[] not null default '{}';
 
+do $$
+declare
+  role_constraint record;
+begin
+  for role_constraint in
+    select conname
+    from pg_constraint
+    where conrelid = 'public.profiles'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ilike '%role%'
+  loop
+    execute format('alter table public.profiles drop constraint %I', role_constraint.conname);
+  end loop;
+end
+$$;
+
+alter table public.profiles
+  add constraint profiles_role_check
+  check (role::text in (
+    'titulaire', 'directeur', 'encadreur', 'chef_ceb',
+    'chef_personnel', 'chef-personnel', 'statisticien'
+  ));
+
 update public.profiles
 set emploi = case
       when role::text in ('encadreur', 'chef_ceb') then 'IEPNF'
@@ -220,6 +243,21 @@ revoke all on function public.current_agent_app_school_id() from public, anon;
 grant execute on function public.current_agent_app_role() to authenticated;
 grant execute on function public.current_agent_app_school_id() to authenticated;
 
+-- Provision the creator by setting app_metadata.role = 'super_admin' through
+-- Supabase Auth administration; never use user_metadata or a client-side code.
+create or replace function public.is_principal_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') = 'super_admin'
+$$;
+
+revoke all on function public.is_principal_admin() from public, anon;
+grant execute on function public.is_principal_admin() to authenticated;
+
 drop policy if exists schools_manage_chef_ceb on public.schools;
 create policy schools_manage_chef_ceb on public.schools
   for all to authenticated
@@ -279,21 +317,45 @@ create policy profiles_read_self on public.profiles
   for select to authenticated
   using (auth.uid() = id);
 
+drop policy if exists "profiles_own" on public.profiles;
 drop policy if exists profiles_insert_self on public.profiles;
 create policy profiles_insert_self on public.profiles
   for insert to authenticated
-  with check (auth.uid() = id);
+  with check (
+    auth.uid() = id
+    and role::text = 'titulaire'
+    and fonction = 'Agent'
+    and upper(trim(coalesce(emploi, ''))) in ('PE', 'PCE')
+  );
 
 drop policy if exists profiles_update_self on public.profiles;
 create policy profiles_update_self on public.profiles
   for update to authenticated
   using (auth.uid() = id)
-  with check (auth.uid() = id);
+  with check (
+    auth.uid() = id
+    and role::text = public.current_agent_app_role()
+    and case role::text
+      when 'titulaire' then fonction = 'Agent' and upper(trim(coalesce(emploi, ''))) in ('PE', 'PCE')
+      when 'directeur' then fonction = 'Directeur' and upper(trim(coalesce(emploi, ''))) in ('PE', 'PCE')
+      when 'encadreur' then fonction = 'Encadreur' and upper(trim(coalesce(emploi, ''))) = 'IEPNF'
+      when 'chef_ceb' then fonction = 'Chef de la CEB' and upper(trim(coalesce(emploi, ''))) = 'IEPNF'
+      when 'chef_personnel' then fonction = 'Chef du Personnel' and upper(trim(coalesce(emploi, ''))) in ('PE', 'PCE')
+      when 'chef-personnel' then fonction = 'Chef du Personnel' and upper(trim(coalesce(emploi, ''))) in ('PE', 'PCE')
+      when 'statisticien' then fonction = 'Statisticien' and upper(trim(coalesce(emploi, ''))) in ('PE', 'PCE')
+      else false
+    end
+  );
 
 drop policy if exists profiles_read_chef_ceb_directory on public.profiles;
 create policy profiles_read_chef_ceb_directory on public.profiles
   for select to authenticated
   using (public.current_agent_app_role() = 'chef_ceb');
+
+drop policy if exists profiles_read_admin on public.profiles;
+create policy profiles_read_admin on public.profiles
+  for select to authenticated
+  using (public.is_principal_admin());
 
 drop policy if exists profiles_update_chef_ceb_director_contact on public.profiles;
 create policy profiles_update_chef_ceb_director_contact on public.profiles
@@ -421,3 +483,170 @@ create policy bilans_agents_write_school on public.bilans_agents_mensuels
     public.current_agent_app_role() = 'directeur'
     and ecole_id = public.current_agent_app_school_id()
   );
+
+create table if not exists public.app_settings (
+  setting_key text primary key,
+  setting_value text not null,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.app_settings (setting_key, setting_value)
+values ('active_school_year', '2026-2027')
+on conflict (setting_key) do nothing;
+
+alter table public.app_settings enable row level security;
+drop policy if exists app_settings_read_authenticated on public.app_settings;
+create policy app_settings_read_authenticated on public.app_settings
+  for select to authenticated
+  using (true);
+
+grant select on public.app_settings to authenticated;
+revoke insert, update, delete on public.app_settings from public, anon, authenticated;
+
+create or replace function public.get_active_school_year()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select setting_value
+  from public.app_settings
+  where setting_key = 'active_school_year'
+  limit 1
+$$;
+
+create or replace function public.admin_set_school_year(p_year text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  start_year integer;
+  end_year integer;
+begin
+  if not public.is_principal_admin() then
+    raise exception 'Administrateur Principal required' using errcode = '42501';
+  end if;
+  if p_year is null or p_year !~ '^[0-9]{4}-[0-9]{4}$' then
+    raise exception 'Invalid school-year format; expected YYYY-YYYY' using errcode = '22023';
+  end if;
+
+  start_year := split_part(p_year, '-', 1)::integer;
+  end_year := split_part(p_year, '-', 2)::integer;
+  if end_year <> start_year + 1 then
+    raise exception 'School year must contain consecutive years' using errcode = '22023';
+  end if;
+
+  insert into public.app_settings (setting_key, setting_value, updated_at)
+  values ('active_school_year', p_year, now())
+  on conflict (setting_key)
+  do update set setting_value = excluded.setting_value, updated_at = now();
+  return p_year;
+end
+$$;
+
+create or replace function public.admin_update_profile(
+  p_profile_id uuid,
+  p_role text,
+  p_emploi text,
+  p_school_id uuid,
+  p_followed_schools uuid[]
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_role text;
+  school_name text;
+  role_function text;
+  selected_school_id uuid;
+  selected_school_count integer;
+begin
+  if not public.is_principal_admin() then
+    raise exception 'Administrateur Principal required' using errcode = '42501';
+  end if;
+  if p_profile_id = auth.uid() then
+    raise exception 'The current account cannot change its own assignment' using errcode = '42501';
+  end if;
+
+  select role::text into current_role
+  from public.profiles
+  where id = p_profile_id
+  for update;
+  if not found then
+    raise exception 'Profile not found' using errcode = 'P0002';
+  end if;
+  if current_role = 'super_admin' then
+    raise exception 'Principal administrator profiles are protected' using errcode = '42501';
+  end if;
+  if p_role is null or p_role not in ('titulaire', 'directeur', 'encadreur', 'chef_ceb', 'chef_personnel', 'statisticien') then
+    raise exception 'Invalid function' using errcode = '22023';
+  end if;
+
+  if p_role in ('titulaire', 'directeur') then
+    if p_school_id is null then
+      raise exception 'A school is required for this function' using errcode = '22023';
+    end if;
+    select name into school_name from public.schools where id = p_school_id;
+    if not found then
+      raise exception 'School not found' using errcode = 'P0002';
+    end if;
+    selected_school_id := p_school_id;
+  elsif p_role = 'encadreur' then
+    if coalesce(cardinality(p_followed_schools), 0) = 0 then
+      raise exception 'At least one school is required for an Encadreur' using errcode = '22023';
+    end if;
+    select count(*) into selected_school_count
+    from public.schools
+    where id = any(p_followed_schools);
+    if selected_school_count <> cardinality(p_followed_schools) then
+      raise exception 'One or more selected schools do not exist' using errcode = 'P0002';
+    end if;
+    school_name := 'CEB de Bagré';
+    selected_school_id := null;
+  else
+    school_name := 'CEB de Bagré';
+    selected_school_id := null;
+  end if;
+
+  if p_role in ('encadreur', 'chef_ceb') then
+    if upper(trim(coalesce(p_emploi, ''))) <> 'IEPNF' then
+      raise exception 'This function requires IEPNF' using errcode = '22023';
+    end if;
+  elsif upper(trim(coalesce(p_emploi, ''))) not in ('PE', 'PCE') then
+    raise exception 'This function requires PE or PCE' using errcode = '22023';
+  end if;
+
+  role_function := case p_role
+    when 'titulaire' then 'Agent'
+    when 'directeur' then 'Directeur'
+    when 'encadreur' then 'Encadreur'
+    when 'chef_personnel' then 'Chef du Personnel'
+    when 'statisticien' then 'Statisticien'
+    when 'chef_ceb' then 'Chef de la CEB'
+  end;
+
+  update public.profiles
+  set role = p_role,
+      emploi = upper(trim(p_emploi)),
+      fonction = role_function,
+      school_id = selected_school_id,
+      ecole_id = selected_school_id,
+      ecole_nom = school_name,
+      structure = school_name,
+      ecoles_encadrees = to_jsonb(coalesce(p_followed_schools, '{}'::uuid[])),
+      followed_schools = coalesce(p_followed_schools, '{}'::uuid[])
+  where id = p_profile_id;
+end
+$$;
+
+revoke all on function public.get_active_school_year() from public, anon;
+revoke all on function public.admin_set_school_year(text) from public, anon;
+revoke all on function public.admin_update_profile(uuid, text, text, uuid, uuid[]) from public, anon;
+grant execute on function public.get_active_school_year() to authenticated;
+grant execute on function public.admin_set_school_year(text) to authenticated;
+grant execute on function public.admin_update_profile(uuid, text, text, uuid, uuid[]) to authenticated;

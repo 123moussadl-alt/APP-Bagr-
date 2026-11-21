@@ -48,12 +48,8 @@ export function renderRegister({ onLogin, onRegister }) {
             <select name="role" id="roleSelect" required>
               <option value="">-- Choisir une fonction --</option>
               <option value="titulaire">Agent</option>
-              <option value="directeur">Directeur</option>
-              <option value="encadreur">Encadreur</option>
-              <option value="chef_ceb">Chef de la CEB</option>
-              <option value="chef_personnel">Chef du Personnel</option>
-              <option value="statisticien">Statisticien</option>
             </select>
+            <small>Les autres fonctions sont attribuées par un administrateur après vérification.</small>
           </div>
           <div class="form-group">
             <label>Emploi</label>
