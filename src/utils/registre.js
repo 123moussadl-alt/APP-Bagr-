@@ -346,7 +346,7 @@ export function renderFicheArretMensuelHTML({ schoolName, className, monthName, 
         </div>
         <div style="min-width:220px;text-align:center">
           <div style="font-weight:800;margin-bottom:6px">Visa du Directeur / de la Directrice</div>
-          ${visaDirecteur ? `<div style="border-top:1px solid #cbd5e1;padding-top:6px;font-weight:700">${profileMatchesVisa(visaDirecteur, visaDirecteurSignatureProfile) ? signatureImageHTML(signatureUrlForProfile(visaDirecteurSignatureProfile), 'Signature du Directeur') : ''}${esc(visaDirecteur)}</div>` : (showVisaButton ? `<button class="btn small" data-action="${onVisaLabel || 'visa-directeur'}" style="margin-bottom:6px">✓ Viser le mois</button><div style="border-top:1px dashed #cbd5e1;padding-top:6px;color:#64748b">Zone de visa</div>` : `<div style="border-top:1px solid #cbd5e1;padding-top:6px;color:#64748b">Zone de visa</div>`)}
+          ${visaDirecteur ? `<div style="border-top:1px solid #cbd5e1;padding-top:6px;font-weight:700">${profileMatchesVisa(visaDirecteur, visaDirecteurSignatureProfile) ? signatureImageHTML(signatureUrlForProfile(visaDirecteurSignatureProfile), 'Signature du Directeur') : ''}${esc(visaDirecteur)}</div>` : (showVisaButton ? `<div style="border-top:1px dashed #cbd5e1;padding-top:6px;color:#64748b">Zone de visa</div>` : `<div style="border-top:1px solid #cbd5e1;padding-top:6px;color:#64748b">Zone de visa</div>`)}
         </div>
       </div>
     </div>`;
