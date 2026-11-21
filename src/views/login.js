@@ -1,1 +1,89 @@
-Update the `#admin` / `?admin=1` **"Espace Administrateur Principal"** login form so that entering the master password in the single **"Code Maître Administrateur"** field authenticates through Supabase Auth using `supabase.auth.signInWithPassword({ email: 'admin@ceb-bagre.bf', password: masterCodeInput.trim() })` and verifies that the authenticated user's profile (`profiles`, or `user.email === 'admin@ceb-bagre.bf'`) has `role === 'super_admin'` before opening the Principal Administrator dashboard. Run `npm run build` with zero errors, commit, and push to `origin main`.
+import { ADMIN_MASTER_EMAIL } from '../supabaseClient.js';
+
+/**
+ * Vue de connexion — Identifiant simple sans Gmail
+ */
+
+export function renderLogin({ adminAccess = false } = {}) {
+  return `
+    <div class="auth-container">
+      <div class="auth-card">
+        <div class="auth-header">
+          <div class="auth-flag">
+            <div class="flag-stripe red"></div>
+            <div class="flag-stripe green"></div>
+            <div class="flag-star">★</div>
+          </div>
+          <h1>${adminAccess ? "Espace Administrateur Principal — Educ'CEB Bagré" : 'Educ CEB Bagré'}</h1>
+          <p>${adminAccess ? 'Connectez-vous avec votre compte administrateur vérifié.' : "Connexion — Circonscription d'Éducation de Base"}</p>
+        </div>
+
+        <form id="${adminAccess ? 'adminLoginForm' : 'loginForm'}" class="auth-form">
+          ${adminAccess
+            ? `
+              <div class="form-group">
+                <label for="adminCode">Code Maître Administrateur</label>
+                <input id="adminCode" type="password" name="adminCode" autocomplete="current-password" required>
+              </div>
+            `
+            : `
+              <div class="form-group">
+                <label>Identifiant (téléphone ou nom d'utilisateur)</label>
+                <input type="text" name="identifiant" placeholder="Ex: 0701234567 ou m.diallo" required>
+              </div>
+              <div class="form-group">
+                <label>Mot de passe</label>
+                <input type="password" name="password" required>
+              </div>
+            `}
+          <button type="submit" class="btn-primary">${adminAccess ? 'Accéder au panneau Admin' : 'Se connecter'}</button>
+        </form>
+
+        ${adminAccess
+          ? '<p class="auth-footer"><a class="auth-link" href="/">Retour à la connexion</a></p>'
+          : `
+            <button type="button" class="btn-install" data-action="install-app">📲 Installer / Télécharger l'application</button>
+            <p class="auth-footer">
+              Pas encore de compte ? <button type="button" class="auth-link register-btn">Créer un compte</button>
+            </p>
+          `}
+      </div>
+    </div>
+  `;
+}
+
+export function renderAdminLogin() {
+  return renderLogin({ adminAccess: true });
+}
+
+export function setupLogin(container, { onRegister, onLogin, onInstall }) {
+  const form = container.querySelector('#loginForm, #adminLoginForm');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(form);
+      try {
+        const masterCodeInput = (formData.get('adminCode') || '').toString().trim();
+        const credentials = form.id === 'adminLoginForm'
+          ? { identifiant: ADMIN_MASTER_EMAIL, password: masterCodeInput }
+          : {
+            identifiant: formData.get('identifiant'),
+            password: formData.get('password')
+          };
+        await onLogin(credentials);
+      } catch (err) {
+        // Erreur affichée par onLogin via showToast
+      }
+    });
+  }
+
+  const registerBtn = container.querySelector('.register-btn');
+  if (registerBtn && onRegister) {
+    registerBtn.addEventListener('click', () => onRegister());
+  }
+
+  const installBtn = container.querySelector('[data-action="install-app"]');
+  if (installBtn && onInstall) {
+    installBtn.addEventListener('click', onInstall);
+  }
+}

@@ -9,6 +9,8 @@ const FALLBACK_KEY = 'sb_publishable_MRZX8Ivz_V3nHz2nDI1VNQ_PqBqu7QP';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || FALLBACK_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || FALLBACK_KEY;
 
+export const ADMIN_MASTER_EMAIL = 'admin@ceb-bagre.bf';
+
 export const isDemoMode = !supabaseUrl || !supabaseAnonKey ||
   supabaseUrl.includes('votre-projet') ||
   supabaseAnonKey.includes('votre-cle');

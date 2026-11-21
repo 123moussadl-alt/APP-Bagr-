@@ -2,7 +2,7 @@
  * EDUC CEB BAGRÉ v2 — Point d'entrée principal
  */
 
-import { supabase, isDemoMode } from './supabaseClient.js';
+import { supabase, isDemoMode, ADMIN_MASTER_EMAIL } from './supabaseClient.js';
 import { setupOnlineSync } from './db.js';
 import { toInternalEmail } from './supabaseClient.js';
 import { defaultSubjects, esc, formatClassName } from './utils/format.js';
@@ -1175,12 +1175,14 @@ async function installPWA() {
   }
 }
 
-async function handleLogin({ identifiant, password }) {
+async function handleLogin({ identifiant, password } = {}) {
   const cleanId = (identifiant || '').trim();
+  const cleanPassword = (password || '').trim();
+  const isAdminLogin = cleanId.toLowerCase() === ADMIN_MASTER_EMAIL;
 
-  if (isDemoMode) {
+  if (isDemoMode && !isAdminLogin) {
     const account = demoGetAccounts().find(
-      a => a.identifiant === cleanId && a.password === password
+      a => a.identifiant === cleanId && a.password === cleanPassword
     );
     if (!account) {
       showToast('Identifiant ou mot de passe incorrect.');
@@ -1193,11 +1195,46 @@ async function handleLogin({ identifiant, password }) {
   }
 
   const email = toInternalEmail(cleanId);
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await supabase.auth.signInWithPassword({ email, password: cleanPassword });
   if (error) {
     showToast(friendlyError(error, 'Erreur de connexion'));
     throw error;
   }
+
+  if (isAdminLogin) {
+    const isSuperAdmin = await verifyPrincipalAdminAccess();
+    if (isSuperAdmin) {
+      state.view = 'admin-principal';
+      render();
+      showToast('Accès Administrateur Principal vérifié.');
+      return;
+    }
+    showToast('Accès réservé à l’Administrateur Principal.');
+    return;
+  }
+}
+
+async function verifyPrincipalAdminAccess() {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const user = authData?.user;
+  if (authError || !user) return false;
+  const normalizedEmail = String(user.email || '').trim().toLowerCase();
+  const emailIsMasterAdmin = normalizedEmail === ADMIN_MASTER_EMAIL;
+  let profile = null;
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+  profile = profileData;
+  const isSuperAdmin = emailIsMasterAdmin || user.app_metadata?.role === 'super_admin' || profile?.role === 'super_admin';
+  if (isSuperAdmin) {
+    state.user = user;
+    state.authenticatedAppRole = 'super_admin';
+    state.authenticatedRole = 'super_admin';
+    state.profile = { ...(profile || {}), id: user.id, role: 'super_admin', email: user.email };
+  }
+  return isSuperAdmin;
 }
 
 async function ensureSchoolId(schoolName) {
