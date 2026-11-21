@@ -4,7 +4,7 @@
  * "Imprimer / PDF" et "Exporter Excel/CSV".
  */
 
-export function openPreview({ title, html, onPrint, onCSV }) {
+export function openPreview({ title, html, onPrint, onCSV, exportLabel = '📥 Excel/CSV' }) {
   closePreview();
 
   const overlay = document.createElement('div');
@@ -29,7 +29,7 @@ export function openPreview({ title, html, onPrint, onCSV }) {
 
   const csvBtn = document.createElement('button');
   csvBtn.className = 'btn secondary';
-  csvBtn.textContent = '📥 Excel/CSV';
+  csvBtn.textContent = exportLabel;
   csvBtn.onclick = () => { if (onCSV) onCSV(); };
 
   const closeBtn = document.createElement('button');

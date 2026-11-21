@@ -97,6 +97,14 @@ export async function exportPDF(element, filename, options = {}) {
     .landscape-sheet .proposition-sheet th, .landscape-sheet .proposition-sheet td, .personnel-directory-table th, .personnel-directory-table td { padding: 3px !important; font-size: 8pt !important; line-height: 1.2 !important; }
     .agent-monthly-sheet table, .statistician-wide-sheet table, .wide-sheet table { width: 100% !important; table-layout: fixed !important; font-size: 8pt !important; }
     .agent-monthly-sheet th, .agent-monthly-sheet td, .statistician-wide-sheet th, .statistician-wide-sheet td, .wide-sheet th, .wide-sheet td { padding: 3px !important; font-size: 8pt !important; line-height: 1.2 !important; overflow-wrap: anywhere !important; white-space: normal !important; }
+    .ceb-staff-scroll { overflow: visible !important; max-width: none !important; }
+    .ceb-staff-table { width: 100% !important; min-width: 0 !important; table-layout: fixed !important; font-size: 7pt !important; background: #fff !important; color: #111827 !important; }
+    .ceb-staff-table th, .ceb-staff-table td { padding: 4px 5px !important; font-size: 7pt !important; line-height: 1.15 !important; overflow-wrap: anywhere !important; word-wrap: break-word !important; white-space: normal !important; }
+    .ceb-staff-table th:nth-child(1), .ceb-staff-table td:nth-child(1) { width: 5% !important; }
+    .ceb-staff-table th:nth-child(2), .ceb-staff-table td:nth-child(2) { width: 13% !important; }
+    .ceb-staff-table th:nth-child(5), .ceb-staff-table td:nth-child(5) { width: 6% !important; }
+    .ceb-staff-table th:nth-child(6), .ceb-staff-table td:nth-child(6) { width: 9% !important; }
+    .ceb-staff-table .staff-nowrap { white-space: nowrap !important; overflow-wrap: normal !important; }
     .official-motto { display: flex !important; flex-direction: column !important; align-items: center !important; text-align: center !important; }
     .digital-signature-stamp { display: block !important; max-width: 100% !important; max-height: 48px !important; width: auto !important; height: auto !important; object-fit: contain !important; margin: 0 auto 4px !important; }
     .digital-signature-person { display: inline-flex !important; flex-direction: column !important; align-items: center !important; vertical-align: bottom !important; text-align: center !important; }

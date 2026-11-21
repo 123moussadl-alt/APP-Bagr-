@@ -5,6 +5,8 @@
 
 import { esc, formatClassName } from '../utils/format.js';
 import { downloadCSV, printPage, wirePDFExportButton, wireWordExportButton } from '../utils/export.js';
+import * as XLSX from 'xlsx';
+import { getAgentEmployment, getAgentNameParts } from '../utils/agents.js';
 import { getClassResult } from '../utils/stats.js';
 import { openPreview } from '../utils/preview.js';
 import { profileMatchesVisa, signatureBlockHTML, signatureUrlForProfile } from '../utils/signature.js';
@@ -28,6 +30,7 @@ export function renderChefCEB(state, render, supabase) {
         </div>
         <nav class="role-nav">
           <button class="nav-item active" data-view="ecoles">🏫 Toutes les écoles</button>
+          <button class="nav-item" data-view="personnel">👥 Personnel des écoles et de la CEB</button>
           <button class="nav-item" data-view="synthese">📊 Synthèse CEB</button>
           <button class="nav-item" data-view="synthese-trim">📈 Synthèse trimestrielle</button>
           <button class="nav-item" data-view="synthese-ecole">📋 Synthèse trimestrielle d'école</button>
@@ -65,6 +68,12 @@ export function setupChefCEB(container, state, render, supabase) {
   const navItems = Array.from(container.querySelectorAll('.nav-item'));
   const activeProfile = state.realProfile || state.profile || {};
   const chefCebSigners = activeProfile.role === 'chef_ceb' ? [activeProfile] : [];
+  let activeSubView = 'ecoles';
+  let activeStaffTab = 'schools';
+  let staffProfiles = [];
+  let staffSchools = [];
+  let staffClasses = [];
+  let staffDirectoryLoaded = false;
   let syntheseRows = [];
   let syntheseTotals = null;
   let syntheseMode = 'ecole';
@@ -102,9 +111,16 @@ export function setupChefCEB(container, state, render, supabase) {
     downloadCSV('synthese_ceb.csv', rows);
   }
 
-  container.querySelector('[data-action="export-synthese"]')?.addEventListener('click', exportSyntheseCSV);
+  container.querySelector('[data-action="export-synthese"]')?.addEventListener('click', () => {
+    if (activeSubView === 'personnel') exportStaffExcel();
+    else exportSyntheseCSV();
+  });
   container.querySelector('[data-action="print-page"]')?.addEventListener('click', printPage);
   container.querySelector('[data-action="preview-current"]')?.addEventListener('click', () => {
+    if (activeSubView === 'personnel') {
+      previewStaffDirectory();
+      return;
+    }
     openPreview({ title: 'Synthèse CEB', html: viewContainer.innerHTML, onPrint: printPage, onCSV: exportSyntheseCSV });
   });
 
@@ -118,14 +134,220 @@ export function setupChefCEB(container, state, render, supabase) {
 
   async function renderSubView(view) {
     if (!viewContainer) return;
+    activeSubView = view;
+    const headings = {
+      ecoles: ['Toutes les écoles', 'Gestion des écoles et synthèses de la CEB de Bagré'],
+      personnel: ['Personnel des écoles et de la CEB', 'Répertoire séparé par affectation'],
+      synthese: ['Synthèse CEB', 'Examens blancs par école et synthèse globale'],
+      'synthese-trim': ['Synthèse trimestrielle', 'Résultats annuels et par trimestre'],
+      'synthese-ecole': ["Synthèse trimestrielle d'école", 'Bilan détaillé par école ou par classe'],
+      convocation: ['Convocations WhatsApp', 'Programmer une rencontre et sélectionner ses destinataires']
+    };
+    const [title, subtitle] = headings[view] || headings.ecoles;
+    container.querySelector('#pageTitle').textContent = title;
+    container.querySelector('#pageSubtitle').textContent = subtitle;
+    const exportButton = container.querySelector('[data-action="export-synthese"]');
+    if (exportButton) exportButton.textContent = view === 'personnel' ? '📥 Exporter en Excel' : '📥 Exporter Excel/CSV';
     switch (view) {
       case 'ecoles': return renderEcoles();
+      case 'personnel': return renderStaffDirectory();
       case 'synthese': return renderSynthese();
       case 'synthese-trim': return renderSyntheseTrim();
       case 'synthese-ecole': return renderSchoolTermSynthesis();
       case 'convocation': return renderConvocation();
       default: return renderEcoles();
     }
+  }
+
+  function staffProfilesForTab() {
+    if (activeStaffTab === 'schools') {
+      return staffProfiles.filter(profile => {
+        const hasSchoolAssignment = [profile.ecole_id, profile.school_id, profile.ecole_nom]
+          .some(value => String(value || '').trim());
+        return ['titulaire', 'directeur'].includes(profile.role) &&
+          profile.structure !== 'CEB' &&
+          hasSchoolAssignment;
+      });
+    }
+
+    const cebRoles = ['encadreur', 'chef-personnel', 'chef_personnel', 'statisticien'];
+    return staffProfiles.filter(profile => {
+      const isCurrentChef = activeProfile.id && String(profile.id) === String(activeProfile.id);
+      return !isCurrentChef && (
+        profile.structure === 'CEB de Bagré' ||
+        cebRoles.includes(profile.role)
+      );
+    });
+  }
+
+  function staffClassName(profile) {
+    const classId = profile.classe_id || profile.class_id;
+    const classRecord = staffClasses.find(item => String(item.id) === String(classId));
+    return profile.classe_tenue || profile.classe_niveau ||
+      (classRecord ? formatClassName(classRecord) : '') || '—';
+  }
+
+  function staffSchoolName(profile) {
+    if (profile.ecole_nom) return profile.ecole_nom;
+    const schoolId = profile.ecole_id || profile.school_id;
+    const school = staffSchools.find(item => String(item.id) === String(schoolId));
+    return (school && school.name) || schoolId || '—';
+  }
+
+  function staffRoleLabel(profile) {
+    const labels = {
+      encadreur: 'Encadreur',
+      'chef-personnel': 'Chef du Personnel',
+      chef_personnel: 'Chef du Personnel',
+      statisticien: 'Statisticien',
+      chef_ceb: 'Chef de la CEB'
+    };
+    return labels[profile.role] || profile.role || 'Agent de la CEB';
+  }
+
+  function staffGender(profile) {
+    const gender = String(profile.sexe || profile.gender || '').trim().toUpperCase();
+    return gender === 'M' || gender === 'F' ? gender : '—';
+  }
+
+  function currentStaffRows() {
+    const schoolTab = activeStaffTab === 'schools';
+    const headers = schoolTab
+      ? ['N°', 'Matricule', 'Nom', 'Prénom', 'Sexe (M/F)', 'Emploi (PE/PCE)', 'Poste (Titulaire/Directeur)', 'École', 'Classe tenue', 'Contact WhatsApp']
+      : ['N°', 'Matricule', 'Nom', 'Prénom', 'Sexe (M/F)', 'Emploi (PE/PCE)', 'Fonction à la CEB', 'Contact WhatsApp'];
+    const rows = staffProfilesForTab().map((profile, index) => {
+      const { nom, prenom } = getAgentNameParts(profile);
+      const phone = profile.whatsapp || profile.whatsapp_phone || profile.telephone || '';
+      const number = String(phone).replace(/\D/g, '');
+      const values = schoolTab
+        ? [
+          index + 1,
+          profile.matricule || '—',
+          nom || '—',
+          prenom || '—',
+          staffGender(profile),
+          getAgentEmployment(profile),
+          profile.role === 'directeur' ? 'Directeur' : 'Titulaire',
+          staffSchoolName(profile),
+          staffClassName(profile),
+          phone || '—'
+        ]
+        : [
+          index + 1,
+          profile.matricule || '—',
+          nom || '—',
+          prenom || '—',
+          staffGender(profile),
+          getAgentEmployment(profile),
+          staffRoleLabel(profile),
+          phone || '—'
+        ];
+      return {
+        values,
+        phoneLink: number ? `https://wa.me/${encodeURIComponent(number)}` : ''
+      };
+    });
+    return { headers, rows, schoolTab };
+  }
+
+  function updateStaffTabHeading(schoolTab, count) {
+    const title = schoolTab ? 'Enseignants des Écoles' : 'Agents de la CEB';
+    container.querySelector('#pageTitle').textContent = title;
+    container.querySelector('#pageSubtitle').textContent = `${count} profil(s) dans cette liste`;
+  }
+
+  async function renderStaffDirectory() {
+    staffDirectoryLoaded = false;
+    const [profilesResult, schoolsResult, classesResult] = await Promise.all([
+      supabase.from('profiles').select('*').order('full_name'),
+      supabase.from('schools').select('id,name').order('name'),
+      supabase.from('classes').select('id,name,level,school_id')
+    ]);
+    if (activeSubView !== 'personnel') return;
+    const queryError = profilesResult.error || schoolsResult.error || classesResult.error;
+    if (queryError) {
+      staffProfiles = [];
+      staffSchools = [];
+      staffClasses = [];
+      viewContainer.innerHTML = `<div class="card" role="alert" style="color:#b91c1c">Impossible de charger le répertoire du personnel : ${esc(queryError.message)}</div>`;
+      return;
+    }
+    staffProfiles = profilesResult.data || [];
+    staffSchools = schoolsResult.data || [];
+    staffClasses = classesResult.data || [];
+    staffDirectoryLoaded = true;
+    renderStaffTable();
+  }
+
+  function renderStaffTable() {
+    const { headers, rows, schoolTab } = currentStaffRows();
+    const shortColumnIndexes = [0, 1, 4, 5];
+    const tabTitle = schoolTab ? 'Enseignants des Écoles' : 'Agents de la CEB';
+    updateStaffTabHeading(schoolTab, rows.length);
+    viewContainer.innerHTML = `
+      <section id="staffDirectorySheet" class="card landscape-sheet wide-sheet ceb-staff-directory">
+        <div class="ceb-staff-directory-heading">
+          <h3>${tabTitle}</h3>
+          <span class="ceb-staff-role-badge">Chef CEB connecté : ${esc(activeProfile.full_name || 'profil actuel')} — hors de la liste des agents</span>
+        </div>
+        <div class="ceb-staff-tabs no-print" role="tablist" aria-label="Catégorie du personnel">
+          <button type="button" class="btn ${schoolTab ? '' : 'secondary'}" role="tab" aria-selected="${schoolTab}" aria-controls="staffDirectoryTable" data-action="staff-tab" data-staff-tab="schools">Enseignants &amp; Directeurs des Écoles</button>
+          <button type="button" class="btn ${schoolTab ? 'secondary' : ''}" role="tab" aria-selected="${!schoolTab}" aria-controls="staffDirectoryTable" data-action="staff-tab" data-staff-tab="office">Agents du Bureau de la CEB</button>
+        </div>
+        <div class="table-wrap ceb-staff-scroll" tabindex="0" role="region" aria-label="${tabTitle}, tableau défilant horizontalement">
+          <table id="staffDirectoryTable" class="ceb-staff-table">
+            <thead><tr>${headers.map((header, index) => `<th class="${shortColumnIndexes.includes(index) ? 'staff-nowrap' : ''}" scope="col">${esc(header)}</th>`).join('')}</tr></thead>
+            <tbody>
+              ${rows.map(({ values, phoneLink }) => `
+                <tr>${values.map((value, index) => {
+                  const content = index === values.length - 1 && phoneLink
+                    ? `<a href="${esc(phoneLink)}" target="_blank" rel="noopener">${esc(value)}</a>`
+                    : esc(value);
+                  return `<td class="${shortColumnIndexes.includes(index) ? 'staff-nowrap' : ''}">${content}</td>`;
+                }).join('')}</tr>
+              `).join('') || `<tr><td colspan="${headers.length}">Aucun profil correspondant à cette catégorie.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+        <p class="ceb-staff-count">${rows.length} profil(s) affiché(s)</p>
+      </section>
+    `;
+  }
+
+  function exportStaffExcel() {
+    if (!staffDirectoryLoaded) {
+      alert('Le répertoire du personnel n’a pas pu être chargé.');
+      return;
+    }
+    try {
+      const { headers, rows, schoolTab } = currentStaffRows();
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows.map(row => row.values)]);
+      worksheet['!cols'] = headers.map(header => ({ wch: Math.min(Math.max(header.length + 3, 12), 30) }));
+      if (worksheet['!ref']) worksheet['!autofilter'] = { ref: worksheet['!ref'] };
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, schoolTab ? 'Enseignants' : 'Agents CEB');
+      XLSX.writeFile(workbook, schoolTab ? 'enseignants_ecoles_ceb.xlsx' : 'agents_bureau_ceb.xlsx', {
+        bookType: 'xlsx',
+        compression: true
+      });
+    } catch (error) {
+      alert('Erreur lors de la création du fichier Excel : ' + (error && error.message ? error.message : String(error)));
+    }
+  }
+
+  function previewStaffDirectory() {
+    const sheet = viewContainer.querySelector('#staffDirectorySheet');
+    if (!sheet) return;
+    const previewSheet = sheet.cloneNode(true);
+    previewSheet.querySelectorAll('.no-print, button').forEach(node => node.remove());
+    const title = activeStaffTab === 'schools' ? 'Enseignants des Écoles' : 'Agents de la CEB';
+    openPreview({
+      title: `Aperçu — ${title}`,
+      html: previewSheet.outerHTML,
+      onPrint: printPage,
+      onCSV: exportStaffExcel,
+      exportLabel: '📥 Exporter en Excel'
+    });
   }
 
   async function renderSyntheseTrim() {
@@ -630,7 +852,10 @@ export function setupChefCEB(container, state, render, supabase) {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const a = btn.dataset.action;
-    if (a === 'synth-ecole') { syntheseMode = 'ecole'; renderSubView('synthese'); }
+    if (a === 'staff-tab') {
+      activeStaffTab = btn.dataset.staffTab === 'office' ? 'office' : 'schools';
+      renderStaffTable();
+    } else if (a === 'synth-ecole') { syntheseMode = 'ecole'; renderSubView('synthese'); }
     else if (a === 'synth-globale') { syntheseMode = 'globale'; renderSubView('synthese'); }
     else if (a === 'export-trim') exportTrimCSV();
     else if (a === 'school-term-preview') {
