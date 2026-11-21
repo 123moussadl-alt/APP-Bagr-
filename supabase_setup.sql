@@ -59,7 +59,7 @@ from (values
   ('École B de Bagré', 'Bagré Périmètre "B"'),
   ('Bagré Centre B', 'Bagré Périmètre "B"'),
   ('École C de Bagré', 'Bagré Peulh'),
-  ('École de Dirlakou', 'Sangaboulé'),
+  ('École de Dirlakou', 'Sanga Boulé'),
   ('École de Goudayéré', 'Goudayéré'),
   ('Boakla', 'Bouakla')
 ) as official(legacy_name, name)
@@ -73,7 +73,7 @@ where lower(trim(legacy.name)) = lower(trim(official.legacy_name))
 
 update public.schools
 set ceb = 'BAGRÉ'
-where lower(trim(name)) = 'sangaboulé';
+where lower(trim(name)) = 'sanga boulé';
 
 with legacy_school as (
   select id,
@@ -84,18 +84,18 @@ with legacy_school as (
         when 'dirlakou' then 3
         when 'dirlakoula' then 4
         when 'sangabouli' then 5
-        when 'sanga boulé' then 6
+        when 'sangaboulé' then 6
         else 7
       end, id
     ) as position
   from public.schools
   where lower(trim(name)) in (
     'école de dirlakou', 'école de dirlakoula',
-    'dirlakou', 'dirlakoula', 'sangabouli', 'sanga boulé'
+    'dirlakou', 'dirlakoula', 'sangabouli', 'sangaboulé'
   )
 )
 update public.schools as legacy
-set name = 'Sangaboulé', ceb = 'BAGRÉ'
+set name = 'Sanga Boulé', ceb = 'BAGRÉ'
 from legacy_school
 where legacy.id = legacy_school.id
   and legacy_school.position = 1
@@ -103,7 +103,7 @@ where legacy.id = legacy_school.id
     select 1
     from public.schools existing
     where existing.id <> legacy.id
-      and lower(trim(existing.name)) = 'sangaboulé'
+      and lower(trim(existing.name)) = 'sanga boulé'
   );
 
 update public.schools
@@ -111,7 +111,7 @@ set ceb = 'ARCHIVE'
 where upper(trim(coalesce(ceb, ''))) = 'BAGRÉ'
   and lower(trim(name)) in (
     'dirlakou', 'dirlakoula', 'école de dirlakou', 'école de dirlakoula',
-    'sangabouli', 'sanga boulé', 'zabo'
+    'sangabouli', 'sangaboulé', 'zabo'
   );
 
 insert into public.schools (name, ceb)
@@ -139,7 +139,7 @@ from (values
   ('Poussouwaka'),
   ('Kalakoudi'),
   ('Saint Bénoît Abbé'),
-  ('Sangaboulé'),
+  ('Sanga Boulé'),
   ('Sabiloul Falah'),
   ('Sabiloul Houda'),
   ('Sabiloul Raçad')

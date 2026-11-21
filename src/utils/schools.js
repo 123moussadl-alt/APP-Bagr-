@@ -21,7 +21,7 @@ export const DEFAULT_SCHOOL_NAMES = [
   'Poussouwaka',
   'Kalakoudi',
   'Saint Bénoît Abbé',
-  'Sangaboulé',
+  'Sanga Boulé',
   'Sabiloul Falah',
   'Sabiloul Houda',
   'Sabiloul Raçad'
@@ -38,12 +38,12 @@ const SCHOOL_NAME_ALIASES = new Map([
   ['École B de Bagré', 'Bagré Périmètre "B"'],
   ['École C de Bagré', 'Bagré Peulh'],
   ['École de Goudayéré', 'Goudayéré'],
-  ['École de Dirlakou', 'Sangaboulé'],
-  ['École de Dirlakoula', 'Sangaboulé'],
-  ['Dirlakou', 'Sangaboulé'],
-  ['Dirlakoula', 'Sangaboulé'],
-  ['Sangabouli', 'Sangaboulé'],
-  ['Sanga Boulé', 'Sangaboulé'],
+  ['École de Dirlakou', 'Sanga Boulé'],
+  ['École de Dirlakoula', 'Sanga Boulé'],
+  ['Dirlakou', 'Sanga Boulé'],
+  ['Dirlakoula', 'Sanga Boulé'],
+  ['Sangabouli', 'Sanga Boulé'],
+  ['Sangaboulé', 'Sanga Boulé'],
   ['Boakla', 'Bouakla']
 ].map(([alias, official]) => [normalizeSchoolName(alias), official]));
 
