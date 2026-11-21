@@ -16,15 +16,24 @@ export function renderLogin({ adminAccess = false } = {}) {
           <p>${adminAccess ? 'Connectez-vous avec votre compte administrateur vérifié.' : "Connexion — Circonscription d'Éducation de Base"}</p>
         </div>
 
-        <form id="loginForm" class="auth-form">
-          <div class="form-group">
-            <label>${adminAccess ? 'Identifiant administrateur' : "Identifiant (téléphone ou nom d'utilisateur)"}</label>
-            <input type="text" name="identifiant" placeholder="${adminAccess ? 'Identifiant administrateur' : 'Ex: 0701234567 ou m.diallo'}" required>
-          </div>
-          <div class="form-group">
-            <label>Mot de passe</label>
-            <input type="password" name="password" required>
-          </div>
+        <form id="${adminAccess ? 'adminLoginForm' : 'loginForm'}" class="auth-form">
+          ${adminAccess
+            ? `
+              <div class="form-group">
+                <label for="adminCode">Code Maître Administrateur</label>
+                <input id="adminCode" type="password" name="adminCode" autocomplete="current-password" required>
+              </div>
+            `
+            : `
+              <div class="form-group">
+                <label>Identifiant (téléphone ou nom d'utilisateur)</label>
+                <input type="text" name="identifiant" placeholder="Ex: 0701234567 ou m.diallo" required>
+              </div>
+              <div class="form-group">
+                <label>Mot de passe</label>
+                <input type="password" name="password" required>
+              </div>
+            `}
           <button type="submit" class="btn-primary">${adminAccess ? 'Accéder au panneau Admin' : 'Se connecter'}</button>
         </form>
 
@@ -46,16 +55,19 @@ export function renderAdminLogin() {
 }
 
 export function setupLogin(container, { onRegister, onLogin, onInstall }) {
-  const form = container.querySelector('#loginForm');
+  const form = container.querySelector('#loginForm, #adminLoginForm');
   if (form) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(form);
       try {
-        await onLogin({
-          identifiant: formData.get('identifiant'),
-          password: formData.get('password')
-        });
+        const credentials = form.id === 'adminLoginForm'
+          ? { identifiant: 'admin', password: formData.get('adminCode') }
+          : {
+            identifiant: formData.get('identifiant'),
+            password: formData.get('password')
+          };
+        await onLogin(credentials);
       } catch (err) {
         // Erreur affichée par onLogin via showToast
       }
