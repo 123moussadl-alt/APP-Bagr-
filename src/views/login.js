@@ -33,8 +33,7 @@ export function renderLogin({ onRegister, onLogin }) {
           Pas encore de compte ? <button type="button" class="auth-link register-btn">Créer un compte</button>
         </p>
         <div class="auth-admin-access">
-          <button type="button" class="auth-admin-link" aria-describedby="adminAccessHint">🛡️ Admin</button>
-          <small id="adminAccessHint" hidden>Connectez-vous avec les identifiants de votre compte Administrateur Principal.</small>
+          <button type="button" class="auth-admin-link">🛡️ Admin</button>
         </div>
       </div>
     </div>
@@ -67,8 +66,6 @@ export function setupLogin(container, { onRegister, onLogin }) {
   if (adminBtn) {
     adminBtn.addEventListener('click', () => {
       const identifier = form && form.querySelector('[name="identifiant"]');
-      const hint = container.querySelector('#adminAccessHint');
-      if (hint) hint.hidden = false;
       if (identifier) {
         identifier.placeholder = 'Identifiant Administrateur Principal';
         identifier.focus();

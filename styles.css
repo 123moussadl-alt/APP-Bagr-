@@ -12,6 +12,20 @@
 
 * { box-sizing: border-box; }
 
+body, body * {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+input, textarea, select {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
 body {
   margin: 0;
   font-family: Arial, "Segoe UI", sans-serif;

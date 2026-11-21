@@ -1429,6 +1429,16 @@ window.logout = async () => {
   render();
 };
 
+function preventClipboardInteraction(event) {
+  event.preventDefault();
+}
+
+if (typeof document !== 'undefined') {
+  ['copy', 'cut', 'contextmenu'].forEach(eventName => {
+    document.addEventListener(eventName, preventClipboardInteraction, true);
+  });
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', init);
 }
