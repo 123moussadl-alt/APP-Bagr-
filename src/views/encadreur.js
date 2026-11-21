@@ -10,6 +10,7 @@ import { renderSyntheseHTML, computeSubjectRows, computeClassAverageSummary } fr
 import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTable } from '../utils/registre.js';
 import { profileMatchesVisa, signatureUrlForProfile } from '../utils/signature.js';
 import { loadPaiRecord, normalizePaiDiscipline } from '../utils/pai.js';
+import { mergeSchoolChoices } from '../utils/schools.js';
 
 export function renderEncadreur(state, render, supabase) {
   const profile = state.profile;
@@ -146,7 +147,8 @@ export function setupEncadreur(container, state, render, supabase) {
     if (!schoolIds.length) return [];
     const { data: schools, error } = await supabase.from('schools').select('*').in('id', schoolIds).order('name');
     if (error) throw error;
-    return schools || [];
+    return mergeSchoolChoices(schools || [])
+      .filter(school => !school.isFallback && schoolIds.includes(String(school.id)));
   }
 
   async function renderSubView(view) {

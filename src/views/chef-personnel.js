@@ -9,6 +9,7 @@ import { esc, formatClassName } from '../utils/format.js';
 import { downloadCSV, printPage, wirePDFExportButton } from '../utils/export.js';
 import { openPreview } from '../utils/preview.js';
 import { signatureBlockHTML } from '../utils/signature.js';
+import { mergeSchoolChoices } from '../utils/schools.js';
 import {
   agentMonths, computeAgentMonthlyRows, getAgentEmployment, getAgentNameParts,
   getCurrentSchoolYearStart, getSchoolMonthPeriod, mergeAgentAttendanceRecords,
@@ -120,7 +121,7 @@ export function setupChefPersonnel(container, state, render, supabase) {
       supabase.from('classes').select('*')
     ]);
     allProfiles = p.data || [];
-    allSchools = s.data || [];
+    allSchools = mergeSchoolChoices(s.data || []);
     allClasses = c.data || [];
     renderView('all');
   }
@@ -273,14 +274,18 @@ export function setupChefPersonnel(container, state, render, supabase) {
   async function loadAgentReportData() {
     const status = viewContainer.querySelector('#agentReportLoadStatus');
     const period = getSchoolMonthPeriod(agentSchoolYearStart, agentReportMonth);
+    const selectedSchool = allSchools.find(school => String(school.id) === String(agentReportSchool));
+    const selectedSchoolIsFallback = selectedSchool && selectedSchool.isFallback;
     const attendanceQuery = supabase.from('presences_agents').select('*')
       .gte('date_jour', period.start).lte('date_jour', period.end);
-    if (agentReportSchool !== 'all') attendanceQuery.eq('ecole_id', agentReportSchool);
+    if (agentReportSchool !== 'all' && !selectedSchoolIsFallback) attendanceQuery.eq('ecole_id', agentReportSchool);
     const submissionsQuery = supabase.from('bilans_agents_mensuels').select('*')
       .eq('mois', agentReportMonth)
       .eq('annee_scolaire', `${agentSchoolYearStart}-${agentSchoolYearStart + 1}`);
-    if (agentReportSchool !== 'all') submissionsQuery.eq('ecole_id', agentReportSchool);
-    const [attendanceResult, submissionsResult] = await Promise.all([attendanceQuery, submissionsQuery]);
+    if (agentReportSchool !== 'all' && !selectedSchoolIsFallback) submissionsQuery.eq('ecole_id', agentReportSchool);
+    const [attendanceResult, submissionsResult] = selectedSchoolIsFallback
+      ? [{ data: [], error: null }, { data: [], error: null }]
+      : await Promise.all([attendanceQuery, submissionsQuery]);
     const selectedSchools = agentReportSchool === 'all'
       ? allSchools
       : allSchools.filter(school => school.id === agentReportSchool);

@@ -4,7 +4,8 @@
  */
 
 import { isDemoMode, supabase } from '../supabaseClient.js';
-import { DEFAULT_SCHOOL_NAMES } from '../utils/schools.js';
+import { DEFAULT_SCHOOL_NAMES, mergeSchoolChoices } from '../utils/schools.js';
+import { esc } from '../utils/format.js';
 
 export function renderRegister({ onLogin, onRegister }) {
   return `
@@ -70,13 +71,8 @@ export function renderRegister({ onLogin, onRegister }) {
               <label>École</label>
               <select name="schoolName" id="schoolSelect">
                 <option value="">-- Choisir une école --</option>
-                ${DEFAULT_SCHOOL_NAMES.map(name => `<option value="${name}">${name}</option>`).join('')}
-                <option value="__new__">+ Autre école (Saisir le nom)</option>
+                ${DEFAULT_SCHOOL_NAMES.map(name => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}
               </select>
-            </div>
-            <div class="form-group" id="newSchoolGroup" style="display:none;margin-top:10px">
-              <label>Nom de la nouvelle école</label>
-              <input type="text" name="newSchoolName" id="newSchoolInput" placeholder="Ex: École de Kouna">
             </div>
             <div id="titulaireClassGroup" style="display:none;margin-top:10px">
               <div class="form-group">
@@ -145,15 +141,13 @@ export function setupRegister(container, { onLogin, onRegister }) {
   const schoolLoadStatus = container.querySelector('#schoolLoadStatus');
   const districtStructureGroup = container.querySelector('#districtStructureGroup');
   const schoolSelect = container.querySelector('#schoolSelect');
-  const newSchoolGroup = container.querySelector('#newSchoolGroup');
-  const newSchoolInput = container.querySelector('#newSchoolInput');
   const titulaireClassGroup = container.querySelector('#titulaireClassGroup');
   const classLevelSelect = container.querySelector('#classLevelSelect');
   const classLevelLabel = container.querySelector('#classLevelLabel');
   const classNameGroup = container.querySelector('#classNameGroup');
   const classNameLabel = container.querySelector('#classNameLabel');
   const classNameInput = container.querySelector('#classNameInput');
-  let schools = DEFAULT_SCHOOL_NAMES.map(name => ({ id: name, name }));
+  let schools = mergeSchoolChoices();
   let schoolChoicesReady = isDemoMode;
 
   function escapeHtml(value) {
@@ -169,8 +163,7 @@ export function setupRegister(container, { onLogin, onRegister }) {
     if (schoolSelect) {
       const current = schoolSelect.value;
       schoolSelect.innerHTML = '<option value="">-- Choisir une école --</option>' +
-        schools.map(school => `<option value="${escapeHtml(school.name)}">${escapeHtml(school.name)}</option>`).join('') +
-        '<option value="__new__">+ Autre école (Saisir le nom)</option>';
+        schools.map(school => `<option value="${escapeHtml(school.id)}" data-name="${escapeHtml(school.name)}">${escapeHtml(school.name)}</option>`).join('');
       if (current && Array.from(schoolSelect.options).some(option => option.value === current)) schoolSelect.value = current;
     }
     if (encadreurSchoolsList) {
@@ -210,28 +203,9 @@ export function setupRegister(container, { onLogin, onRegister }) {
       classNameInput.disabled = !canAssignClass || !hasClassLevel;
       if (classNameLabel) classNameLabel.textContent = 'Classe tenue — Nom (optionnel)';
     }
-    if (!needsSchool) {
-      if (newSchoolGroup) newSchoolGroup.style.display = 'none';
-      if (newSchoolInput) {
-        newSchoolInput.required = false;
-        newSchoolInput.disabled = true;
-      }
-    } else {
-      toggleNewSchool();
-    }
-  }
-
-  function toggleNewSchool() {
-    const isNew = schoolSelect && schoolSelect.value === '__new__';
-    if (newSchoolGroup) newSchoolGroup.style.display = isNew ? 'block' : 'none';
-    if (newSchoolInput) {
-      newSchoolInput.required = !!isNew;
-      newSchoolInput.disabled = !isNew;
-    }
   }
 
   if (roleSelect) roleSelect.addEventListener('change', refreshRoleFields);
-  if (schoolSelect) schoolSelect.addEventListener('change', toggleNewSchool);
   if (classLevelSelect) classLevelSelect.addEventListener('change', refreshRoleFields);
 
   const goLoginBtn = container.querySelector('#goLoginBtn');
@@ -246,6 +220,10 @@ export function setupRegister(container, { onLogin, onRegister }) {
       const selectedSchools = Array.from(container.querySelectorAll('input[name="encadreeSchool"]:checked'))
         .map(input => input.value);
 
+      if ((role === 'titulaire' || role === 'directeur') && !schoolChoicesReady) {
+        alert('Attendez le chargement de la liste des écoles avant de continuer.');
+        return;
+      }
       if (role === 'encadreur' && !schoolChoicesReady) {
         alert('Attendez le chargement de la liste des écoles avant de continuer.');
         return;
@@ -256,15 +234,8 @@ export function setupRegister(container, { onLogin, onRegister }) {
       }
 
       if (role === 'titulaire' || role === 'directeur') {
-        if (schoolSelect && schoolSelect.value === '__new__') {
-          schoolName = newSchoolInput ? newSchoolInput.value.trim() : '';
-          if (!schoolName) {
-            alert("Veuillez saisir le nom de la nouvelle école.");
-            if (newSchoolInput) newSchoolInput.focus();
-            return;
-          }
-        } else if (schoolSelect && schoolSelect.value) {
-          schoolName = schoolSelect.value;
+        if (schoolSelect && schoolSelect.value) {
+          schoolName = schoolSelect.selectedOptions[0]?.dataset.name || schoolSelect.value;
         }
       }
 
@@ -289,6 +260,7 @@ export function setupRegister(container, { onLogin, onRegister }) {
           role,
           emploi: (formData.get('emploi') || '').trim() || null,
           schoolName,
+          schoolId: role === 'titulaire' || role === 'directeur' ? (schoolSelect && schoolSelect.value) : null,
           followedSchools: role === 'encadreur' ? selectedSchools : [],
           structure: role === 'encadreur' || ['chef_ceb', 'chef_personnel', 'statisticien'].includes(role)
             ? 'CEB de Bagré'
@@ -310,10 +282,10 @@ export function setupRegister(container, { onLogin, onRegister }) {
 
   if (!isDemoMode) {
     if (schoolLoadStatus) schoolLoadStatus.textContent = 'Chargement des écoles…';
-    supabase.from('schools').select('id,name').order('name').then(({ data, error }) => {
+    supabase.from('schools').select('id,name,ceb').order('name').then(({ data, error }) => {
       if (error) {
         schoolChoicesReady = false;
-        schools = [];
+        schools = mergeSchoolChoices();
         renderSchoolChoices();
         if (schoolLoadStatus) {
           schoolLoadStatus.textContent = 'Impossible de charger les écoles : ' + error.message;
@@ -321,7 +293,7 @@ export function setupRegister(container, { onLogin, onRegister }) {
         }
         return;
       }
-      schools = data || [];
+      schools = mergeSchoolChoices(data || []);
       schoolChoicesReady = true;
       renderSchoolChoices();
       if (!schools.length && schoolLoadStatus) {
@@ -332,7 +304,7 @@ export function setupRegister(container, { onLogin, onRegister }) {
       }
     }).catch(error => {
       schoolChoicesReady = false;
-      schools = [];
+      schools = mergeSchoolChoices();
       renderSchoolChoices();
       if (schoolLoadStatus) {
         schoolLoadStatus.textContent = 'Impossible de charger les écoles : ' + (error.message || error);

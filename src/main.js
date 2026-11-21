@@ -6,7 +6,7 @@ import { supabase, isDemoMode } from './supabaseClient.js';
 import { setupOnlineSync } from './db.js';
 import { toInternalEmail } from './supabaseClient.js';
 import { defaultSubjects, esc, formatClassName } from './utils/format.js';
-import { DEFAULT_SCHOOL_NAMES } from './utils/schools.js';
+import { DEFAULT_SCHOOL_NAMES, mergeSchoolChoices } from './utils/schools.js';
 import { isSignatureDataUrl, signatureImageHTML, signatureStorageKey, signatureUrlForProfile } from './utils/signature.js';
 
 const viewModules = {
@@ -337,18 +337,18 @@ async function openSettings() {
   const isEncadreur = profile.role === 'encadreur';
   const isDistrictRole = ['chef_ceb', 'chef_personnel', 'statisticien'].includes(profile.role);
   const canAssignClass = isSchoolRole;
-  let schools = [];
+  let schools = mergeSchoolChoices();
   let schoolsError = null;
   if (isDemoMode) {
-    schools = [...new Set([
+    const demoSchoolNames = [...new Set([
       ...DEFAULT_SCHOOL_NAMES,
       ...demoGetAccounts().map(account => account.schoolId).filter(Boolean)
-    ])]
-      .map(name => ({ id: name, name }));
+    ])];
+    schools = mergeSchoolChoices(demoSchoolNames.map(name => ({ id: name, name })));
   } else {
     try {
-      const result = await supabase.from('schools').select('id,name').order('name');
-      schools = result.data || [];
+      const result = await supabase.from('schools').select('id,name,ceb').order('name');
+      schools = mergeSchoolChoices(result.data || []);
       schoolsError = result.error;
     } catch (error) {
       schoolsError = error;
@@ -356,7 +356,6 @@ async function openSettings() {
   }
   const profileSchoolId = profile.ecole_id || profile.school_id || '';
   let savedSignature = signatureUrlForProfile(profile);
-  const currentSchoolMissing = profileSchoolId && !schools.some(school => String(school.id) === String(profileSchoolId));
   const currentClass = profile.classe_niveau || profile.classe_tenue || '';
   let savedEncadreeIds = parseSchoolIdList(profile.ecoles_encadrees);
   if (!savedEncadreeIds.length) savedEncadreeIds = parseSchoolIdList(profile.followed_schools);
@@ -385,7 +384,7 @@ async function openSettings() {
           <div class="form-group"><label for="settingsStudy">Niveau d'étude</label><select id="settingsStudy"><option value="">-- Choisir --</option>${currentLevelMissing ? `<option value="${esc(profile.niveau_etude)}">${esc(profile.niveau_etude)}</option>` : ''}${levelOptions.map(value => `<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select></div>
           <div class="form-group"><label for="settingsEmploi">Emploi</label><select id="settingsEmploi"><option value="">-- Choisir --</option>${emploiOptions.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('')}</select></div>
           <div class="form-group"><label for="settingsServiceDate">Date de prise de service à la CEB</label><input id="settingsServiceDate" type="date" value="${esc(profile.date_prise_service_ceb || '')}"></div>
-          ${isSchoolRole ? `<div class="form-group"><label for="settingsSchool">École</label><select id="settingsSchool"><option value="">-- Choisir --</option>${currentSchoolMissing ? `<option value="${esc(profileSchoolId)}">${esc(profile.ecole_nom || profile.school_id)}</option>` : ''}${schools.map(school => `<option value="${esc(school.id)}">${esc(school.name)}</option>`).join('')}</select></div>` : ''}
+          ${isSchoolRole ? `<div class="form-group"><label for="settingsSchool">École</label><select id="settingsSchool"><option value="">-- Choisir --</option>${schools.map(school => `<option value="${esc(school.id)}">${esc(school.name)}</option>`).join('')}</select></div>` : ''}
           ${canAssignClass ? `<div class="form-group"><label for="settingsClass">Classe tenue</label><select id="settingsClass"><option value="">-- Choisir --</option>${classOptions.map(value => `<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select></div>` : ''}
           ${isEncadreur ? `<div class="form-group" style="grid-column:1/-1"><label>Écoles encadrées / Zone d'encadrement</label><div id="settingsEncadreeSchools" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px">${schools.map(school => `<label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff"><input type="checkbox" name="settingsEncadreeSchool" value="${esc(school.id)}" ${savedEncadreeIds.includes(String(school.id)) ? 'checked' : ''}><span>${esc(school.name)}</span></label>`).join('')}</div></div>` : ''}
           ${isDistrictRole ? `<div class="form-group"><label for="settingsStructure">Structure</label><input id="settingsStructure" value="CEB de Bagré" readonly></div>` : ''}
@@ -627,21 +626,33 @@ async function openSettings() {
       return;
     }
     const whatsappValue = overlay.querySelector('#settingsWhatsApp').value.trim();
-    const schoolId = isSchoolRole && schoolSel ? (schoolSel.value || null) : null;
-    const school = schools.find(item => String(item.id) === String(schoolId)) || null;
+    let schoolId = isSchoolRole && schoolSel ? (schoolSel.value || null) : null;
+    let school = schools.find(item => String(item.id) === String(schoolId)) || null;
     const classLevel = classSel ? (classSel.value || null) : null;
     const shouldLinkClass = canAssignClass && !!classLevel && classLevel !== 'Aucune';
     const directorProfile = profile.role === 'directeur' || !!state.isDualDirector;
-    const ecolesEncadrees = isEncadreur
+    let ecolesEncadrees = isEncadreur
       ? Array.from(overlay.querySelectorAll('input[name="settingsEncadreeSchool"]:checked')).map(input => input.value)
       : [];
-    const structure = isDistrictRole || isEncadreur
-      ? 'CEB de Bagré'
-      : (school ? school.name : null);
     saveButton.disabled = true;
     status.textContent = 'Enregistrement de vos paramètres…';
     status.style.color = '#475569';
     try {
+      if (!isDemoMode) {
+        if (school && school.isFallback) schoolId = await ensureSchoolId(school.name);
+        if (isEncadreur) {
+          ecolesEncadrees = await Promise.all(ecolesEncadrees.map(async value => {
+            const selectedSchool = schools.find(item => String(item.id) === String(value));
+            return selectedSchool && selectedSchool.isFallback
+              ? ensureSchoolId(selectedSchool.name)
+              : value;
+          }));
+        }
+      }
+      school = schools.find(item => String(item.id) === String(schoolId)) || school;
+      const structure = isDistrictRole || isEncadreur
+        ? 'CEB de Bagré'
+        : (school ? school.name : null);
       if (shouldLinkClass && !schoolId) {
         throw new Error('Choisissez une école avant d’affecter une classe.');
       }
@@ -930,11 +941,13 @@ async function togglePreviewBar() {
 
 async function renderPreviewBar() {
   if (!previewBarEl) return;
-  let schools = [];
+  let schools = mergeSchoolChoices();
   try {
-    const r = await supabase.from('schools').select('id,name').order('name');
-    schools = r.data || [];
-  } catch (e) { schools = []; }
+    const r = await supabase.from('schools').select('id,name,ceb').order('name');
+    schools = mergeSchoolChoices(r.data || []);
+  } catch (e) {
+    schools = mergeSchoolChoices();
+  }
 
   previewBarEl.innerHTML = `
     <strong style="color:#a78bfa;white-space:nowrap">👁 APERÇU CONCEPTEUR</strong>
@@ -942,7 +955,7 @@ async function renderPreviewBar() {
     <span style="flex:1"></span>
     <select id="pvSchool" style="background:#1f2937;color:#fff;border:1px solid #374151;border-radius:6px;padding:6px">
       <option value="">Toutes les écoles</option>
-      ${schools.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}
+      ${schools.map(s => `<option value="${esc(s.id)}" data-fallback="${s.isFallback ? 'true' : 'false'}" ${s.isFallback ? 'disabled' : ''}>${esc(s.name)}</option>`).join('')}
     </select>
     <select id="pvClass" style="background:#1f2937;color:#fff;border:1px solid #374151;border-radius:6px;padding:6px">
       <option value="">Toutes les classes</option>
@@ -962,6 +975,11 @@ async function loadPreviewClasses(schoolId) {
   if (!sel) return;
   if (!schoolId) {
     sel.innerHTML = '<option value="">Toutes les classes</option>';
+    return;
+  }
+  const schoolSelect = previewBarEl.querySelector('#pvSchool');
+  if (schoolSelect && schoolSelect.selectedOptions[0]?.dataset.fallback === 'true') {
+    sel.innerHTML = '<option value="">Aucune classe enregistrée</option>';
     return;
   }
   let classes = [];
@@ -1059,7 +1077,18 @@ async function ensureSchoolId(schoolName) {
   return created.id;
 }
 
-async function handleRegister({ identifiant, password, matricule, nom, prenom, sexe, role, emploi, schoolName, classLevel, className, whatsapp, classId, followedSchools, structure }) {
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
+}
+
+async function resolveSchoolId(selection) {
+  const value = String(selection || '').trim();
+  if (!value) return null;
+  if (isUuid(value)) return value;
+  return ensureSchoolId(value);
+}
+
+async function handleRegister({ identifiant, password, matricule, nom, prenom, sexe, role, emploi, schoolName, schoolId: selectedSchoolId, classLevel, className, whatsapp, classId, followedSchools, structure }) {
   const cleanId = (identifiant || '').trim();
   const email = toInternalEmail(cleanId);
   const isSchoolRole = role === 'titulaire' || role === 'directeur';
@@ -1141,6 +1170,15 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
   }
 
   // --- Mode Supabase ---
+  let followedSchoolIds = [];
+  if (isEncadreur) {
+    try {
+      followedSchoolIds = await Promise.all(finalFollowed.map(resolveSchoolId));
+    } catch (schoolError) {
+      showToast('Impossible de résoudre les écoles encadrées : ' + schoolError.message);
+      throw schoolError;
+    }
+  }
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) {
     showToast(friendlyError(error, 'Erreur d\'inscription'));
@@ -1162,7 +1200,7 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
   let schoolId = null;
   if (cleanSchoolName) {
     try {
-      schoolId = await ensureSchoolId(cleanSchoolName);
+      schoolId = isUuid(selectedSchoolId) ? selectedSchoolId : await ensureSchoolId(cleanSchoolName);
     } catch (schoolError) {
       showToast('Impossible d’affecter l’école : ' + schoolError.message);
       throw schoolError;
@@ -1187,8 +1225,8 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
     ecole_id: schoolId,
     ecole_nom: cleanSchoolName,
     classe_id: classId || null,
-    ecoles_encadrees: finalFollowed,
-    followed_schools: finalFollowed,
+    ecoles_encadrees: followedSchoolIds,
+    followed_schools: followedSchoolIds,
     structure: profileStructure,
     role,
     school_id: schoolId,
@@ -1228,7 +1266,7 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
   }
 
   try {
-    localStorage.setItem(ENCADREUR_SCHOOLS_STORAGE_PREFIX + data.user.id, JSON.stringify(finalFollowed));
+    localStorage.setItem(ENCADREUR_SCHOOLS_STORAGE_PREFIX + data.user.id, JSON.stringify(followedSchoolIds));
   } catch (storageError) {
     console.warn('Impossible de sauvegarder localement les écoles encadrées.', storageError);
   }
@@ -1255,8 +1293,8 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
     ecole_nom: cleanSchoolName,
     school_id: schoolId,
     class_id: createdClassId,
-    ecoles_encadrees: finalFollowed,
-    followed_schools: finalFollowed,
+    ecoles_encadrees: followedSchoolIds,
+    followed_schools: followedSchoolIds,
     structure: profileStructure
   };
   state.ecole = schoolId ? { id: schoolId, name: cleanSchoolName } : null;

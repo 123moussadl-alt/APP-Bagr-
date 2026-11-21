@@ -6,6 +6,7 @@ import { esc, formatClassName } from '../utils/format.js';
 import { downloadCSV, printPage, wirePDFExportButton } from '../utils/export.js';
 import { openPreview } from '../utils/preview.js';
 import { signatureBlockHTML } from '../utils/signature.js';
+import { mergeSchoolChoices } from '../utils/schools.js';
 
 const ALL_SCHOOLS_VALUE = '';
 const CLASS_LEVELS = new Set(['CP1', 'CP2', 'CE1', 'CE2', 'CM1', 'CM2']);
@@ -242,13 +243,13 @@ export function setupStatisticien(container, state, render, supabase) {
     try {
       const [studentsResult, schoolsResult, classesResult] = await Promise.all([
         supabase.from('students').select('*'),
-        supabase.from('schools').select('id,name').order('name'),
+        supabase.from('schools').select('id,name,ceb').order('name'),
         supabase.from('classes').select('id,name,level,school_id').order('level').order('name')
       ]);
       const failedResult = [studentsResult, schoolsResult, classesResult].find(result => result.error);
       if (failedResult) throw failedResult.error;
       students = (studentsResult.data || []).filter(student => student.status !== 'A');
-      schools = schoolsResult.data || [];
+      schools = mergeSchoolChoices(schoolsResult.data || []);
       classes = classesResult.data || [];
       renderView();
     } catch (error) {

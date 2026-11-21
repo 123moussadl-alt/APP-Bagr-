@@ -12,6 +12,7 @@ import { openPreview } from '../utils/preview.js';
 import { profileMatchesVisa, signatureBlockHTML, signatureUrlForProfile } from '../utils/signature.js';
 import { computeSubjectRows, renderSyntheseHTML } from '../utils/synthese.js';
 import { loadPaiRecord } from '../utils/pai.js';
+import { mergeSchoolChoices } from '../utils/schools.js';
 import {
   computeSchoolTermSynthesis, loadSchoolTermData, renderSchoolTermSynthesisHTML,
   schoolTermSynthesisCSVRows
@@ -260,7 +261,7 @@ export function setupChefCEB(container, state, render, supabase) {
     staffDirectoryLoaded = false;
     const [profilesResult, schoolsResult, classesResult] = await Promise.all([
       supabase.from('profiles').select('*').order('full_name'),
-      supabase.from('schools').select('id,name').order('name'),
+      supabase.from('schools').select('id,name,ceb').order('name'),
       supabase.from('classes').select('id,name,level,school_id')
     ]);
     if (activeSubView !== 'personnel') return;
@@ -273,7 +274,7 @@ export function setupChefCEB(container, state, render, supabase) {
       return;
     }
     staffProfiles = profilesResult.data || [];
-    staffSchools = schoolsResult.data || [];
+    staffSchools = mergeSchoolChoices(schoolsResult.data || []);
     staffClasses = classesResult.data || [];
     staffDirectoryLoaded = true;
     renderStaffTable();
@@ -353,12 +354,13 @@ export function setupChefCEB(container, state, render, supabase) {
   async function renderSyntheseTrim() {
     const prevSel = viewContainer.querySelector('#trimSchool')?.value || '';
     const { data: schools } = await supabase.from('schools').select('*').order('name');
-    const schoolList = schools || [];
+    const schoolList = mergeSchoolChoices(schools || []);
     const selected = prevSel || '';
     const targetSchools = selected ? schoolList.filter(s => s.id === selected) : schoolList;
 
     trimRows = [];
     for (const school of targetSchools) {
+      if (school.isFallback) continue;
       const { data: classes } = await supabase.from('classes').select('*').eq('school_id', school.id);
       for (const cls of (classes || [])) {
         const { data: students } = await supabase.from('students').select('*').eq('class_id', cls.id);
@@ -412,18 +414,33 @@ export function setupChefCEB(container, state, render, supabase) {
   }
 
   async function renderSchoolTermSynthesis() {
-    const schoolsResult = await supabase.from('schools').select('id,name').order('name');
+    const schoolsResult = await supabase.from('schools').select('id,name,ceb').order('name');
     if (schoolsResult.error) {
       viewContainer.innerHTML = `<div class="card" role="alert" style="color:#b91c1c">Impossible de charger les écoles : ${esc(schoolsResult.error.message)}</div>`;
       return;
     }
-    const schools = schoolsResult.data || [];
-    if (!schools.length) {
-      viewContainer.innerHTML = '<div class="empty">Aucune école enregistrée dans la CEB.</div>';
-      return;
+    const schools = mergeSchoolChoices(schoolsResult.data || []);
+    const selectedSchool = schools.find(school => String(school.id) === String(schoolTermSchoolId));
+    if (!selectedSchool) {
+      schoolTermSchoolId = (schools.find(school => !school.isFallback) || schools[0]).id;
     }
-    if (!schools.some(school => String(school.id) === String(schoolTermSchoolId))) {
-      schoolTermSchoolId = schools[0].id;
+    const persistedSchool = schools.find(school => String(school.id) === String(schoolTermSchoolId));
+    if (persistedSchool && persistedSchool.isFallback) {
+      viewContainer.innerHTML = `
+        <div class="card">
+          <div class="form-group" style="max-width:320px">
+            <label for="schoolTermSchool">École</label>
+            <select id="schoolTermSchool">
+              ${schools.map(school => `<option value="${esc(school.id)}" ${String(school.id) === String(schoolTermSchoolId) ? 'selected' : ''}>${esc(school.name)}</option>`).join('')}
+            </select>
+          </div>
+          <p class="empty">Cette école officielle n’est pas encore enregistrée dans la base. Exécutez le seed de <code>supabase_setup.sql</code> pour activer ses données.</p>
+        </div>`;
+      viewContainer.querySelector('#schoolTermSchool')?.addEventListener('change', event => {
+        schoolTermSchoolId = event.target.value;
+        renderSchoolTermSynthesis();
+      });
+      return;
     }
     let schoolData;
     try {
@@ -583,12 +600,12 @@ export function setupChefCEB(container, state, render, supabase) {
   }
 
   async function renderEcoles() {
-    const { data: schools, error } = await supabase.from('schools').select('*').order('name');
+    const { data: databaseSchools, error } = await supabase.from('schools').select('*').order('name');
     if (error) {
       viewContainer.innerHTML = `<div class="card" role="alert" style="color:#b91c1c">Impossible de charger les écoles : ${esc(error.message)}</div>`;
       return;
     }
-    const schoolList = schools || [];
+    const schoolList = mergeSchoolChoices(databaseSchools || []);
     viewContainer.innerHTML = `
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
@@ -601,12 +618,12 @@ export function setupChefCEB(container, state, render, supabase) {
               <label for="schoolEditSelect">École à modifier</label>
               <select id="schoolEditSelect">
                 <option value="__new__">Ajouter une nouvelle école</option>
-                ${schoolList.map(school => `<option value="${esc(school.id)}" data-name="${esc(school.name)}">${esc(school.name)}</option>`).join('')}
+                ${schoolList.map(school => `<option value="${esc(school.id)}" data-name="${esc(school.name)}" data-fallback="${school.isFallback ? 'true' : 'false'}">${esc(school.name)}</option>`).join('')}
               </select>
             </div>
             <div class="form-group" style="margin:0;min-width:240px;flex:1">
               <label for="schoolEditName">Nom officiel de l'école</label>
-              <input id="schoolEditName" type="text" maxlength="160" placeholder="Ex. Bagré Centre A">
+              <input id="schoolEditName" type="text" maxlength="160" placeholder='Ex. Bagré Périmètre "A"'>
             </div>
             <button type="button" class="btn" data-action="school-save">Enregistrer l'école</button>
           </div>
@@ -643,7 +660,10 @@ export function setupChefCEB(container, state, render, supabase) {
       }
       return;
     }
-    const schoolId = select && select.value !== '__new__' ? select.value : '';
+    const selectedOption = select && select.selectedOptions[0];
+    const schoolId = select && select.value !== '__new__' && selectedOption?.dataset.fallback !== 'true'
+      ? select.value
+      : '';
     try {
       const result = schoolId
         ? await supabase.from('schools').update({ name, ceb: 'BAGRÉ' }).eq('id', schoolId).select('id').single()
@@ -661,7 +681,8 @@ export function setupChefCEB(container, state, render, supabase) {
   }
 
   async function renderSynthese() {
-    const { data: schools } = await supabase.from('schools').select('*').order('name');
+    const { data: databaseSchools } = await supabase.from('schools').select('*').order('name');
+    const schools = mergeSchoolChoices(databaseSchools || []).filter(school => !school.isFallback);
     const rows = [];
     let totalComposed = 0, totalStudents = 0, totalG = 0, totalF = 0;
 

@@ -30,11 +30,14 @@ alter table public.classes
 update public.schools as legacy
 set name = official.name, ceb = 'BAGRÉ'
 from (values
-  ('École A de Bagré', 'Bagré Centre A'),
-  ('École B de Bagré', 'Bagré Centre B'),
+  ('École A de Bagré', 'Bagré Périmètre "A"'),
+  ('Bagré Centre A', 'Bagré Périmètre "A"'),
+  ('École B de Bagré', 'Bagré Périmètre "B"'),
+  ('Bagré Centre B', 'Bagré Périmètre "B"'),
   ('École C de Bagré', 'Bagré Peulh'),
   ('École de Dirlakou', 'Dirlakou'),
-  ('École de Goudayéré', 'Goudayéré')
+  ('École de Goudayéré', 'Goudayéré'),
+  ('Boakla', 'Bouakla')
 ) as official(legacy_name, name)
 where lower(trim(legacy.name)) = lower(trim(official.legacy_name))
   and not exists (
@@ -44,17 +47,39 @@ where lower(trim(legacy.name)) = lower(trim(official.legacy_name))
       and lower(trim(existing.name)) = lower(trim(official.name))
   );
 
+update public.schools
+set ceb = 'ARCHIVE'
+where upper(trim(coalesce(ceb, ''))) = 'BAGRÉ'
+  and lower(trim(name)) in ('dirlakou', 'sangabouli', 'zabo');
+
 insert into public.schools (name, ceb)
 select official.name, 'BAGRÉ'
 from (values
-  ('Bagré Centre A'),
-  ('Bagré Centre B'),
+  ('Bagré Périmètre "A"'),
+  ('Bagré Périmètre "B"'),
+  ('Bagré Périmètre "C"'),
+  ('Bagré Périmètre "D"'),
   ('Bagré Peulh'),
-  ('Dirlakou'),
+  ('Bagré Village'),
+  ('Bagré V2'),
+  ('Bagré V4'),
+  ('Bagré V5'),
+  ('Bagré V11'),
+  ('Bagré V12'),
+  ('Bégassé'),
+  ('Bouakla'),
+  ('Douka'),
   ('Goudayéré'),
-  ('Sangabouli'),
-  ('Zabo'),
-  ('Boakla')
+  ('Guingalé'),
+  ('Hihoudé'),
+  ('Ounvin'),
+  ('Patta Publique'),
+  ('Poussouwaka'),
+  ('Kalakoudi'),
+  ('Saint Bénoît Abbé'),
+  ('Sabiloul Falah'),
+  ('Sabiloul Houda'),
+  ('Sabiloul Raçad')
 ) as official(name)
 where not exists (
   select 1
