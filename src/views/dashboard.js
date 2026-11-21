@@ -2,8 +2,9 @@
  * Tableau de bord de landing — Redirection selon le rôle
  */
 
+import { esc } from '../utils/format.js';
+
 export function renderDashboard(state, render) {
-  const LT = '<';
   const role = state.profile?.role;
   const label = {
     titulaire: 'Titulaire de classe',
@@ -11,23 +12,26 @@ export function renderDashboard(state, render) {
     encadreur: 'Encadreur',
     chef_ceb: 'Chef CEB',
     chef_personnel: 'Chef du Personnel',
-    statisticien: 'Statisticien'
+    statisticien: 'Statisticien',
+    super_admin: 'Administrateur Principal'
   }[role] || 'Utilisateur';
+  const fullName = esc(state.profile?.full_name || 'Utilisateur');
 
   return `
     <div class="dashboard">
       <div class="topbar">
-        <div class="topbar-left">
-          <button class="btn secondary" onclick="window.logout()">🚪 Déconnexion</button>
+        <div class="topbar-brand">
+          <strong>Educ'CEB Bagré</strong>
+          <span>${fullName} — ${label}</span>
         </div>
         <div class="topbar-right">
-          <span class="user-badge">${label}</span>
+          <button type="button" class="btn-logout" onclick="window.logout()">Déconnexion</button>
         </div>
       </div>
 
       <div class="dashboard-content">
         <h1>Tableau de bord — ${label}</h1>
-        <p>Bienvenue, <strong>${state.profile?.full_name || 'Utilisateur'}</strong>.</p>
+        <p>Bienvenue dans votre espace.</p>
 
         <div class="role-cards">
           ${role === 'titulaire' ? `
@@ -78,10 +82,11 @@ export function renderDashboard(state, render) {
 
     <style>
       .dashboard { padding: 24px; max-width: 1000px; margin: 0 auto; }
-      .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
-      .topbar-left { display: flex; gap: 12px; }
-      .topbar-right { display: flex; align-items: center; gap: 12px; }
-      .user-badge { background: #0f3d23; color: white; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+      .dashboard .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 24px; padding: 12px 16px; border-radius: 8px; background: linear-gradient(135deg, #06b6d4 0%, #22c55e 100%); color: #fff; }
+      .dashboard .topbar-brand { display: flex; flex-direction: column; min-width: 0; }
+      .dashboard .topbar-brand strong { font-size: 16px; }
+      .dashboard .topbar-brand span { overflow: hidden; color: #e0f2fe; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+      .dashboard .topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: nowrap; }
       .dashboard-content h1 { margin: 0 0 8px 0; color: #0f3d23; }
       .dashboard-content p { color: #64748b; margin-bottom: 24px; }
       .role-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }

@@ -3,7 +3,6 @@
  */
 
 export function renderLogin({ onRegister, onLogin }) {
-  const LT = '<';
   return `
     <div class="auth-container">
       <div class="auth-card">
@@ -29,6 +28,7 @@ export function renderLogin({ onRegister, onLogin }) {
           <button type="submit" class="btn-primary">Se connecter</button>
         </form>
 
+        <button type="button" class="btn-install" data-action="install-app">📲 Installer / Télécharger l'application</button>
         <p class="auth-footer">
           Pas encore de compte ? <button type="button" class="auth-link register-btn">Créer un compte</button>
         </p>
@@ -40,7 +40,7 @@ export function renderLogin({ onRegister, onLogin }) {
   `;
 }
 
-export function setupLogin(container, { onRegister, onLogin }) {
+export function setupLogin(container, { onRegister, onLogin, onInstall }) {
   const form = container.querySelector('#loginForm');
   if (form) {
     form.addEventListener('submit', async (e) => {
@@ -68,7 +68,13 @@ export function setupLogin(container, { onRegister, onLogin }) {
       const identifier = form && form.querySelector('[name="identifiant"]');
       if (identifier) {
         identifier.placeholder = 'Identifiant Administrateur Principal';
+        identifier.focus();
       }
     });
+  }
+
+  const installBtn = container.querySelector('[data-action="install-app"]');
+  if (installBtn && onInstall) {
+    installBtn.addEventListener('click', onInstall);
   }
 }

@@ -202,6 +202,11 @@ async function loadProfile() {
 
 function routeToDashboard() {
   if (!state.profile) return;
+  if (new URLSearchParams(window.location.search).get('admin') === '1' && isPrincipalAdmin()) {
+    state.view = 'admin-principal';
+    render();
+    return;
+  }
   if (state.isDualDirector === undefined) {
     state.isDualDirector = (state.profile.role === 'directeur' && !!(state.profile.class_id || state.profile.classe_id));
   }
@@ -280,7 +285,8 @@ function render() {
       if (view === 'login') {
         const handlers = {
           onRegister: () => { state.view = 'register'; render(); },
-          onLogin: handleLogin
+          onLogin: handleLogin,
+          onInstall: installPWA
         };
         appRoot.innerHTML = renderFn(handlers);
         if (setupFn) setupFn(appRoot, handlers);
@@ -913,6 +919,47 @@ function mountSettingsButton() {
   const roleHeader = document.querySelector('.role-topbar');
   const header = roleHeader || document.querySelector('.topbar');
   if (!header) return;
+  const roleLayout = header.closest('.role-layout');
+  const roleBrand = roleLayout && roleLayout.querySelector('.role-brand');
+  if (roleBrand) roleBrand.remove();
+
+  if (roleHeader) {
+    const heading = roleHeader.querySelector('h1');
+    const subtitle = roleHeader.querySelector('p');
+    const profile = state.realProfile || state.profile || {};
+    const roleLabels = {
+      titulaire: 'Titulaire',
+      directeur: 'Directeur',
+      encadreur: 'Encadreur',
+      chef_ceb: 'Chef de la CEB',
+      chef_personnel: 'Chef du Personnel',
+      statisticien: 'Statisticien',
+      super_admin: 'Administrateur Principal'
+    };
+    if (heading && subtitle) {
+      const headingContainer = heading.parentElement;
+      let brand = roleHeader.querySelector('.role-header-brand');
+      if (!brand) {
+        brand = document.createElement('div');
+        brand.className = 'role-header-brand';
+        const brandTitle = document.createElement('strong');
+        const identity = document.createElement('span');
+        brandTitle.textContent = "Educ'CEB Bagré";
+        identity.textContent = `${profile.full_name || 'Utilisateur'} — ${profile.fonction || profile.emploi || roleLabels[profile.role] || 'Utilisateur'}`;
+        brand.append(brandTitle, identity);
+        roleHeader.insertBefore(brand, headingContainer);
+      }
+      if (headingContainer) headingContainer.classList.add('role-page-heading');
+    }
+
+    const pageActions = roleHeader.querySelector('.top-actions');
+    const roleMain = roleLayout && roleLayout.querySelector('.role-main');
+    if (pageActions && roleMain) {
+      pageActions.classList.add('role-page-actions');
+      roleMain.insertBefore(pageActions, roleMain.firstChild);
+    }
+  }
+
   let actions = roleHeader
     ? header.querySelector('.account-header-actions')
     : header.querySelector('.topbar-right');
@@ -924,14 +971,6 @@ function mountSettingsButton() {
 
   const oldBadge = header.querySelector('.user-badge');
   if (oldBadge) oldBadge.remove();
-  let identity = actions.querySelector('.account-header-identity');
-  if (!identity) {
-    identity = document.createElement('span');
-    identity.className = 'account-header-identity';
-    actions.prepend(identity);
-  }
-  const profile = state.profile || {};
-  identity.textContent = profile.full_name || 'Utilisateur';
 
   let settingsButton = actions.querySelector('[data-action="open-settings"]');
   if (!settingsButton) {
@@ -941,21 +980,7 @@ function mountSettingsButton() {
     settingsButton.dataset.action = 'open-settings';
     settingsButton.addEventListener('click', openSettings);
   }
-  settingsButton.textContent = '⚙️ Mes paramètres';
-
-  let adminButton = actions.querySelector('[data-action="open-admin"]');
-  if (isPrincipalAdmin()) {
-    if (!adminButton) {
-      adminButton = document.createElement('button');
-      adminButton.type = 'button';
-      adminButton.className = 'btn-settings btn-admin-principal';
-      adminButton.dataset.action = 'open-admin';
-      adminButton.textContent = '🛡️ Admin Principal';
-      adminButton.addEventListener('click', openAdminPrincipal);
-    }
-  } else if (adminButton) {
-    adminButton.remove();
-  }
+  settingsButton.textContent = '⚙️ Paramètres';
 
   const logoutButton = document.querySelector('.btn-logout') ||
     header.querySelector('.topbar-left button[onclick*="logout"]');
@@ -969,7 +994,6 @@ function mountSettingsButton() {
     if (oldLeftActions && !oldLeftActions.children.length) oldLeftActions.remove();
   }
   actions.insertBefore(settingsButton, logoutButton || null);
-  if (adminButton) actions.appendChild(adminButton);
 }
 
 function isPrincipalAdmin() {
@@ -1123,6 +1147,26 @@ function exitPreview() {
 function renderLoginView() {
   state.view = 'login';
   render();
+}
+
+let deferredInstallPrompt = null;
+
+async function installPWA() {
+  if (!deferredInstallPrompt) {
+    showToast('Pour installer l’application, utilisez le menu du navigateur puis « Ajouter à l’écran d’accueil ».');
+    return;
+  }
+
+  const installPrompt = deferredInstallPrompt;
+  deferredInstallPrompt = null;
+  try {
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    showToast(choice.outcome === 'accepted' ? 'Installation lancée.' : 'Installation annulée.');
+  } catch (error) {
+    console.error('Impossible de lancer l’installation de l’application :', error);
+    showToast('Impossible de lancer l’installation. Réessayez depuis le menu du navigateur.');
+  }
 }
 
 async function handleLogin({ identifiant, password }) {
@@ -1440,5 +1484,18 @@ if (typeof document !== 'undefined') {
 }
 
 if (typeof window !== 'undefined') {
+  if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('/sw.js').catch(error => {
+      console.error('Impossible d’enregistrer le service worker :', error);
+    });
+  }
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    showToast('Application installée.');
+  });
   window.addEventListener('DOMContentLoaded', init);
 }

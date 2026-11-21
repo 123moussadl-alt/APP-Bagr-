@@ -121,7 +121,7 @@ Votre application sera accessible à : `https://educ-ceb-bagre.vercel.app`
 
 ## 7. PWA
 
-Installable sur Android (Chrome) et PC (Chrome/Edge). Fonctionne hors-ligne avec sync auto.
+Installable sur Android (Chrome) et PC (Chrome/Edge) depuis le bouton d'installation de l'écran de connexion ou le menu du navigateur. Le service worker met en cache l'application et ses ressources statiques, sans intercepter les requêtes d'authentification ou de données.
 
 ## 8. Structure
 
@@ -131,7 +131,7 @@ Installable sur Android (Chrome) et PC (Chrome/Edge). Fonctionne hors-ligne avec
 ├── supabase/migrations/001_initial_schema.sql
 ├── src/main.js, supabaseClient.js, db.js, utils/format.js
 ├── src/views/{login,register,dashboard,titulaire,directeur,encadreur,chef-ceb}.js
-└── public/{icon-192.png,icon-512.png,manifest.json}
+└── public/{icon-192.png,icon-512.png,manifest.json,sw.js}
 ```
 
 **Bonne gestion scolaire avec Educ CEB Bagré ! 🇧🇫**
