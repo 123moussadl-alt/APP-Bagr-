@@ -30,6 +30,13 @@ export function sumHalfDays(jours) {
   return (jours || []).reduce((a, ds) => a + halfDaysForDateStr(ds), 0);
 }
 
+export function formatVisaStampDate(date = new Date()) {
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = String(date.getFullYear());
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 export function schoolMonths(startYear) {
   const y = startYear || 2026;
   return [
@@ -103,10 +110,38 @@ export function renderMonthlyRegisterTable(rows, options = {}) {
     return `<td style="border:1px solid #333;padding:4px;text-align:center;${color}">${value}</td>`;
   };
   const group = (g, f, t) => cell(g, 'M') + cell(f, 'F') + cell(t, 'T');
-  const visaCell = (value, month, action, signerProfile) => `<td style="border:1px solid #333;padding:4px;text-align:center;min-width:120px">
-    <div>${value ? `${profileMatchesVisa(value, signerProfile) ? signatureImageHTML(signatureUrlForProfile(signerProfile), 'Signature de ' + signerProfile.full_name) : ''}${esc(value)}` : '<span style="color:#64748b">Non visé</span>'}</div>
-    ${visaAction === action ? `<button type="button" class="btn small" data-action="${action}" data-mois="${esc(month)}">✓ Viser</button>` : ''}
-  </td>`;
+  const directorStampHTML = (month) => {
+    const stamp = visaDirectorStamps[month] || null;
+    const signatureUrl = (stamp && stamp.signatureUrl) || signatureUrlForProfile(visaDirecteurProfile);
+    const img = signatureImageHTML(signatureUrl, 'Signature du Directeur', 'max-height:36px;width:auto;height:auto;object-fit:contain;margin:0 auto 4px;display:block');
+    if (!stamp) return `<div><span style="color:#64748b">En attente de visa</span></div>`;
+    const value = visaDirecteurByMonth[month] || stamp.nom || '';
+    const name = stamp.nom || value;
+    return `<div>${img}${esc('Vu ce jour ' + (stamp.date || ''))}<br/>${esc('Visé par ' + name)}</div>`;
+  };
+  const encadreurStampHTML = (month) => {
+    const stamp = visaEncadreurStamps[month] || null;
+    const signatureUrl = (stamp && stamp.signatureUrl) || signatureUrlForProfile(visaEncadreurProfile);
+    const img = signatureImageHTML(signatureUrl, 'Signature de l\'Encadreur', 'max-height:36px;width:auto;height:auto;object-fit:contain;margin:0 auto 4px;display:block');
+    if (!stamp) return `<div><span style="color:#64748b">En attente de visa</span></div>`;
+    const value = visaEncadreurByMonth[month] || stamp.nom || '';
+    const name = stamp.nom || value;
+    return `<div>${img}${esc('Vu ce jour ' + (stamp.date || ''))}<br/>${esc('Visé par ' + name)}</div>`;
+  };
+  const visaDirectorCell = (month) => {
+    const stamp = visaDirectorStamps[month] || null;
+    const signed = !!stamp;
+    if (signed) return `<td style="border:1px solid #333;padding:4px;text-align:center;min-width:120px">${directorStampHTML(month)}</td>`;
+    const value = visaDirecteurByMonth[month] || '';
+    return `<td style="border:1px solid #333;padding:4px;text-align:center;min-width:120px"><div>${value ? esc(value) : '<span style="color:#64748b">En attente de visa</span>'}</div></td>`;
+  };
+  const visaEncadreurCell = (month) => {
+    const stamp = visaEncadreurStamps[month] || null;
+    const signed = !!stamp;
+    if (signed) return `<td style="border:1px solid #333;padding:4px;text-align:center;min-width:120px">${encadreurStampHTML(month)}</td>`;
+    const value = visaEncadreurByMonth[month] || '';
+    return `<td style="border:1px solid #333;padding:4px;text-align:center;min-width:120px"><div>${value ? esc(value) : '<span style="color:#64748b">En attente de visa</span>'}</div></td>`;
+  };
   return `
     <div class="table-wrap monthly-register-wrap monthly-register-sheet">
       <table class="monthly-register-table" style="border-collapse:collapse;min-width:1600px;width:100%">

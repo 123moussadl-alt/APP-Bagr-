@@ -650,3 +650,9 @@ revoke all on function public.admin_update_profile(uuid, text, text, uuid, uuid[
 grant execute on function public.get_active_school_year() to authenticated;
 grant execute on function public.admin_set_school_year(text) to authenticated;
 grant execute on function public.admin_update_profile(uuid, text, text, uuid, uuid[]) to authenticated;
+alter table public.registre_configs add column if not exists visa_directeur_date text;
+alter table public.registre_configs add column if not exists visa_directeur_nom text;
+alter table public.registre_configs add column if not exists visa_directeur_signature text;
+alter table public.registre_configs add column if not exists visa_encadreur_date text;
+alter table public.registre_configs add column if not exists visa_encadreur_nom text;
+alter table public.registre_configs add column if not exists visa_encadreur_signature text;

@@ -7,7 +7,7 @@ import { esc, formatClassName } from '../utils/format.js';
 import { downloadCSV, printPage, wirePDFExportButton, wireWordExportButton } from '../utils/export.js';
 import { openPreview } from '../utils/preview.js';
 import { renderSyntheseHTML, computeSubjectRows, computeClassAverageSummary } from '../utils/synthese.js';
-import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTable } from '../utils/registre.js';
+import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTable, formatVisaStampDate } from '../utils/registre.js';
 import { profileMatchesVisa, signatureUrlForProfile } from '../utils/signature.js';
 import { loadPaiRecord, normalizePaiDiscipline } from '../utils/pai.js';
 import { mergeSchoolChoices } from '../utils/schools.js';
@@ -65,6 +65,9 @@ export function setupEncadreur(container, state, render, supabase) {
   let encMonthlyRows = [];
   let encVisaDirecteurByMonth = {};
   let encVisaEncadreurByMonth = {};
+  let encVisaDirectorStamps = {};
+  let encVisaEncadreurStamps = {};
+  let encSelectedMonth = null;
   let currentEncQuarterly = null;
   let currentEncQuarterlySheetId = null;
 
@@ -116,10 +119,23 @@ export function setupEncadreur(container, state, render, supabase) {
     const mois = btn.dataset.mois;
     if (!classId || !mois) return;
     const dateStr = new Date().toLocaleDateString('fr-FR');
-    const visa = "Visé par l'Encadreur : " + (state.profile ? state.profile.full_name : '') + ' le ' + dateStr;
+    const stampDate = formatVisaStampDate();
+    const encadreurVisa = "Visé par l'Encadreur : " + (state.profile ? state.profile.full_name : '') + ' le ' + stampDate;
     const { data: existing } = await supabase.from('registre_configs').select('*').eq('classe_id', classId).eq('mois', mois).limit(1);
-    if (existing && existing[0]) await supabase.from('registre_configs').update({ visa_encadreur: visa }).eq('id', existing[0].id);
-    else await supabase.from('registre_configs').insert({ classe_id: classId, mois, visa_encadreur: visa });
+    if (existing && existing[0]) await supabase.from('registre_configs').update({
+      visa_encadreur: encadreurVisa,
+      visa_encadreur_date: stampDate,
+      visa_encadreur_nom: state.profile ? state.profile.full_name : '',
+      visa_encadreur_signature: signatureUrlForProfile(state.profile)
+    }).eq('id', existing[0].id);
+    else await supabase.from('registre_configs').insert({
+      classe_id: classId,
+      mois,
+      visa_encadreur: encadreurVisa,
+      visa_encadreur_date: stampDate,
+      visa_encadreur_nom: state.profile ? state.profile.full_name : '',
+      visa_encadreur_signature: signatureUrlForProfile(state.profile)
+    });
     renderEncRegSheet();
   });
 
@@ -189,6 +205,7 @@ export function setupEncadreur(container, state, render, supabase) {
             </select>
           </div>
           <button class="btn" onclick="window.print()">🖨️ Imprimer / PDF</button>
+          <button type="button" class="btn" data-action="visa-encadreur">✍️ Viser</button>
         </div>
       </div>
       <div class="card landscape-sheet monthly-register-sheet" style="margin-top:16px">
@@ -224,6 +241,12 @@ export function setupEncadreur(container, state, render, supabase) {
     closedMonths.forEach(month => {
       encVisaDirecteurByMonth[month] = (configByMonth[month] && configByMonth[month].visa_directeur) || '';
       encVisaEncadreurByMonth[month] = (configByMonth[month] && configByMonth[month].visa_encadreur) || '';
+      encVisaDirectorStamps[month] = (configByMonth[month] && configByMonth[month].visa_directeur_nom)
+        ? { date: (configByMonth[month] && configByMonth[month].visa_directeur_date) || '', nom: configByMonth[month].visa_directeur_nom, signatureUrl: (configByMonth[month] && configByMonth[month].visa_directeur_signature) || '' }
+        : null;
+      encVisaEncadreurStamps[month] = (configByMonth[month] && configByMonth[month].visa_encadreur_nom)
+        ? { date: (configByMonth[month] && configByMonth[month].visa_encadreur_date) || '', nom: configByMonth[month].visa_encadreur_nom, signatureUrl: (configByMonth[month] && configByMonth[month].visa_encadreur_signature) || '' }
+        : null;
     });
     sheetEl.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
         <h3 style="margin:0">Synthèse des Mois Arrêtés — ${esc(formatClassName(cls))}</h3>
@@ -236,6 +259,8 @@ export function setupEncadreur(container, state, render, supabase) {
       renderMonthlyRegisterTable(encMonthlyRows, {
         visaDirecteurByMonth: encVisaDirecteurByMonth,
         visaEncadreurByMonth: encVisaEncadreurByMonth,
+        visaDirectorStamps: encVisaDirectorStamps,
+        visaEncadreurStamps: encVisaEncadreurStamps,
         visaAction: 'visa-encadreur',
         visaDirecteurProfile: actualProfile.role === 'directeur' ? actualProfile : null,
         visaEncadreurProfile: actualProfile.role === 'encadreur' ? actualProfile : null

@@ -23,9 +23,10 @@ export function signatureStorageKey(userId) {
   return SIGNATURE_STORAGE_PREFIX + userId;
 }
 
-export function signatureImageHTML(signatureUrl, alt = 'Signature') {
+export function signatureImageHTML(signatureUrl, alt = 'Signature', style) {
   if (!isSignatureDataUrl(signatureUrl)) return '';
-  return `<img class="digital-signature-stamp" src="${esc(signatureUrl)}" alt="${esc(alt)}">`;
+  const styleAttr = style ? ` style="${style}"` : '';
+  return `<img class="digital-signature-stamp" src="${esc(signatureUrl)}" alt="${esc(alt)}"${styleAttr}>`;
 }
 
 function renderSignaturePerson(person) {

@@ -6,7 +6,7 @@
 import { esc, formatClassName, normalizeNotes } from '../utils/format.js';
 import { downloadCSV, printPage, wirePDFExportButton, wireWordExportButton } from '../utils/export.js';
 import { renderBulletinsHTML } from '../utils/bulletin.js';
-import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTable, computeFicheArretMensuel, renderFicheArretMensuelHTML, monthlyClosureCSVRows, schoolMonths } from '../utils/registre.js';
+import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTable, computeFicheArretMensuel, renderFicheArretMensuelHTML, monthlyClosureCSVRows, schoolMonths, formatVisaStampDate } from '../utils/registre.js';
 import { openPreview } from '../utils/preview.js';
 import { profileMatchesVisa, signatureBlockHTML, signatureUrlForProfile } from '../utils/signature.js';
 import { computeSubjectRows } from '../utils/synthese.js';
@@ -109,6 +109,8 @@ export function setupDirecteur(container, state, render, supabase) {
   let dirMonthlyRows = [];
   let dirVisaDirecteurByMonth = {};
   let dirVisaEncadreurByMonth = {};
+  let dirVisaDirectorStamps = {};
+  let dirVisaEncadreurStamps = {};
   let agentAttendanceTab = 'daily';
   let agentProfiles = [];
   let agentAttendanceById = new Map();
@@ -272,10 +274,23 @@ export function setupDirecteur(container, state, render, supabase) {
     const mois = btn.dataset.mois || (dirCurrentFiche && dirCurrentFiche.monthName);
     if (!classId || !mois) return;
     const dateStr = new Date().toLocaleDateString('fr-FR');
-    const visa = 'Visé par le Directeur : ' + (state.profile ? state.profile.full_name : '') + ' le ' + dateStr;
+    const stampDate = formatVisaStampDate();
+    const directorVisa = 'Visé par le Directeur : ' + (state.profile ? state.profile.full_name : '') + ' le ' + stampDate;
     const { data: existing } = await supabase.from('registre_configs').select('*').eq('classe_id', classId).eq('mois', mois).limit(1);
-    if (existing && existing[0]) await supabase.from('registre_configs').update({ visa_directeur: visa }).eq('id', existing[0].id);
-    else await supabase.from('registre_configs').insert({ classe_id: classId, mois, visa_directeur: visa });
+    if (existing && existing[0]) await supabase.from('registre_configs').update({
+      visa_directeur: directorVisa,
+      visa_directeur_date: stampDate,
+      visa_directeur_nom: state.profile ? state.profile.full_name : '',
+      visa_directeur_signature: signatureUrlForProfile(state.profile)
+    }).eq('id', existing[0].id);
+    else await supabase.from('registre_configs').insert({
+      classe_id: classId,
+      mois,
+      visa_directeur: directorVisa,
+      visa_directeur_date: stampDate,
+      visa_directeur_nom: state.profile ? state.profile.full_name : '',
+      visa_directeur_signature: signatureUrlForProfile(state.profile)
+    });
     renderDirRegSheet();
   });
 
@@ -755,6 +770,7 @@ export function setupDirecteur(container, state, render, supabase) {
           <button class="btn" data-action="dir-reg-preview">👁 Aperçu</button>
           <button class="btn" data-action="dir-reg-csv">📥 Excel/CSV</button>
           <button class="btn secondary" onclick="window.print()">🖨️ Imprimer / PDF</button>
+          <button type="button" class="btn" data-action="visa-directeur">✍️ Viser</button>
         </div>
       </div>
       <div class="card" style="margin-top:16px">
@@ -804,6 +820,12 @@ export function setupDirecteur(container, state, render, supabase) {
     closedMonths.forEach(m => {
       dirVisaDirecteurByMonth[m.name] = (cfgMap[m.name] && cfgMap[m.name].visa_directeur) || '';
       dirVisaEncadreurByMonth[m.name] = (cfgMap[m.name] && cfgMap[m.name].visa_encadreur) || '';
+      dirVisaDirectorStamps[m.name] = (cfgMap[m.name] && cfgMap[m.name].visa_directeur_nom)
+        ? { date: (cfgMap[m.name] && cfgMap[m.name].visa_directeur_date) || '', nom: cfgMap[m.name].visa_directeur_nom, signatureUrl: (cfgMap[m.name] && cfgMap[m.name].visa_directeur_signature) || '' }
+        : null;
+      dirVisaEncadreurStamps[m.name] = (cfgMap[m.name] && cfgMap[m.name].visa_encadreur_nom)
+        ? { date: (cfgMap[m.name] && cfgMap[m.name].visa_encadreur_date) || '', nom: cfgMap[m.name].visa_encadreur_nom, signatureUrl: (cfgMap[m.name] && cfgMap[m.name].visa_encadreur_signature) || '' }
+        : null;
     });
     if (monthSel) {
       monthSel.innerHTML = closedMonths.length
@@ -874,6 +896,8 @@ export function setupDirecteur(container, state, render, supabase) {
       <div id="dirRegSummary" style="margin-top:12px">${renderMonthlyRegisterTable(dirMonthlyRows, {
         visaDirecteurByMonth: dirVisaDirecteurByMonth,
         visaEncadreurByMonth: dirVisaEncadreurByMonth,
+        visaDirectorStamps: dirVisaDirectorStamps,
+        visaEncadreurStamps: dirVisaEncadreurStamps,
         visaAction: 'visa-directeur',
         visaDirecteurProfile: actualProfile.role === 'directeur' ? actualProfile : null
       })}</div>`;
