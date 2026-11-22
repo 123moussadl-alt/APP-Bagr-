@@ -10,6 +10,13 @@ import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTa
 import { openPreview } from '../utils/preview.js';
 import { profileMatchesVisa, signatureBlockHTML, signatureUrlForProfile } from '../utils/signature.js';
 import { computeSubjectRows } from '../utils/synthese.js';
+import {
+  computeExamRows,
+  examLevelLabel,
+  examSessionLabel,
+  renderExamEntryTable,
+  renderExamSyntheseHTML
+} from '../utils/examens-blancs.js';
 import { loadPaiRecord } from '../utils/pai.js';
 import {
   computeSchoolTermSynthesis, loadSchoolTermData, renderSchoolTermSynthesisHTML,
@@ -40,6 +47,7 @@ export function renderDirecteur(state, render, supabase) {
           <button class="nav-item" data-view="bilans">📈 Bilans & Synthèses</button>
           <button class="nav-item" data-view="school-synthese">📋 Synthèse trimestrielle de l'école</button>
           <button class="nav-item" data-view="registre">📅 Registre d'appel</button>
+          <button class="nav-item" data-view="examens-blancs">🎓 Examens Blancs</button>
           <button class="nav-item" data-view="agents">👥 Présence des agents</button>
           <button class="nav-item" data-view="bulletins">📄 Bulletins</button>
         </nav>
@@ -744,9 +752,101 @@ export function setupDirecteur(container, state, render, supabase) {
       case 'bilans': return renderBilans();
       case 'school-synthese': return renderSchoolTermSynthesis();
       case 'registre': return renderDirRegistre();
+      case 'examens-blancs': return renderDirExamensBlancs();
       case 'agents': return renderAgentAttendance();
       case 'bulletins': return renderBulletinsDir();
       default: return renderEcole();
+    }
+  }
+
+  async function renderDirExamensBlancs() {
+    const classes = await getClasses();
+    const cm2Classes = (classes || []).filter(cls => {
+      const level = String(cls.level || cls.niveau || cls.name || '').toUpperCase();
+      return level.includes('CM1') || level.includes('CM2');
+    });
+    viewContainer.innerHTML = `
+      <div class="card">
+        <h3 style="margin-top:0">🎓 Examens Blancs — CM1 / CM2</h3>
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+          <div class="form-group" style="margin:0;min-width:260px">
+            <label>Classe (CM1 / CM2)</label>
+            <select id="dirExamClass">
+              <option value="">-- Choisir une classe --</option>
+              ${cm2Classes.map(cls => `<option value="${esc(cls.id)}">${esc(formatClassName(cls))}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="dirExamArea" style="margin-top:16px"></div>
+    `;
+    const select = viewContainer.querySelector('#dirExamClass');
+    if (select) select.addEventListener('change', () => renderDirExamSheet(select.value));
+    if (cm2Classes.length) {
+      select.value = cm2Classes[0].id;
+      await renderDirExamSheet(cm2Classes[0].id);
+    }
+  }
+
+  async function renderDirExamSheet(classId) {
+    const area = viewContainer.querySelector('#dirExamArea');
+    if (!area) return;
+    if (!classId) { area.innerHTML = ''; return; }
+    const { data: examRows } = await supabase
+      .from('exam_blancs')
+      .select('*')
+      .eq('class_id', classId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const exam = (examRows || [])[0];
+    if (!exam) {
+      area.innerHTML = '<div class="card"><p style="color:#64748b;margin:0">Aucun examen blanc enregistré pour cette classe.</p></div>';
+      return;
+    }
+    const [studentsRes, subjectsRes, notesRes] = await Promise.all([
+      supabase.from('students').select('*').eq('class_id', classId).order('full_name'),
+      supabase.from('matieres').select('*').eq('class_id', classId).order('created_at'),
+      supabase.from('notes_examens_blancs').select('*').eq('exam_blanc_id', exam.id)
+    ]);
+    const subjects = subjectsRes.data || [];
+    const rows = computeExamRows(studentsRes.data || [], subjects, notesRes.data || []);
+    const tables = renderExamEntryTable(rows, subjects, subjects[0] || null);
+    const classe = (await getClasses()).find(cls => cls.id === classId) || {};
+    const context = {
+      rows,
+      subjects,
+      classeLabel: formatClassName(classe),
+      niveau: exam.niveau,
+      sessionLabel: examSessionLabel(exam),
+      schoolName: state.profile ? (state.profile.ecole_nom || 'CEB de Bagré') : 'CEB de Bagré',
+      titulaireName: classe.titulaire_nom || '',
+      titulaireSignature: '',
+      directeurName: state.profile ? state.profile.full_name : '',
+      directeurSignature: state.profile ? (state.profile.signature_url || '') : ''
+    };
+    area.innerHTML = `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <h3 style="margin:0">Examen blanc — ${esc(formatClassName(classe))} — ${esc(examLevelLabel(exam.niveau))}</h3>
+          <div class="top-actions">
+            <button type="button" class="btn" data-action="dir-exam-preview">👁 Aperçu</button>
+            <button type="button" class="btn secondary" onclick="window.print()">🖨️ Imprimer / PDF</button>
+          </div>
+        </div>
+        <h4 style="margin:16px 0 6px;font-size:15px">📊 Tableau récapitulatif des notes</h4>
+        <div class="table-wrap">
+          <table>${tables.overviewHead}<tbody>${tables.overviewBody}</tbody></table>
+        </div>
+        <div class="table-wrap" style="margin-top:16px">
+          ${renderExamSyntheseHTML(context)}
+        </div>
+      </div>
+    `;
+    const previewBtn = viewContainer.querySelector('[data-action="dir-exam-preview"]');
+    if (previewBtn) {
+      previewBtn.addEventListener('click', () => {
+        openPreview({ title: 'Fiche Synthèse — Examen Blanc', html: renderExamSyntheseHTML(context), onPrint: () => window.print() });
+      });
     }
   }
 

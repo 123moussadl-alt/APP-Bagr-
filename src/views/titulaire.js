@@ -12,6 +12,17 @@ import { renderSyntheseHTML, computeSubjectRows, computeClassAverageSummary } fr
 import { sumHalfDays, computeMonthlyRegister, monthlyRegisterCSVRows, computeFicheArretMensuel, renderFicheArretMensuelHTML, renderMonthlyRegisterTable, monthlyClosureCSVRows, schoolMonths, ANNUAL_SYNTHESIS_TITLE } from '../utils/registre.js';
 import { loadPaiRecord, normalizePaiDiscipline, savePaiRecord, writePaiBackup } from '../utils/pai.js';
 import { profileMatchesVisa, signatureBlockHTML, signaturePeopleHTML, signatureUrlForProfile } from '../utils/signature.js';
+import {
+  EXAM_LEVELS,
+  computeExamRows,
+  examLevelLabel,
+  examSessionLabel,
+  examSyntheseCSVRows,
+  rangLabel,
+  renderExamEntryTable,
+  renderExamSyntheseHTML,
+  splitStudentName
+} from '../utils/examens-blancs.js';
 
 export function renderTitulaire(state, render, supabase) {
   const profile = state.profile;
@@ -83,6 +94,11 @@ export function setupTitulaire(container, state, render, supabase) {
     () => `${pageTitle ? pageTitle.textContent : 'Document'}_titulaire.pdf`
   );
   let currentStudents = [];
+  let examSession = null;
+  let examStudents = [];
+  let examSubjects = [];
+  let examNotes = [];
+  let examSubjectId = null;
   let editingId = null;
   let localClass = null;
   let myClassLevel = null;
@@ -2241,25 +2257,237 @@ export function setupTitulaire(container, state, render, supabase) {
       viewContainer.innerHTML = '<div class="empty">Les examens blancs sont réservés aux classes CM1 et CM2.</div>';
       return;
     }
+    currentClass = cls;
+
     viewContainer.innerHTML = `
       <div class="card">
-        <h3>Examen Blanc CM1/CM2</h3>
-        <p>Créez un examen blanc pour votre classe, puis gérez la case "A composé" et le taux de réussite.</p>
-        <div class="form-group">
-          <label>Nom de l'examen</label>
-          <input type="text" id="examName" placeholder="Ex: Examen Blanc n°1">
+        <h3 style="margin-top:0">🎓 Examens Blancs — ${esc(formatClassName(cls))}</h3>
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+          <div class="form-group" style="margin:0;min-width:220px">
+            <label for="examLevel">Niveau de l'examen blanc</label>
+            <select id="examLevel">
+              ${EXAM_LEVELS.map(level => `<option value="${esc(level)}">${esc(level)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;min-width:200px">
+            <label for="examSessionLabel">Session (optionnel)</label>
+            <input type="text" id="examSessionLabel" placeholder="Ex: Session 1">
+          </div>
+          <button type="button" class="btn" data-action="create-exam">➕ Créer / Ouvrir l'examen blanc</button>
         </div>
-        <div class="form-group">
-          <label>Trimestre</label>
-          <select id="examTerm">
-            <option value="1">1er Trimestre</option>
-            <option value="2">2e Trimestre</option>
-            <option value="3">3e Trimestre</option>
-          </select>
+      </div>
+      <div id="examBlancArea" style="margin-top:16px"></div>
+    `;
+
+    const area = viewContainer.querySelector('#examBlancArea');
+    if (examSession) {
+      await renderExamBlancSession(area, cls);
+    } else {
+      area.innerHTML = '<div class="card"><p style="color:#64748b;margin:0">Sélectionnez le niveau puis cliquez sur « ➕ Créer / Ouvrir l\'examen blanc ».</p></div>';
+    }
+  }
+
+  async function renderExamBlancSession(area, cls) {
+    const [studentsRes, subjectsRes, notesRes] = await Promise.all([
+      supabase.from('students').select('*').eq('class_id', cls.id).order('full_name'),
+      supabase.from('matieres').select('*').eq('class_id', cls.id).order('created_at'),
+      supabase.from('notes_examens_blancs').select('*').eq('exam_blanc_id', examSession.id)
+    ]);
+    examStudents = studentsRes.data || [];
+    examSubjects = subjectsRes.data || [];
+    examNotes = notesRes.data || [];
+    if (!examSubjectId || !examSubjects.some(subject => subject.id === examSubjectId)) {
+      examSubjectId = examSubjects.length ? examSubjects[0].id : null;
+    }
+
+    const rows = computeExamRows(examStudents, examSubjects, examNotes);
+    const selected = examSubjects.find(subject => subject.id === examSubjectId) || examSubjects[0] || null;
+    const tables = renderExamEntryTable(rows, examSubjects, selected);
+    const sessionLabel = examSessionLabel(examSession);
+    const niveauLabel = examLevelLabel(examSession.niveau);
+
+    area.innerHTML = `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <h3 style="margin:0">Examen blanc — ${esc(niveauLabel)}${sessionLabel ? ' — ' + esc(sessionLabel) : ''}</h3>
+          <div class="top-actions">
+            <button type="button" class="btn" data-action="exam-synthese-preview">📊 Fiche Synthèse — Examen Blanc</button>
+            <button type="button" class="btn secondary" data-action="exam-synthese-csv">📥 Excel/CSV</button>
+          </div>
         </div>
-        <button class="btn" data-action="create-exam" style="margin-top:8px">Créer l'examen blanc</button>
+
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+          <div class="form-group" style="margin:0;min-width:240px">
+            <label for="examSubjectSelect">Matière à noter</label>
+            <select id="examSubjectSelect">
+              ${examSubjects.map(subject => `<option value="${esc(subject.id)}"${subject.id === examSubjectId ? ' selected' : ''}>${esc(subject.name)} (/ ${esc(subject.max)})</option>`).join('') || '<option value="">Aucune matière</option>'}
+            </select>
+          </div>
+          <button type="button" class="btn" data-action="exam-save-notes">💾 Enregistrer les notes</button>
+        </div>
+
+        <h4 style="margin:16px 0 6px;font-size:15px">✍️ Saisie — <span id="examEntryLabel">${selected ? esc(selected.name) + ' (/ ' + esc(selected.max) + ')' : ''}</span></h4>
+        <div class="table-wrap">
+          <table id="examEntryTable">
+            ${tables.head}
+            <tbody>${tables.body}</tbody>
+          </table>
+        </div>
+
+        <h4 style="margin:22px 0 6px;font-size:15px">📊 Tableau récapitulatif des notes</h4>
+        <div class="table-wrap">
+          <table>
+            ${tables.overviewHead}
+            <tbody>${tables.overviewBody}</tbody>
+          </table>
+        </div>
       </div>
     `;
+
+    const subjectSelect = area.querySelector('#examSubjectSelect');
+    if (subjectSelect) {
+      subjectSelect.addEventListener('change', () => {
+        examSubjectId = subjectSelect.value || null;
+        renderExamBlanc();
+      });
+    }
+  }
+
+  function currentExamRows() {
+    return computeExamRows(examStudents, examSubjects, examNotes);
+  }
+
+  function examSyntheseContext(cls) {
+    const rows = currentExamRows();
+    const directeurs = titularSigners.length ? titularSigners : [];
+    const directeurProfile = directeurs[0] || {};
+    return {
+      rows,
+      subjects: examSubjects,
+      classeLabel: cls ? formatClassName(cls) : '',
+      niveau: examSession ? examSession.niveau : 'Niveau École',
+      sessionLabel: examSessionLabel(examSession),
+      schoolName: state.profile ? (state.profile.ecole_nom || state.profile.schoolName || 'CEB de Bagré') : 'CEB de Bagré',
+      titulaireName: actualProfile.full_name || '',
+      titulaireSignature: actualProfile.signature_url || '',
+      directeurName: directeurProfile.full_name || '',
+      directeurSignature: directeurProfile.signature_url || ''
+    };
+  }
+
+  function examSyntheseHTML(cls) {
+    return renderExamSyntheseHTML(examSyntheseContext(cls));
+  }
+
+  function recomputeExamAverages() {
+    const entryValues = {};
+    viewContainer.querySelectorAll('.exam-grade-input').forEach(input => {
+      entryValues[`${input.dataset.student}:${input.dataset.subject}`] = input.value;
+    });
+    const rows = computeExamRows(examStudents, examSubjects, examNotes);
+    rows.forEach(row => {
+      examSubjects.forEach(subject => {
+        const key = `${row.id}:${subject.id}`;
+        if (key in entryValues) row.values[subject.id] = entryValues[key];
+      });
+      let sumPoints = 0;
+      let sumPN = 0;
+      let sumCoef = 0;
+      let count = 0;
+      examSubjects.forEach(subject => {
+        const raw = row.values[subject.id];
+        if (raw === '' || raw == null) return;
+        const value = parseFloat(raw);
+        if (isNaN(value)) return;
+        const max = parseFloat(subject.max) || 10;
+        const coef = parseFloat(subject.coef) || 1;
+        sumPoints += value;
+        sumPN += (value / max) * coef;
+        sumCoef += coef;
+        count += 1;
+      });
+      row.total = count > 0 ? sumPoints : null;
+      row.moyenne = (count > 0 && sumCoef > 0) ? (sumPN / sumCoef) * 10 : null;
+    });
+
+    const graded = rows.filter(row => row.moyenne != null && !row.abandon);
+    const sorted = [...graded].sort((a, b) => b.moyenne - a.moyenne);
+    const ties = {};
+    graded.forEach(row => {
+      const key = row.moyenne.toFixed(4);
+      ties[key] = (ties[key] || 0) + 1;
+    });
+    let lastMoyenne = null;
+    let lastRank = 0;
+    sorted.forEach((row, index) => {
+      const key = row.moyenne.toFixed(4);
+      if (lastMoyenne === null || key !== lastMoyenne) {
+        lastRank = index + 1;
+        lastMoyenne = key;
+      }
+      row.rang = lastRank;
+      row.rangTie = (ties[key] || 0) > 1;
+    });
+
+    rows.forEach(row => {
+      const totalCell = viewContainer.querySelector(`[data-exam-total="${row.id}"]`);
+      const moyenneCell = viewContainer.querySelector(`[data-exam-moyenne="${row.id}"]`);
+      const rangCell = viewContainer.querySelector(`[data-exam-rang="${row.id}"]`);
+      if (totalCell) totalCell.textContent = row.abandon ? '0' : (row.total != null ? row.total : '—');
+      if (moyenneCell) moyenneCell.textContent = row.abandon ? '0.00' : (row.moyenne != null ? row.moyenne.toFixed(2) : '—');
+      if (rangCell) rangCell.textContent = rangLabel(row);
+    });
+  }
+
+  async function saveExamNotes() {
+    if (!examSession) return;
+    const inputs = Array.from(viewContainer.querySelectorAll('.exam-grade-input'));
+    if (!inputs.length) { gradeToast('Aucune note à enregistrer.'); return; }
+    let ok = 0;
+    let fail = 0;
+    let firstErr = null;
+    for (const input of inputs) {
+      const raw = input.value;
+      const eleveId = input.dataset.student;
+      const matiereId = input.dataset.subject;
+      if (!eleveId || !matiereId) continue;
+      const payload = {
+        exam_blanc_id: examSession.id,
+        eleve_id: eleveId,
+        matiere_id: matiereId,
+        note: (raw === '' || raw == null) ? null : parseFloat(raw)
+      };
+      const { error } = await supabase.from('notes_examens_blancs')
+        .upsert(payload, { onConflict: 'exam_blanc_id,eleve_id,matiere_id' });
+      if (error) { fail += 1; if (!firstErr) firstErr = error; } else { ok += 1; }
+    }
+    if (firstErr) gradeErrorBanner(firstErr);
+    gradeToast(ok + ' note(s) enregistrée(s)' + (fail ? ', ' + fail + ' échec(s)' : ''));
+    await renderExamBlanc();
+  }
+
+  async function openExamBlancPreview() {
+    const cls = currentClass;
+    if (!cls) { alert('Sélectionnez une classe.'); return; }
+    if (!examSession) { alert('Créez ou ouvrez un examen blanc.'); return; }
+    openPreview({
+      title: 'Fiche Synthèse — Examen Blanc',
+      html: examSyntheseHTML(cls),
+      onPrint: () => window.print()
+    });
+  }
+
+  function exportExamSyntheseCSV() {
+    const cls = currentClass;
+    if (!cls) { alert('Sélectionnez une classe.'); return; }
+    const rows = examSyntheseCSVRows(
+      currentExamRows(),
+      examSubjects,
+      formatClassName(cls),
+      examSession ? examSession.niveau : 'Niveau École',
+      examSessionLabel(examSession)
+    );
+    downloadCSV('fiche_synthese_examen_blanc.csv', rows);
   }
 
   async function renderExports() {
@@ -2496,35 +2724,53 @@ export function setupTitulaire(container, state, render, supabase) {
   }
 
   async function createExamBlanc() {
-    const name = (viewContainer.querySelector('#examName')?.value || '').trim();
-    const term = parseInt(viewContainer.querySelector('#examTerm')?.value || '1', 10);
-    if (!name) { alert("Veuillez saisir un nom d'examen."); return; }
+    const niveau = (viewContainer.querySelector('#examLevel')?.value || 'Niveau École').trim();
+    const sessionLabel = (viewContainer.querySelector('#examSessionLabel')?.value || '').trim();
     const cls = await getMyClass();
     if (!cls) { alert('Aucune classe assignée.'); return; }
     if (!['CM1', 'CM2'].includes(cls.level)) {
       alert('Les examens blancs sont réservés aux classes CM1 et CM2.');
       return;
     }
+
+    const { data: existing } = await supabase
+      .from('exam_blancs')
+      .select('*')
+      .eq('class_id', cls.id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const found = (existing || [])[0];
+    if (found) {
+      examSession = found;
+      showToast('Examen blanc ouvert.');
+      await renderExamBlanc();
+      return;
+    }
+
+    const name = sessionLabel || `${niveau}`;
     const { data: exam, error } = await supabase.from('exam_blancs').insert({
       name,
       class_id: cls.id,
       school_id: cls.school_id,
-      term,
-      year: cls.year,
+      term: 1,
+      year: cls.year || state.activeSchoolYear || '2026-2027',
+      niveau,
+      session_label: sessionLabel || null,
       evaluator_id: state.user ? state.user.id : null,
       status: 'brouillon'
     }).select().single();
     if (error || !exam) { alert('Erreur : ' + (error ? error.message : 'création impossible')); return; }
 
     const { data: students } = await supabase.from('students').select('*').eq('class_id', cls.id);
-    const rows = (students || []).map(s => ({
+    const rows = (students || []).map(student => ({
       exam_blanc_id: exam.id,
-      student_id: s.id,
+      student_id: student.id,
       composed: false
     }));
     if (rows.length) await supabase.from('exam_blanc_students').insert(rows);
-    alert('Examen blanc créé !');
-    renderSubView('examblanc');
+    examSession = exam;
+    showToast('Examen blanc créé.');
+    await renderExamBlanc();
   }
 
   async function exportStudentsCSV() {
@@ -2650,6 +2896,9 @@ export function setupTitulaire(container, state, render, supabase) {
     else if (action === 'cancel-student') renderSubView('eleves');
     else if (action === 'eval-save-notes') saveEvalNotes();
     else if (action === 'create-exam') createExamBlanc();
+    else if (action === 'exam-save-notes') saveExamNotes();
+    else if (action === 'exam-synthese-preview') openExamBlancPreview();
+    else if (action === 'exam-synthese-csv') exportExamSyntheseCSV();
     else if (action === 'export-students') exportStudentsCSV();
     else if (action === 'export-grades') exportGradesCSV();
   });
@@ -2671,6 +2920,10 @@ export function setupTitulaire(container, state, render, supabase) {
     if (e.target.id === 'evalTermSelect') {
       evalTerm = parseInt(e.target.value, 10) || 1;
       renderEvalPanel();
+      return;
+    }
+    if (e.target.classList.contains('exam-grade-input')) {
+      recomputeExamAverages();
       return;
     }
     if (e.target.classList.contains('grade-input')) {

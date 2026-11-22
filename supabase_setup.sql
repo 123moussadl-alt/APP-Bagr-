@@ -661,6 +661,18 @@ alter table public.students add column if not exists lieu_naissance text;
 alter table public.students add column if not exists option_cep text;
 alter table public.profiles add column if not exists est_actif boolean default true;
 alter table public.profiles add column if not exists derniere_activite timestamptz;
+alter table public.exam_blancs add column if not exists niveau text;
+alter table public.exam_blancs add column if not exists session_label text;
+create table if not exists public.notes_examens_blancs (
+  id uuid primary key default gen_random_uuid(),
+  exam_blanc_id uuid references public.exam_blancs(id) on delete cascade,
+  eleve_id uuid references public.students(id) on delete cascade,
+  matiere_id uuid references public.matieres(id) on delete cascade,
+  note numeric,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique(exam_blanc_id, eleve_id, matiere_id)
+);
 create table if not exists public.annees_scolaires (
   id uuid primary key default gen_random_uuid(),
   year text not null unique,
