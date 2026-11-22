@@ -2090,7 +2090,10 @@ export function setupTitulaire(container, state, render, supabase) {
     currentFicheData = activeMonth ? {
       cls, schoolName, className: classLabel(cls), monthName: activeMonth.name,
       data: currentMonthRows[0], teacherNames, teacherSigners,
-      visaDirecteur: monthConfig.visa_directeur || ''
+      visaDirecteur: monthConfig.visa_directeur || '',
+      directorStamp: (monthConfig && monthConfig.visa_directeur_nom)
+        ? { date: monthConfig.visa_directeur_date || '', nom: monthConfig.visa_directeur_nom, signatureUrl: monthConfig.visa_directeur_signature || '' }
+        : null
     } : null;
 
     const opts = closedMonths.map((m, i) => `<option value="${i}" ${i === ficheMonthIdx ? 'selected' : ''}>${m.name}</option>`).join('');
@@ -2107,7 +2110,8 @@ export function setupTitulaire(container, state, render, supabase) {
             visaDirecteur: currentFicheData.visaDirecteur,
             visaDirecteurSignatureProfile: actualProfile.role === 'directeur' && profileMatchesVisa(currentFicheData.visaDirecteur, actualProfile) ? actualProfile : null,
             showVisaButton: false,
-            onVisaLabel: ''
+            onVisaLabel: '',
+            directorStamp: currentFicheData.directorStamp || null
           })}</div>
         </div>`
       : `<div class="card" style="margin-top:16px">

@@ -432,6 +432,9 @@ export function setupEncadreur(container, state, render, supabase) {
     if (active) {
       const data = computeFicheArretMensuel(students || [], absences, active, joursPointesByMonth[active.name] || []);
       const visa = (configByMonth[active.name] && configByMonth[active.name].visa_directeur) || '';
+      const directorStamp = (configByMonth[active.name] && configByMonth[active.name].visa_directeur_nom)
+        ? { date: configByMonth[active.name].visa_directeur_date || '', nom: configByMonth[active.name].visa_directeur_nom, signatureUrl: configByMonth[active.name].visa_directeur_signature || '' }
+        : null;
       sheetEl.innerHTML = renderFicheArretMensuelHTML({
         schoolName,
         className: formatClassName(cls),
@@ -442,7 +445,8 @@ export function setupEncadreur(container, state, render, supabase) {
         visaDirecteur: visa,
         visaDirecteurSignatureProfile: actualProfile.role === 'directeur' && profileMatchesVisa(visa, actualProfile) ? actualProfile : null,
         showVisaButton: false,
-        onVisaLabel: ''
+        onVisaLabel: '',
+        directorStamp
       });
     } else {
       sheetEl.innerHTML = '<p style="color:#64748b">Aucun mois clôturé pour cette classe. La Fiche Synthèse Annuelle ci-dessous reste visible et se remplira au fil des mois arrêtés.</p>';

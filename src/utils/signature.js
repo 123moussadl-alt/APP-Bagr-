@@ -8,7 +8,8 @@ export function isSignatureDataUrl(value) {
 }
 
 export function signatureUrlForProfile(profile) {
-  if (isSignatureDataUrl(profile && profile.signature_url)) return profile.signature_url;
+  const direct = profile && (profile.signature_url || profile.signature || profile.signature_data);
+  if (isSignatureDataUrl(direct)) return direct;
   if (!profile || !profile.id || typeof localStorage === 'undefined') return '';
   try {
     const stored = localStorage.getItem(SIGNATURE_STORAGE_PREFIX + profile.id);

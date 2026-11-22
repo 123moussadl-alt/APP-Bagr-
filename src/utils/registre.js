@@ -324,10 +324,20 @@ export function computeFicheArretMensuel(students, absences, monthInfo, joursVal
   };
 }
 
-export function renderFicheArretMensuelHTML({ schoolName, className, monthName, data, teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureProfile, showVisaButton, onVisaLabel }) {
+export function renderFicheArretMensuelHTML({ schoolName, className, monthName, data, teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureProfile, showVisaButton, onVisaLabel, directorStamp }) {
   const r = data;
   const fmt = (v) => v == null ? '0' : String(v);
   const teacherTxt = (teacherNames && teacherNames.length) ? teacherNames.join(', ') : 'Le(s) Titulaire(s)';
+  const stamp = directorStamp || null;
+  const directorName = (stamp && stamp.nom) || visaDirecteur || '';
+  const directorDate = (stamp && stamp.date) || '';
+  const directorSignature = (stamp && stamp.signatureUrl) || signatureUrlForProfile(visaDirecteurSignatureProfile);
+  const directorImg = signatureImageHTML(directorSignature, 'Signature du Directeur', 'max-height:42px;width:auto;height:auto;object-fit:contain;margin:4px auto;display:block');
+  const directorFooter = `<div style="border-top:1px solid #cbd5e1;padding-top:6px;font-weight:700">
+    <div>${esc(directorName)}</div>
+    ${directorImg || '<div style="font-style:italic;color:#64748b;font-size:11px;font-weight:400">Signature non configurée dans Mes paramètres</div>'}
+    <div>${directorDate ? 'Vu ce jour ' + esc(directorDate) : ''}</div>
+  </div>`;
   return `
     <div class="arret-mois" style="font-family:inherit;width:100%;max-width:100%;background:#ffffff;color:#111827;padding:8px;box-sizing:border-box;font-size:14px;line-height:1.6">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:18px">
@@ -413,8 +423,8 @@ export function renderFicheArretMensuelHTML({ schoolName, className, monthName, 
           <div style="border-top:1px solid #cbd5e1;padding-top:6px;font-weight:700">${signaturePeopleHTML(teacherSigners, teacherTxt)}</div>
         </div>
         <div style="min-width:220px;text-align:center">
-          <div style="font-weight:800;margin-bottom:6px">Visa du Directeur / de la Directrice</div>
-          ${visaDirecteur ? `<div style="border-top:1px solid #cbd5e1;padding-top:6px;font-weight:700">${esc(visaDirecteur)}${profileMatchesVisa(visaDirecteur, visaDirecteurSignatureProfile) ? signatureImageHTML(signatureUrlForProfile(visaDirecteurSignatureProfile), 'Signature du Directeur', 'max-height:40px;width:auto;height:auto;object-fit:contain;margin:4px auto 0;display:block') : ''}</div>` : (showVisaButton ? `<div style="border-top:1px dashed #cbd5e1;padding-top:6px;color:#64748b">Zone de visa</div>` : `<div style="border-top:1px solid #cbd5e1;padding-top:6px;color:#64748b">Zone de visa</div>`)}
+          <div style="font-weight:800;margin-bottom:6px">Le Directeur / La Directrice</div>
+          ${directorFooter}
         </div>
       </div>
     </div>`;

@@ -132,6 +132,12 @@ export function setupDirecteur(container, state, render, supabase) {
   let agentMonthlyRows = [];
   let agentMonthlySubmission = null;
 
+  function visaMonthPhrase(mois) {
+    const m = String(mois || '').trim();
+    if (!m) return '';
+    return /^[aeiouyh]/i.test(m) ? `d'${m}` : `de ${m}`;
+  }
+
   function exportCurrent() {
     if (activeView === 'bilans' && bilansRows.length) exportBilansCSV();
     else if (activeView === 'school-synthese') exportSchoolTermCSV();
@@ -279,27 +285,42 @@ export function setupDirecteur(container, state, render, supabase) {
     const btn = e.target.closest('[data-action="visa-directeur"]');
     if (!btn) return;
     const classId = viewContainer.querySelector('#dirRegClass')?.value;
-    const mois = btn.dataset.mois || (dirCurrentFiche && dirCurrentFiche.monthName);
+    const mois = (viewContainer.querySelector('#dirRegMonth')?.value && dirCurrentFiche) ? dirCurrentFiche.monthName : (btn.dataset.mois || (dirCurrentFiche && dirCurrentFiche.monthName));
     if (!classId || !mois) return;
-    const dateStr = new Date().toLocaleDateString('fr-FR');
     const stampDate = formatVisaStampDate();
-    const directorVisa = 'Visé par le Directeur : ' + (state.profile ? state.profile.full_name : '') + ' le ' + stampDate;
+    const directorName = state.profile ? state.profile.full_name : '';
+    const directorSignature = signatureUrlForProfile(state.profile);
+    const directorVisa = 'Visé par le Directeur : ' + directorName + ' le ' + stampDate;
     const { data: existing } = await supabase.from('registre_configs').select('*').eq('classe_id', classId).eq('mois', mois).limit(1);
     if (existing && existing[0]) await supabase.from('registre_configs').update({
       visa_directeur: directorVisa,
       visa_directeur_date: stampDate,
-      visa_directeur_nom: state.profile ? state.profile.full_name : '',
-      visa_directeur_signature: signatureUrlForProfile(state.profile)
+      visa_directeur_nom: directorName,
+      visa_directeur_signature: directorSignature
     }).eq('id', existing[0].id);
     else await supabase.from('registre_configs').insert({
       classe_id: classId,
       mois,
       visa_directeur: directorVisa,
       visa_directeur_date: stampDate,
-      visa_directeur_nom: state.profile ? state.profile.full_name : '',
-      visa_directeur_signature: signatureUrlForProfile(state.profile)
+      visa_directeur_nom: directorName,
+      visa_directeur_signature: directorSignature
     });
-    renderDirRegSheet();
+    dirVisaDirectorStamps[mois] = { date: stampDate, nom: directorName, signatureUrl: directorSignature };
+    dirVisaDirecteurByMonth[mois] = directorVisa;
+    const phrase = visaMonthPhrase(mois);
+    const statusEl = viewContainer.querySelector('#dirRegStatus');
+    if (statusEl) {
+      statusEl.textContent = `✅ Arrêt du mois ${phrase} visé avec succès !`;
+      statusEl.style.color = '#15803d';
+      statusEl.style.fontWeight = '700';
+      statusEl.style.background = '#dcfce7';
+      statusEl.style.padding = '8px 12px';
+      statusEl.style.borderRadius = '8px';
+    }
+    btn.textContent = `✅ Arrêt du mois ${phrase} visé`;
+    btn.disabled = true;
+    await renderDirRegSheet();
   });
 
   viewContainer.addEventListener('change', async (e) => {
@@ -872,6 +893,7 @@ export function setupDirecteur(container, state, render, supabase) {
           <button class="btn secondary" onclick="window.print()">🖨️ Imprimer / PDF</button>
           <button type="button" class="btn" data-action="visa-directeur">✍️ Viser</button>
         </div>
+        <p id="dirRegStatus" role="status" aria-live="polite" style="margin:10px 0 0"></p>
       </div>
       <div class="card" style="margin-top:16px">
         <div id="dirRegSheet"><p style="color:#64748b">Sélectionnez une classe pour afficher sa Fiche d'Arrêt Mensuel.</p></div>
@@ -979,7 +1001,8 @@ export function setupDirecteur(container, state, render, supabase) {
       visaDirecteur: dirCurrentFiche.visaDirecteur,
       visaDirecteurSignatureProfile: directorSigners.length && profileMatchesVisa(dirCurrentFiche.visaDirecteur, actualProfile) ? actualProfile : null,
       showVisaButton: true,
-      onVisaLabel: 'visa-directeur'
+      onVisaLabel: 'visa-directeur',
+      directorStamp: dirVisaDirectorStamps[dirCurrentFiche.monthName] || null
     });
     renderDirRegSummaryPanel(cls);
   }
