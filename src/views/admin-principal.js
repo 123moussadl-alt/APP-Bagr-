@@ -66,6 +66,16 @@ export function renderAdminPrincipal(state) {
               </table>
             </div>
           </section>
+          <section class="card" id="closureCard">
+            <h2>🔒 Clôturer l'année scolaire</h2>
+            <p style="color:#475569">Cette opération efface les données transactionnelles de l'année (notes, examens blancs, présences, registres mensuels, élèves, présences des agents). Les comptes (<code>profiles</code>), écoles, classes et matières sont conservés. Tapez <strong>CLOTURER</strong> pour confirmer.</p>
+            <div class="form-group" style="max-width:280px">
+              <label for="closureConfirm">Confirmation</label>
+              <input id="closureConfirm" type="text" placeholder="CLOTURER" autocomplete="off">
+            </div>
+            <button type="button" class="btn" id="closureBtn" style="background:#b91c1c">🔒 Clôturer l'année scolaire</button>
+            <p id="closureStatus" role="status" aria-live="polite"></p>
+          </section>
         </main>
       </div>
     </div>
@@ -325,6 +335,34 @@ export function setupAdminPrincipal(container, state, render, supabase) {
     }
   }
   if (schoolYearSave) schoolYearSave.addEventListener('click', saveActiveSchoolYear);
+
+  container.querySelector('#closureBtn')?.addEventListener('click', async (event) => {
+    const input = container.querySelector('#closureConfirm');
+    const status = container.querySelector('#closureStatus');
+    const confirmation = (input && input.value ? input.value : '').trim();
+    if (confirmation !== 'CLOTURER') {
+      status.textContent = 'Tapez CLOTURER pour confirmer la clôture.';
+      status.style.color = '#b91c1c';
+      return;
+    }
+    if (!window.confirm('Confirmez-vous la clôture de l’année scolaire ? Cette action est irréversible.')) return;
+    event.currentTarget.disabled = true;
+    const tables = ['notes', 'notes_examens_blancs', 'examens_blancs', 'presences', 'registres_mensuels', 'eleves', 'presences_agents'];
+    const errors = [];
+    for (const table of tables) {
+      const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) errors.push(`${table} : ${error.message}`);
+    }
+    event.currentTarget.disabled = false;
+    if (errors.length) {
+      status.textContent = 'Clôture partielle — ' + errors.join(' | ');
+      status.style.color = '#b91c1c';
+      return;
+    }
+    status.textContent = 'Année scolaire clôturée.';
+    status.style.color = '#15803d';
+    await loadAdminData();
+  });
 
   loadAdminData();
 }

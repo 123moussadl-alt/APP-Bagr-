@@ -47,11 +47,12 @@ export function renderChefCEB(state, render, supabase) {
             <h1 id="pageTitle">Toutes les écoles</h1>
             <p id="pageSubtitle">Gestion des écoles et synthèses de la CEB de Bagré</p>
           </div>
-          <div class="top-actions">
+          <div class="top-actions no-print">
             <button class="btn" data-action="preview-current">👁 Aperçu</button>
             <button class="btn" data-action="export-synthese">📥 Exporter Excel/CSV</button>
             <button class="btn" data-action="export-pdf">📄 Exporter en PDF</button>
             <button class="btn secondary" data-action="print-page">🖨️ Imprimer / PDF</button>
+            <button type="button" class="btn" data-action="school-edit-toggle">➕ Ajouter / Modifier une école de la CEB</button>
           </div>
         </header>
 
@@ -618,7 +619,6 @@ export function setupChefCEB(container, state, render, supabase) {
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
           <h3 style="margin:0">Toutes les écoles de la circonscription</h3>
-          <button type="button" class="btn" data-action="school-edit-toggle">➕ Ajouter / Modifier une école de la CEB</button>
         </div>
         <div id="schoolEditor" hidden style="margin:16px 0;padding:14px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px">
           <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">

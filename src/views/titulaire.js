@@ -994,7 +994,7 @@ export function setupTitulaire(container, state, render, supabase) {
       const sheet = viewContainer.querySelector('#annualBulletinSheets');
       const studentId = viewContainer.querySelector('#annualBulletinStudent')?.value || '';
       if (sheet) {
-        sheet.innerHTML = renderBulletinsAnnuelsHTML({
+        const html = renderBulletinsAnnuelsHTML({
           rows: currentAnnualBulletinRows,
           className: classLabel(cls),
           schoolName: currentAnnualBulletinSchool,
@@ -1002,6 +1002,7 @@ export function setupTitulaire(container, state, render, supabase) {
           teacherSigners: currentAnnualBulletinSigners,
           studentId
         }) || '<p style="color:#64748b">Aucun élève à afficher.</p>';
+        sheet.innerHTML = `<div class="bulletins-annuels-grid">${html}</div>`;
       }
     };
     viewContainer.querySelector('#annualBulletinStudent')?.addEventListener('change', renderSelected);
@@ -1030,15 +1031,15 @@ export function setupTitulaire(container, state, render, supabase) {
     const previousText = button.textContent;
     button.disabled = true;
     button.textContent = 'Création des bulletins PDF…';
-    sheet.innerHTML = renderBulletinsAnnuelsHTML({
+    sheet.innerHTML = `<div class="bulletins-annuels-grid">${renderBulletinsAnnuelsHTML({
       rows: currentAnnualBulletinRows,
       className: classLabel(currentAnnualBulletinClass),
       schoolName: currentAnnualBulletinSchool,
       teacherName: currentAnnualBulletinTeacher,
       teacherSigners: currentAnnualBulletinSigners
-    });
+    })}</div>`;
     try {
-      await exportPDF(sheet, 'bulletins_annuels.pdf', { orientation: 'portrait', format: 'a4', margin: 12 });
+      await exportPDF(sheet, 'bulletins_annuels.pdf', { orientation: 'landscape', format: 'a4', margin: 6 });
     } catch (error) {
       alert('Erreur lors de la création des bulletins PDF : ' + (error && error.message ? error.message : String(error)));
     } finally {

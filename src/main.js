@@ -10,6 +10,13 @@ import { getAgentFunction, getEmploymentOptions, getRoleFunction, normalizeEmplo
 import { DEFAULT_SCHOOL_NAMES, mergeSchoolChoices } from './utils/schools.js';
 import { DEFAULT_ACTIVE_SCHOOL_YEAR, fetchActiveSchoolYear } from './utils/school-year.js';
 import { isSignatureDataUrl, signatureImageHTML, signatureStorageKey, signatureUrlForProfile } from './utils/signature.js';
+import {
+  buildBackupPack,
+  workbookToBlob,
+  shareOrDownload,
+  lastBackupDate,
+  rememberBackupDate
+} from './utils/backup.js';
 
 const viewModules = {
   login: () => import('./views/login.js'),
@@ -391,6 +398,54 @@ function applySettings() {
   if (s.size === 'comfortable') document.body.classList.add('comfortable');
 }
 
+async function openBackupModal() {
+  const existing = document.getElementById('backupOverlay');
+  if (existing) { existing.remove(); return; }
+  const overlay = document.createElement('div');
+  overlay.id = 'backupOverlay';
+  overlay.innerHTML = `
+    <div id="backupModal">
+      <h3>☁️ Sauvegarder mes données</h3>
+      <p style="color:#475569">Générez un classeur Excel (.xlsx) de vos données, puis enregistrez-le dans Google Drive.</p>
+      <p id="backupModalStatus" role="status" aria-live="polite"></p>
+      <div class="settings-actions">
+        <button type="button" class="btn" id="backupModalBtn">☁️ Générer et sauvegarder mon pack sur Google Drive</button>
+        <a class="btn secondary" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noopener">📂 Ouvrir Google Drive</a>
+        <button type="button" class="btn secondary" id="backupModalClose">Fermer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const status = overlay.querySelector('#backupModalStatus');
+  const userId = state.user && state.user.id ? state.user.id : ((state.profile || {}).id || '');
+  const last = lastBackupDate(userId);
+  status.textContent = last
+    ? `Dernière sauvegarde : ${new Date(last).toLocaleString('fr-FR')}`
+    : 'Aucune sauvegarde enregistrée.';
+  overlay.querySelector('#backupModalClose')?.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', event => { if (event.target === overlay) overlay.remove(); });
+  overlay.querySelector('#backupModalBtn')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    status.textContent = 'Génération du pack…';
+    status.style.color = '#475569';
+    try {
+      const { workbook, filename } = await buildBackupPack(state, supabase);
+      const blob = workbookToBlob(workbook);
+      const outcome = await shareOrDownload(blob, filename);
+      rememberBackupDate(userId);
+      status.textContent = outcome === 'shared'
+        ? 'Pack généré — choisissez « Enregistrer dans Drive ».'
+        : (outcome === 'cancelled' ? 'Partage annulé.' : `Sauvegarde téléchargée : ${filename}`);
+      status.style.color = '#15803d';
+    } catch (error) {
+      status.textContent = 'Erreur : ' + (error && error.message ? error.message : String(error));
+      status.style.color = '#dc2626';
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
 async function openSettings() {
   const existing = document.getElementById('settingsOverlay');
   if (existing) { existing.remove(); return; }
@@ -522,6 +577,15 @@ async function openSettings() {
           </div>
         </div>
         <div class="settings-actions"><button class="btn" id="setSave">Enregistrer l'apparence</button><button type="button" class="btn secondary" id="settingsInstallApp">📲 Installer l'application</button></div>
+      </section>
+      <section class="settings-section">
+        <h4>☁️ Sauvegarde de mes données</h4>
+        <p style="color:#475569">Générez un classeur Excel (.xlsx) de vos données puis enregistrez-le dans Google Drive.</p>
+        <div class="settings-actions">
+          <button type="button" class="btn" id="settingsBackupBtn">☁️ Générer et sauvegarder mon pack sur Google Drive</button>
+          <a class="btn secondary" href="https://drive.google.com/drive/my-drive" target="_blank" rel="noopener">📂 Ouvrir Google Drive</a>
+        </div>
+        <p id="settingsBackupStatus" role="status" aria-live="polite"></p>
       </section>
       <div class="settings-actions">
         <button class="btn secondary" id="setClose">Fermer</button>
@@ -1045,6 +1109,7 @@ async function openSettings() {
     showToast('Paramètres enregistrés.');
   });
   overlay.querySelector('#settingsInstallApp')?.addEventListener('click', () => installPWA());
+  overlay.querySelector('#settingsBackupBtn')?.addEventListener('click', () => openBackupModal());
 }
 
 function initSettings() {
@@ -1120,6 +1185,17 @@ function mountSettingsButton() {
     settingsButton.addEventListener('click', openSettings);
   }
   settingsButton.textContent = '⚙️ Paramètres';
+
+  let backupButton = actions.querySelector('[data-action="quick-backup"]');
+  if (!backupButton) {
+    backupButton = document.createElement('button');
+    backupButton.type = 'button';
+    backupButton.className = 'btn-settings';
+    backupButton.dataset.action = 'quick-backup';
+    backupButton.textContent = '☁️ Sauvegarder';
+    backupButton.addEventListener('click', () => openBackupModal());
+    actions.insertBefore(backupButton, settingsButton);
+  }
 
   const logoutButton = document.querySelector('.btn-logout') ||
     header.querySelector('.topbar-left button[onclick*="logout"]');

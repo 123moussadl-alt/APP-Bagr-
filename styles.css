@@ -992,6 +992,48 @@ th {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  position: sticky;
+  top: 30px;
+  z-index: 50;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* BANDEAU SLOGAN ÉDUCATIF — CEB de Bagré */
+.slogan-banner {
+  position: sticky;
+  top: 0;
+  z-index: 49;
+  overflow: hidden;
+  background: linear-gradient(90deg, #dcfce7, #e0f2fe);
+  border-bottom: 1px solid #bbf7d0;
+  padding: 6px 0;
+}
+.slogan-banner__track {
+  display: inline-flex;
+  gap: 48px;
+  white-space: nowrap;
+  padding-left: 100%;
+  animation: slogan-scroll 28s linear infinite;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f3d23;
+}
+.slogan-banner:hover .slogan-banner__track,
+.slogan-banner:focus-within .slogan-banner__track {
+  animation-play-state: paused;
+}
+@keyframes slogan-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slogan-banner__track { animation: none; padding-left: 0; }
+}
+
+/* NAVIGATION PAR ONGLETS — collante (barre horizontale mobile) */
+.role-nav {
+  position: relative;
+  z-index: 48;
 }
 .role-topbar h1 { margin: 0; font-size: 18px; color: var(--bf-green-dark); }
 .role-topbar p { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-muted); }
@@ -1087,7 +1129,93 @@ th {
 .arret-mois > div:last-child > div { min-width: 0 !important; }
 .proposition-sheet table { min-width: 1250px; }
 .proposition-sheet th, .proposition-sheet td { word-wrap: break-word; overflow-wrap: anywhere; white-space: normal; }
-.personnel-directory-table { width: 100%; min-width: 0; table-layout: fixed; }
+.personnel-directory-table {
+  width: 100%;
+  min-width: 980px;
+  table-layout: auto;
+  border-collapse: collapse;
+}
+.personnel-directory-table th,
+.personnel-directory-table td {
+  padding: 10px 12px;
+  vertical-align: top;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.personnel-directory-table th {
+  white-space: nowrap;
+  background: #f1f5f9;
+  font-weight: 700;
+}
+.personnel-directory-table td:nth-child(1),
+.personnel-directory-table td:nth-child(2),
+.personnel-directory-table td:nth-child(5),
+.personnel-directory-table td:nth-child(6),
+.personnel-directory-table td:nth-child(10),
+.personnel-directory-table td:nth-child(13),
+.personnel-directory-table th:nth-child(1),
+.personnel-directory-table th:nth-child(2),
+.personnel-directory-table th:nth-child(5),
+.personnel-directory-table th:nth-child(6),
+.personnel-directory-table th:nth-child(10),
+.personnel-directory-table th:nth-child(13) {
+  white-space: nowrap;
+}
+.personnel-directory-table td:nth-child(3),
+.personnel-directory-table td:nth-child(4) { min-width: 180px; }
+.personnel-directory-table td:nth-child(8),
+.personnel-directory-table td:nth-child(9) { min-width: 160px; }
+.personnel-directory-table td:nth-child(11) { min-width: 170px; }
+.personnel-directory-wrap {
+  overflow-x: auto;
+  width: 100%;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+}
+.personnel-summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 6px 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.personnel-summary .hommes { color: #0f172a; }
+.personnel-summary .femmes { color: #dc2626; }
+.personnel-summary .total { color: #16a34a; }
+
+/* BULLETINS ANNUELS — 3 bulletins par page A4 paysage */
+.bulletins-annuels-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.bulletins-annuels-grid .bulletin-sheet {
+  page-break-inside: avoid;
+  border: 1px solid #333;
+  padding: 6px;
+  font-size: 9.5pt;
+}
+.bulletins-annuels-grid .bulletin-sheet:nth-child(3n) {
+  page-break-after: always;
+}
+@media print {
+  .bulletins-annuels-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .bulletins-annuels-grid .bulletin-sheet {
+    page-break-inside: avoid;
+    border: 1px solid #333 !important;
+    box-shadow: none !important;
+  }
+  .bulletins-annuels-grid .bulletin-sheet:nth-child(3n) {
+    page-break-after: always;
+  }
+}
 .ceb-staff-directory { page: landscape; }
 .official-motto { display: flex; flex-direction: column; align-items: center; text-align: center; }
 
@@ -1356,7 +1484,22 @@ body.comfortable .role-main .card { padding: 22px; }
     flex-wrap: nowrap;
     gap: 8px;
     padding: 10px 12px;
+    position: sticky;
+    top: 30px;
+    z-index: 50;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
   }
+  .role-nav {
+    order: 2;
+    position: sticky;
+    top: 0;
+    z-index: 48;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .slogan-banner__track { font-size: 12px; }
   .role-topbar > div:first-child {
     flex: 1 1 auto;
     min-width: 0;

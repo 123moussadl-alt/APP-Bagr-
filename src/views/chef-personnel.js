@@ -114,6 +114,62 @@ export function setupChefPersonnel(container, state, render, supabase) {
     return formatClassName({ level, name: classRecord && classRecord.name });
   }
 
+  function personnelCounts(rows) {
+    return {
+      hommes: rows.filter(p => (p.sexe || p.gender) === 'M').length,
+      femmes: rows.filter(p => (p.sexe || p.gender) === 'F').length,
+      total: rows.length
+    };
+  }
+
+  function personnelSummaryHTML(counts) {
+    return `
+      <div class="personnel-summary">
+        <span class="hommes">Hommes : ${counts.hommes}</span>
+        <span class="femmes">Femmes : ${counts.femmes}</span>
+        <span class="total">Total : ${counts.total}</span>
+      </div>`;
+  }
+
+  function personnelTableHTML(rows) {
+    return `
+      <div class="personnel-directory-wrap">
+        <table class="personnel-directory-table">
+          <thead>
+            <tr>
+              <th>N°</th><th>Matricule</th><th>Nom</th><th>Prénom</th><th>Sexe (M/F)</th>
+              <th>Date de naissance</th><th>Niveau d'étude</th><th>Emploi</th><th>Fonction</th>
+              <th>Date prise de service CEB</th><th>École</th><th>Classe tenue</th><th>Contact WhatsApp</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((p, i) => {
+              const { nom, prenom } = personNames(p);
+              const phone = (p.whatsapp || p.whatsapp_phone || '').replace('+', '');
+              const link = phone ? `<a href="https://wa.me/${esc(phone)}" target="_blank" rel="noopener">${esc(p.whatsapp || p.whatsapp_phone)}</a>` : '—';
+              return `
+                <tr>
+                  <td>${i + 1}</td>
+                  <td>${esc(p.matricule || '—')}</td>
+                  <td><strong>${esc(nom)}</strong></td>
+                  <td>${esc(prenom)}</td>
+                  <td>${(p.sexe || p.gender) === 'M' ? 'M' : ((p.sexe || p.gender) === 'F' ? 'F' : '—')}</td>
+                  <td>${esc(formatProfileDate(p.date_naissance))}</td>
+                  <td>${esc(p.niveau_etude || '—')}</td>
+                  <td>${esc(getAgentEmployment(p))}</td>
+                  <td>${esc(getAgentFunction(p))}</td>
+                  <td>${esc(formatProfileDate(p.date_prise_service_ceb))}</td>
+                  <td>${esc(schoolName(p.school_id) || '—')}</td>
+                  <td>${esc(classeTenue(p))}</td>
+                  <td>${link}</td>
+                </tr>
+              `;
+            }).join('') || `<tr><td colspan="13">Aucun agent</td></tr>`}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
   async function load() {
     const [p, s, c] = await Promise.all([
       supabase.from('profiles').select('*').order('full_name'),
@@ -136,12 +192,15 @@ export function setupChefPersonnel(container, state, render, supabase) {
     const women = filtered.filter(p => (p.sexe || p.gender) === 'F').length;
     const total = filtered.length;
 
+    const enseignants = filtered.filter(p => p.role === 'titulaire' || p.role === 'directeur');
+    const agents = filtered.filter(p => p.role !== 'titulaire' && p.role !== 'directeur');
+
     viewContainer.innerHTML = `
       <div class="card">
         <h3>Statistiques du personnel</h3>
         <div class="stat-row">
-          <div class="stat-box"><strong>${men}</strong><span>M</span></div>
-          <div class="stat-box"><strong>${women}</strong><span>F</span></div>
+          <div class="stat-box"><strong>${men}</strong><span>Hommes</span></div>
+          <div class="stat-box"><strong>${women}</strong><span>Femmes</span></div>
           <div class="stat-box"><strong>${total}</strong><span>Total</span></div>
         </div>
       </div>
@@ -157,40 +216,15 @@ export function setupChefPersonnel(container, state, render, supabase) {
             </select>
           </div>
         </div>
-        <div class="table-wrap">
-          <table class="personnel-directory-table">
-            <thead>
-              <tr><th>N°</th><th>Matricule</th><th>Nom</th><th>Prénom</th><th>Sexe (M/F)</th><th>Date de naissance</th><th>Niveau d'étude</th><th>Emploi</th><th>Fonction</th><th>Date prise de service CEB</th><th>École</th><th>Classe tenue</th><th>Contact WhatsApp</th></tr>
-            </thead>
-            <tbody>
-              ${filtered.map((p, i) => {
-                const { nom, prenom } = personNames(p);
-                const phone = (p.whatsapp || p.whatsapp_phone || '').replace('+', '');
-                const link = phone ? `<a href="https://wa.me/${esc(phone)}" target="_blank" rel="noopener">${esc(p.whatsapp || p.whatsapp_phone)}</a>` : '—';
-                return `
-                  <tr>
-                    <td>${i + 1}</td>
-                    <td>${esc(p.matricule || '—')}</td>
-                    <td><strong>${esc(nom)}</strong></td>
-                    <td>${esc(prenom)}</td>
-                    <td>${(p.sexe || p.gender) === 'M' ? 'M' : ((p.sexe || p.gender) === 'F' ? 'F' : '—')}</td>
-                    <td>${esc(formatProfileDate(p.date_naissance))}</td>
-                    <td>${esc(p.niveau_etude || '—')}</td>
-                    <td>${esc(getAgentEmployment(p))}</td>
-                    <td>${esc(getAgentFunction(p))}</td>
-                    <td>${esc(formatProfileDate(p.date_prise_service_ceb))}</td>
-                    <td>${esc(schoolName(p.school_id) || '—')}</td>
-                    <td>${esc(classeTenue(p))}</td>
-                    <td>${link}</td>
-                  </tr>
-                `;
-              }).join('') || '<tr><td colspan="13">Aucun agent</td></tr>'}
-            </tbody>
-          </table>
-        </div>
-        <p style="margin-top:10px;color:#64748b;font-size:12px">
-          Décompte : <strong>${men}</strong> Homme(s) · <strong>${women}</strong> Femme(s) · <strong>${total}</strong> Total
-        </p>
+
+        <h4 style="margin:18px 0 6px;font-size:15px">👥 Agents de la CEB</h4>
+        ${personnelSummaryHTML(personnelCounts(agents))}
+        ${personnelTableHTML(agents)}
+
+        <h4 style="margin:24px 0 6px;font-size:15px">🏫 Enseignants / Directeurs des Écoles</h4>
+        ${personnelSummaryHTML(personnelCounts(enseignants))}
+        ${personnelTableHTML(enseignants)}
+
         <div style="display:flex;justify-content:flex-end;margin-top:24px">${signatureBlockHTML('Le Chef du Personnel', personnelSigners)}</div>
       </div>
     `;
