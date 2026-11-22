@@ -660,3 +660,10 @@ alter table public.students add column if not exists date_naissance date;
 alter table public.students add column if not exists lieu_naissance text;
 alter table public.students add column if not exists option_cep text;
 alter table public.profiles add column if not exists est_actif boolean default true;
+alter table public.profiles add column if not exists derniere_activite timestamptz;
+create table if not exists public.annees_scolaires (
+  id uuid primary key default gen_random_uuid(),
+  year text not null unique,
+  is_active boolean default false,
+  created_at timestamptz default now()
+);

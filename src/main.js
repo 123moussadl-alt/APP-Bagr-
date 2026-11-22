@@ -178,6 +178,23 @@ async function init() {
   }
 }
 
+let presenceInterval = null;
+
+async function touchPresence() {
+  if (!state.user || !state.user.id || isDemoMode) return;
+  try {
+    await supabase.from('profiles').update({ derniere_activite: new Date().toISOString() }).eq('id', state.user.id);
+  } catch (error) {
+    console.warn('Présence non enregistrée :', error);
+  }
+}
+
+function startPresenceTracking() {
+  if (presenceInterval) return;
+  touchPresence();
+  presenceInterval = setInterval(touchPresence, 60000);
+}
+
 async function loadProfile() {
   if (!state.user) return;
   const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -195,6 +212,7 @@ async function loadProfile() {
     state.authenticatedRole = data.role;
   }
   state.activeSchoolYear = await fetchActiveSchoolYear(supabase);
+  startPresenceTracking();
 }
 
 function routeToDashboard() {
@@ -431,8 +449,25 @@ async function openSettings() {
       ${isSuperAdminSettings ? `
       <section class="settings-section">
         <h4>Gestion de l'Année Scolaire</h4>
-        <p style="color:#475569">Activez ou changez l'année scolaire de la CEB de Bagré (ex. 2026-2027) depuis le panneau Administrateur Principal.</p>
-        <div class="settings-actions"><button type="button" class="btn" id="settingsOpenAdmin">🏫 Gérer l'année scolaire</button></div>
+        <div class="settings-profile-grid">
+          <div class="form-group">
+            <label for="settingsSchoolYearSelect">Année scolaire</label>
+            <select id="settingsSchoolYearSelect">
+              <option value="2025-2026">2025-2026</option>
+              <option value="2026-2027">2026-2027</option>
+              <option value="2027-2028">2027-2028</option>
+              <option value="2028-2029">2028-2029</option>
+              <option value="2029-2030">2029-2030</option>
+              <option value="__custom__">Autre / Saisir une nouvelle année...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="settingsSchoolYearCustom">Nouvelle année (AAAA-AAAA)</label>
+            <input id="settingsSchoolYearCustom" type="text" inputmode="numeric" placeholder="Ex: 2026-2027">
+          </div>
+        </div>
+        <div class="settings-actions"><button type="button" class="btn" id="settingsSchoolYearSave">💾 Enregistrer et activer l'année</button></div>
+        <p id="settingsSchoolYearStatus" role="status" aria-live="polite"></p>
       </section>
       <section class="settings-section">
         <h4>Gestion & Autorisation des Comptes Utilisateurs</h4>
@@ -515,8 +550,82 @@ async function openSettings() {
   }
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   overlay.querySelector('#setClose')?.addEventListener('click', () => overlay.remove());
-  overlay.querySelector('#settingsOpenAdmin')?.addEventListener('click', () => { overlay.remove(); openAdminPrincipal(); });
-  overlay.querySelector('#settingsOpenAdminAccounts')?.addEventListener('click', () => { overlay.remove(); openAdminPrincipal(); });
+  const openAccountsPanel = () => {
+    overlay.remove();
+    if (!isPrincipalAdmin()) { showToast('Accès réservé à l’Administrateur Principal.'); return; }
+    openAdminPrincipal();
+    setTimeout(() => {
+      const card = document.getElementById('accountsCard') || document.getElementById('adminAccounts');
+      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 400);
+  };
+  overlay.querySelector('#settingsOpenAdmin')?.addEventListener('click', openAccountsPanel);
+  overlay.querySelector('#settingsOpenAdminAccounts')?.addEventListener('click', openAccountsPanel);
+
+  const settingsSchoolYearSelect = overlay.querySelector('#settingsSchoolYearSelect');
+  const settingsSchoolYearCustom = overlay.querySelector('#settingsSchoolYearCustom');
+  const settingsSchoolYearSave = overlay.querySelector('#settingsSchoolYearSave');
+  const settingsSchoolYearStatus = overlay.querySelector('#settingsSchoolYearStatus');
+  const syncSettingsSchoolYearCustom = () => {
+    const isCustom = settingsSchoolYearSelect && settingsSchoolYearSelect.value === '__custom__';
+    if (settingsSchoolYearCustom) {
+      settingsSchoolYearCustom.style.display = isCustom ? '' : 'none';
+      settingsSchoolYearCustom.required = !!isCustom;
+    }
+  };
+  if (settingsSchoolYearSelect) {
+    const activeYear = state.activeSchoolYear || DEFAULT_ACTIVE_SCHOOL_YEAR;
+    const exists = Array.from(settingsSchoolYearSelect.options).some(option => option.value === activeYear);
+    if (!exists) {
+      const opt = document.createElement('option');
+      opt.value = activeYear;
+      opt.textContent = activeYear;
+      settingsSchoolYearSelect.insertBefore(opt, settingsSchoolYearSelect.querySelector('option[value="__custom__"]'));
+    }
+    settingsSchoolYearSelect.value = activeYear;
+    settingsSchoolYearSelect.addEventListener('change', syncSettingsSchoolYearCustom);
+  }
+  syncSettingsSchoolYearCustom();
+  if (settingsSchoolYearSave) {
+    settingsSchoolYearSave.addEventListener('click', async () => {
+      const year = settingsSchoolYearSelect && settingsSchoolYearSelect.value === '__custom__'
+        ? (settingsSchoolYearCustom ? settingsSchoolYearCustom.value.trim() : '')
+        : (settingsSchoolYearSelect ? settingsSchoolYearSelect.value : '');
+      if (!/^\d{4}-\d{4}$/.test(year)) {
+        if (settingsSchoolYearStatus) { settingsSchoolYearStatus.textContent = 'Format attendu : AAAA-AAAA (ex. 2026-2027).'; settingsSchoolYearStatus.style.color = '#b91c1c'; }
+        return;
+      }
+      settingsSchoolYearSave.disabled = true;
+      const { data, error } = await supabase.rpc('admin_set_school_year', { p_year: year });
+      if (error) {
+        if (settingsSchoolYearStatus) { settingsSchoolYearStatus.textContent = `Échec : ${error.message}`; settingsSchoolYearStatus.style.color = '#b91c1c'; }
+        settingsSchoolYearSave.disabled = false;
+        return;
+      }
+      const activeYear = data || year;
+      state.activeSchoolYear = activeYear;
+      try { localStorage.setItem('educ_ceb_active_school_year', activeYear); } catch (e) {}
+      try {
+        const { error: anneesError } = await supabase.from('annees_scolaires').upsert({ year: activeYear, is_active: true }, { onConflict: 'year' });
+        if (anneesError) console.warn('annees_scolaires indisponible :', anneesError.message);
+      } catch (e) { console.warn(e); }
+      if (settingsSchoolYearStatus) { settingsSchoolYearStatus.textContent = `Année active : ${activeYear}`; settingsSchoolYearStatus.style.color = '#15803d'; }
+      settingsSchoolYearSave.disabled = false;
+      if (settingsSchoolYearSelect) {
+        const exists2 = Array.from(settingsSchoolYearSelect.options).some(option => option.value === activeYear);
+        if (!exists2) {
+          const opt = document.createElement('option');
+          opt.value = activeYear;
+          opt.textContent = activeYear;
+          settingsSchoolYearSelect.insertBefore(opt, settingsSchoolYearSelect.querySelector('option[value="__custom__"]'));
+        }
+        settingsSchoolYearSelect.value = activeYear;
+        syncSettingsSchoolYearCustom();
+      }
+      showToast('Année scolaire activée : ' + activeYear);
+    });
+  }
+
   overlay.querySelector('#settingsSignatureOpen')?.addEventListener('click', () => {
     const signatureOverlay = document.createElement('div');
     signatureOverlay.id = 'signatureModalOverlay';

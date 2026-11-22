@@ -31,16 +31,29 @@ export function renderAdminPrincipal(state) {
           </div>
         </header>
         <main class="role-main">
-          <section class="card">
+          <section class="card" id="schoolYearCard">
             <h2>Gestion de l’année scolaire</h2>
-            <form id="schoolYearForm" class="form-inline">
-              <label for="activeSchoolYear">Année active</label>
-              <input id="activeSchoolYear" name="year" type="text" inputmode="numeric" pattern="[0-9]{4}-[0-9]{4}" required>
-              <button type="submit" class="btn">Enregistrer</button>
-            </form>
+            <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+              <div class="form-group" style="margin:0;min-width:240px">
+                <label for="schoolYearSelect">Année scolaire</label>
+                <select id="schoolYearSelect">
+                  <option value="2025-2026">2025-2026</option>
+                  <option value="2026-2027">2026-2027</option>
+                  <option value="2027-2028">2027-2028</option>
+                  <option value="2028-2029">2028-2029</option>
+                  <option value="2029-2030">2029-2030</option>
+                  <option value="__custom__">Autre / Saisir une nouvelle année...</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0;min-width:220px">
+                <label for="schoolYearCustom">Nouvelle année (AAAA-AAAA)</label>
+                <input id="schoolYearCustom" type="text" inputmode="numeric" placeholder="Ex: 2026-2027">
+              </div>
+              <button type="button" class="btn" id="schoolYearSave">💾 Enregistrer et activer l'année</button>
+            </div>
             <p id="schoolYearStatus" role="status" aria-live="polite"></p>
           </section>
-          <section class="card">
+          <section class="card" id="accountsCard">
             <h2>Gestion des comptes utilisateurs</h2>
             <p>Les privilèges Administrateur Principal ne peuvent pas être attribués ici.</p>
             <p id="accountsStatus" role="status" aria-live="polite">Chargement des comptes…</p>
@@ -64,7 +77,9 @@ export function setupAdminPrincipal(container, state, render, supabase) {
 
   const accountBody = container.querySelector('#adminAccounts');
   const accountStatus = container.querySelector('#accountsStatus');
-  const schoolYearInput = container.querySelector('#activeSchoolYear');
+  const schoolYearSelect = container.querySelector('#schoolYearSelect');
+  const schoolYearCustom = container.querySelector('#schoolYearCustom');
+  const schoolYearSave = container.querySelector('#schoolYearSave');
   const schoolYearStatus = container.querySelector('#schoolYearStatus');
   let schools = [];
 
@@ -125,17 +140,25 @@ export function setupAdminPrincipal(container, state, render, supabase) {
         `<option value="${value}" ${profileRole === value ? 'selected' : ''}>${label}</option>`
       ).join('');
       const accountName = profile.full_name || profile.identifiant || profile.id;
+      const lastSeen = profile.derniere_activite ? new Date(profile.derniere_activite) : null;
+      const hasValidLastSeen = lastSeen && !isNaN(lastSeen.getTime());
+      const isOnline = hasValidLastSeen && (Date.now() - lastSeen.getTime()) < 3 * 60 * 1000;
+      const presenceLabel = isOnline
+        ? '🟢 En ligne'
+        : (hasValidLastSeen
+          ? `⚪ Hors ligne (vu le ${lastSeen.toLocaleDateString('fr-FR')} à ${lastSeen.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })})`
+          : '⚪ Hors ligne');
       return `
         <tr data-profile-id="${esc(profile.id)}" data-est-actif="${profile.est_actif === false ? '0' : '1'}">
-          <td><strong>${esc(accountName)}</strong><br><small>${esc(profile.identifiant || profile.id)}</small><br><span data-user-status style="font-weight:700;color:${profile.est_actif === false ? '#b45309' : '#15803d'}">${profile.est_actif === false ? '⏳ En attente' : '✅ Actif'}</span></td>
+          <td><strong>${esc(accountName)}</strong><br><small>${esc(profile.identifiant || profile.id)}</small><br><span data-user-presence>${presenceLabel}</span><br><span data-user-status style="font-weight:700;color:${profile.est_actif === false ? '#b45309' : '#15803d'}">${profile.est_actif === false ? '⏳ En attente' : '✅ Accès autorisé'}</span></td>
           <td><select data-user-role aria-label="Fonction de ${esc(accountName)}" ${readOnly ? 'disabled' : ''}>${roleOptions}</select></td>
           <td><select data-user-employment aria-label="Emploi de ${esc(accountName)}" ${readOnly ? 'disabled' : ''}>${employmentOptions(profileRole, profile.emploi)}</select></td>
           <td data-user-school-cell>${renderSchoolAssignment(profileRole, profile)}</td>
           <td>
             ${readOnly ? '<span>Protégé</span>' : `
-              <button type="button" class="btn" data-action="save-user">Enregistrer</button>
-              <button type="button" class="btn" data-action="toggle-access">${profile.est_actif === false ? '✅ Donner accès' : '⛔ Bloquer'}</button>
-              <button type="button" class="btn secondary" data-action="delete-user">Supprimer</button>`}
+              <button type="button" class="btn" data-action="save-user">💾 Enregistrer</button>
+              <button type="button" class="btn" data-action="toggle-access">${profile.est_actif === false ? '✅ Donner accès' : '⛔ Suspendre'}</button>
+              <button type="button" class="btn secondary" data-action="delete-user">🗑️ Supprimer</button>`}
           </td>
         </tr>`;
     }).join('') || '<tr><td colspan="5">Aucun compte trouvé.</td></tr>';
@@ -157,7 +180,7 @@ export function setupAdminPrincipal(container, state, render, supabase) {
   async function loadAdminData() {
     const [profilesResult, schoolsResult, activeSchoolYear] = await Promise.all([
       supabase.from('profiles')
-        .select('id,identifiant,full_name,role,emploi,fonction,school_id,ecole_id,ecole_nom,ecoles_encadrees,followed_schools,est_actif')
+        .select('id,identifiant,full_name,role,emploi,fonction,school_id,ecole_id,ecole_nom,ecoles_encadrees,followed_schools,est_actif,derniere_activite')
         .order('full_name'),
       supabase.from('schools').select('id,name').order('name'),
       fetchActiveSchoolYear(supabase)
@@ -169,7 +192,17 @@ export function setupAdminPrincipal(container, state, render, supabase) {
       return;
     }
     schools = schoolsResult.data || [];
-    schoolYearInput.value = activeSchoolYear || state.activeSchoolYear || DEFAULT_ACTIVE_SCHOOL_YEAR;
+    if (schoolYearSelect) {
+      const activeYear = activeSchoolYear || state.activeSchoolYear || DEFAULT_ACTIVE_SCHOOL_YEAR;
+      const exists = Array.from(schoolYearSelect.options).some(option => option.value === activeYear);
+      if (!exists) {
+        const opt = document.createElement('option');
+        opt.value = activeYear;
+        opt.textContent = activeYear;
+        schoolYearSelect.insertBefore(opt, schoolYearSelect.querySelector('option[value="__custom__"]'));
+      }
+      schoolYearSelect.value = activeYear;
+    }
     renderAccounts(profilesResult.data || []);
     accountStatus.textContent = `${(profilesResult.data || []).length} compte(s).`;
   }
@@ -217,13 +250,13 @@ export function setupAdminPrincipal(container, state, render, supabase) {
       }
       row.dataset.estActif = nextActive ? '1' : '0';
       const toggleBtn = row.querySelector('[data-action="toggle-access"]');
-      if (toggleBtn) toggleBtn.textContent = nextActive ? '⛔ Bloquer' : '✅ Donner accès';
+      if (toggleBtn) toggleBtn.textContent = nextActive ? '⛔ Suspendre' : '✅ Donner accès';
       const statusEl = row.querySelector('[data-user-status]');
       if (statusEl) {
-        statusEl.textContent = nextActive ? '✅ Actif' : '⏳ En attente';
+        statusEl.textContent = nextActive ? '✅ Accès autorisé' : '⏳ En attente';
         statusEl.style.color = nextActive ? '#15803d' : '#b45309';
       }
-      accountStatus.textContent = nextActive ? 'Accès accordé à l’utilisateur.' : 'Accès bloqué pour l’utilisateur.';
+      accountStatus.textContent = nextActive ? 'Accès accordé à l’utilisateur.' : 'Accès suspendu pour l’utilisateur.';
       accountStatus.style.color = '#15803d';
     } else if (button.dataset.action === 'delete-user') {
       const name = row.querySelector('strong')?.textContent || profileId;
@@ -242,19 +275,56 @@ export function setupAdminPrincipal(container, state, render, supabase) {
     }
   });
 
-  container.querySelector('#schoolYearForm')?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const year = schoolYearInput.value.trim();
+  function syncSchoolYearCustom() {
+    const isCustom = schoolYearSelect && schoolYearSelect.value === '__custom__';
+    if (schoolYearCustom) {
+      schoolYearCustom.style.display = isCustom ? '' : 'none';
+      schoolYearCustom.required = !!isCustom;
+    }
+  }
+  if (schoolYearSelect) schoolYearSelect.addEventListener('change', syncSchoolYearCustom);
+  syncSchoolYearCustom();
+
+  async function saveActiveSchoolYear() {
+    const year = schoolYearSelect && schoolYearSelect.value === '__custom__'
+      ? (schoolYearCustom ? schoolYearCustom.value.trim() : '')
+      : (schoolYearSelect ? schoolYearSelect.value : '');
+    if (!/^\d{4}-\d{4}$/.test(year)) {
+      schoolYearStatus.textContent = 'Format attendu : AAAA-AAAA (ex. 2026-2027).';
+      schoolYearStatus.style.color = '#b91c1c';
+      return;
+    }
+    if (schoolYearSave) schoolYearSave.disabled = true;
     const { data, error } = await supabase.rpc('admin_set_school_year', { p_year: year });
     if (error) {
       schoolYearStatus.textContent = `Échec : ${error.message}`;
       schoolYearStatus.style.color = '#b91c1c';
+      if (schoolYearSave) schoolYearSave.disabled = false;
       return;
     }
-    state.activeSchoolYear = data;
-    schoolYearStatus.textContent = `Année active : ${data}`;
+    const activeYear = data || year;
+    state.activeSchoolYear = activeYear;
+    try { localStorage.setItem('educ_ceb_active_school_year', activeYear); } catch (e) {}
+    try {
+      const { error: anneesError } = await supabase.from('annees_scolaires').upsert({ year: activeYear, is_active: true }, { onConflict: 'year' });
+      if (anneesError) console.warn('annees_scolaires indisponible :', anneesError.message);
+    } catch (e) { console.warn(e); }
+    schoolYearStatus.textContent = `Année active : ${activeYear}`;
     schoolYearStatus.style.color = '#15803d';
-  });
+    if (schoolYearSave) schoolYearSave.disabled = false;
+    if (schoolYearSelect) {
+      const exists = Array.from(schoolYearSelect.options).some(option => option.value === activeYear);
+      if (!exists) {
+        const opt = document.createElement('option');
+        opt.value = activeYear;
+        opt.textContent = activeYear;
+        schoolYearSelect.insertBefore(opt, schoolYearSelect.querySelector('option[value="__custom__"]'));
+      }
+      schoolYearSelect.value = activeYear;
+      syncSchoolYearCustom();
+    }
+  }
+  if (schoolYearSave) schoolYearSave.addEventListener('click', saveActiveSchoolYear);
 
   loadAdminData();
 }
