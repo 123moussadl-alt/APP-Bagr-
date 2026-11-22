@@ -114,6 +114,15 @@ export function setupChefPersonnel(container, state, render, supabase) {
     return formatClassName({ level, name: classRecord && classRecord.name });
   }
 
+  function personnelFunctionLabel(profile) {
+    const base = getAgentFunction(profile) || '—';
+    if (profile.role === 'directeur') {
+      const tenue = profile.classe_tenue || profile.classe_niveau || '';
+      return tenue && tenue !== 'Aucune' ? `${base} (Titulaire ${tenue})` : base;
+    }
+    return base;
+  }
+
   function personnelCounts(rows) {
     return {
       hommes: rows.filter(p => (p.sexe || p.gender) === 'M').length,
@@ -157,7 +166,7 @@ export function setupChefPersonnel(container, state, render, supabase) {
                   <td>${esc(formatProfileDate(p.date_naissance))}</td>
                   <td>${esc(p.niveau_etude || '—')}</td>
                   <td>${esc(getAgentEmployment(p))}</td>
-                  <td>${esc(getAgentFunction(p))}</td>
+                  <td>${personnelFunctionLabel(p)}</td>
                   <td>${esc(formatProfileDate(p.date_prise_service_ceb))}</td>
                   <td>${esc(schoolName(p.school_id) || '—')}</td>
                   <td>${esc(classeTenue(p))}</td>

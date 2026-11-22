@@ -368,7 +368,7 @@ export function setupDirecteur(container, state, render, supabase) {
       .from('profiles')
       .select('*')
       .eq('school_id', sid)
-      .eq('role', 'titulaire')
+      .in('role', ['titulaire', 'directeur'])
       .order('full_name');
     return data || [];
   }
@@ -1591,7 +1591,7 @@ export function setupDirecteur(container, state, render, supabase) {
                 return `
                   <tr>
                     <td>${i + 1}</td>
-                    <td><strong>${esc(t.full_name)}</strong></td>
+                    <td><strong>${esc(t.full_name)}</strong>${t.role === 'directeur' ? ` <span style="color:#1d4ed8;font-weight:700">— Directeur${t.classe_tenue && t.classe_tenue !== 'Aucune' ? ' (Titulaire ' + esc(t.classe_tenue) + ')' : ''}</span>` : ''}</td>
                     <td>${t.gender === 'M' ? 'Homme' : (t.gender === 'F' ? 'Femme' : '—')}</td>
                     <td>${cls ? esc(formatClassName(cls)) : '—'}</td>
                     <td>${phone ? `<a href="https://wa.me/${esc(phone)}" target="_blank" rel="noopener">${esc(t.whatsapp_phone)}</a>` : '—'}</td>

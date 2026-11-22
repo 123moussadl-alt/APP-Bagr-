@@ -682,7 +682,7 @@ export function setupEncadreur(container, state, render, supabase) {
     const school = encadreurSchools.find(s => s.id === selectedSchoolId) || encadreurSchools[0];
 
     const [tituRes, classRes, stuRes] = await Promise.all([
-      supabase.from('profiles').select('*').eq('school_id', school.id).eq('role', 'titulaire').order('full_name'),
+      supabase.from('profiles').select('*').eq('school_id', school.id).in('role', ['titulaire', 'directeur']).order('full_name'),
       supabase.from('classes').select('*').eq('school_id', school.id).order('name'),
       supabase.from('students').select('*').eq('school_id', school.id)
     ]);

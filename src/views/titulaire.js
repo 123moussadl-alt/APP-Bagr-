@@ -282,7 +282,7 @@ export function setupTitulaire(container, state, render, supabase) {
       <div class="card">
         <h3>${esc(formatClassName(cls))}</h3>
         <p>Année : ${esc(cls.year || '')}</p>
-        ${coTeachers.length > 0 ? `<p style="color:#0f3d23"><strong>👥 Équipe pédagogique :</strong> ${coTeachers.map(n => esc(n)).join(', ')}</p>` : ''}
+        ${coTeachers.length > 0 ? `<p style="color:#0f3d23"><strong>👥 Titulaires :</strong> ${coTeachers.map(n => esc(n)).join(' / ')}</p>` : ''}
         <div class="stat-row">
           <div class="stat-box"><strong>${list.length}</strong><span>Élèves</span></div>
           <div class="stat-box"><strong>${boys}</strong><span>Garçons</span></div>
@@ -361,13 +361,13 @@ export function setupTitulaire(container, state, render, supabase) {
     if (!schoolId) { alert("Votre compte n'est rattaché à aucune école. Contactez le Chef CEB."); return; }
     const userId = state.user && state.user.id;
 
-    // La classe existe-t-elle déjà dans l'école (même niveau + nom) ?
+    // La classe existe-t-elle déjà dans l'école (même niveau) ? → classe canonique partagée
     const { data: existing } = await supabase
       .from('classes')
       .select('*')
       .eq('school_id', schoolId)
       .eq('level', level)
-      .eq('name', name)
+      .order('created_at', { ascending: true })
       .limit(1);
 
     if (existing && existing.length > 0) {
@@ -376,8 +376,10 @@ export function setupTitulaire(container, state, render, supabase) {
         { class_id: ex.id, teacher_id: userId },
         { onConflict: 'class_id,teacher_id', ignoreDuplicates: true }
       );
-      await supabase.from('profiles').update({ class_id: ex.id }).eq('id', userId);
-      if (state.profile) state.profile.class_id = ex.id;
+      const coTitulaires = Array.from(new Set([...(ex.co_titulaires || []), userId].map(String)));
+      await supabase.from('classes').update({ co_titulaires: coTitulaires }).eq('id', ex.id);
+      await supabase.from('profiles').update({ class_id: ex.id, classe_id: ex.id }).eq('id', userId);
+      if (state.profile) { state.profile.class_id = ex.id; state.profile.classe_id = ex.id; }
       localClass = ex;
       alert('Cette classe existe déjà dans votre école : vous êtes ajouté en co-titulaire (mêmes élèves et matières).');
       renderSubView('maclasse');

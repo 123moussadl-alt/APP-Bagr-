@@ -1537,6 +1537,48 @@ async function resolveSchoolId(selection) {
   return ensureSchoolId(value);
 }
 
+async function ensureSharedClass({ schoolId, level, fallbackName, teacherId, teacherName }) {
+  try {
+    const { data: existing } = await supabase
+      .from('classes')
+      .select('*')
+      .eq('school_id', schoolId)
+      .eq('level', level)
+      .order('created_at', { ascending: true })
+      .limit(1);
+    if (existing && existing[0]) {
+      const cls = existing[0];
+      await supabase.from('class_teachers').upsert(
+        { class_id: cls.id, teacher_id: teacherId },
+        { onConflict: 'class_id,teacher_id', ignoreDuplicates: true }
+      );
+      const co = Array.from(new Set([...(cls.co_titulaires || []), teacherId].map(String)));
+      await supabase.from('classes').update({ co_titulaires: co }).eq('id', cls.id);
+      await supabase.from('profiles').update({ class_id: cls.id, classe_id: cls.id }).eq('id', teacherId);
+      return cls.id;
+    }
+    const { data: newClass, error } = await supabase.from('classes').insert({
+      name: fallbackName,
+      level,
+      school_id: schoolId,
+      titulaire_id: teacherId,
+      titulaire_nom: teacherName || '',
+      co_titulaires: [teacherId],
+      year: state.activeSchoolYear || '2026-2027',
+      subjects: defaultSubjects(level)
+    }).select('id').single();
+    if (error || !newClass || !newClass.id) return null;
+    await supabase.from('class_teachers').upsert(
+      { class_id: newClass.id, teacher_id: teacherId },
+      { onConflict: 'class_id,teacher_id', ignoreDuplicates: true }
+    );
+    return newClass.id;
+  } catch (error) {
+    console.warn('Classe partagée indisponible :', error);
+    return null;
+  }
+}
+
 async function handleRegister({ identifiant, password, matricule, nom, prenom, sexe, role, emploi, schoolName, schoolId: selectedSchoolId, classLevel, className, whatsapp, classId, followedSchools, structure, lieuTravail }) {
   if (role !== 'titulaire') {
     showToast('Les autres fonctions sont attribuées par un administrateur après vérification.');
@@ -1699,7 +1741,16 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
   }
 
   let createdClassId = classId || null;
-  if (isSchoolRole && classLevel && !createdClassId) {
+  if (isSchoolRole && classLevel && !createdClassId && !isDemoMode) {
+    const fallbackName = (className && className.trim()) || classLevel;
+    createdClassId = await ensureSharedClass({
+      schoolId,
+      level: classLevel,
+      fallbackName,
+      teacherId: data.user.id,
+      teacherName: `${cleanNom} ${cleanPrenom}`.trim()
+    });
+  } else if (isSchoolRole && classLevel && !createdClassId) {
     const name = (className && className.trim()) || classLevel;
     const { data: newClass, error: classError } = await supabase.from('classes').insert({
       name,
