@@ -425,7 +425,7 @@ export function setupTitulaire(container, state, render, supabase) {
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>Nom et prénoms</th><th>Sexe</th><th>Statut</th><th>EDF</th><th>Handicap</th>${isCM2Class ? '<th>Date de naissance</th><th>Option CEP</th>' : ''}<th>Actions</th></tr></thead>
+            <thead><tr><th>N°</th><th>Nom et prénoms</th><th>Sexe</th><th>Statut</th><th>EDF</th><th>Handicap</th>${isCM2Class ? '<th>Date de naissance</th><th>Lieu de naissance</th><th>Option CEP</th>' : ''}<th>Actions</th></tr></thead>
             <tbody>
               ${list.map((s, i) => `
                 <tr>
@@ -435,13 +435,13 @@ export function setupTitulaire(container, state, render, supabase) {
                   <td>${s.status === 'A' ? '<strong>A</strong>' : esc(s.status || 'Actif')}</td>
                   <td>${s.edi ? 'Oui' : '—'}</td>
                   <td>${s.handicap && String(s.handicap).trim() ? esc(s.handicap) : '—'}</td>
-                  ${isCM2Class ? `<td>${esc(s.date_naissance || '—')}</td><td>${esc(s.option_cep || '—')}</td>` : ''}
+                  ${isCM2Class ? `<td>${esc(s.date_naissance || '—')}</td><td>${esc(s.lieu_naissance || '—')}</td><td>${esc(s.option_cep || '—')}</td>` : ''}
                   <td>
                     <button class="btn small" data-action="edit-student" data-id="${esc(s.id)}">✏️</button>
                     <button class="btn small danger" data-action="delete-student" data-id="${esc(s.id)}">🗑</button>
                   </td>
                 </tr>
-              `).join('') || `<tr><td colspan="${isCM2Class ? 9 : 7}">Aucun élève</td></tr>`}
+              `).join('') || `<tr><td colspan="${isCM2Class ? 10 : 7}">Aucun élève</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -2314,6 +2314,10 @@ export function setupTitulaire(container, state, render, supabase) {
             <input type="date" id="stuDob" value="${isEdit && student.date_naissance ? esc(student.date_naissance) : ''}" required>
           </div>
           <div class="form-group">
+            <label>Lieu de naissance (obligatoire en CM2)</label>
+            <input type="text" id="stuLieuNaissance" value="${isEdit && student.lieu_naissance ? esc(student.lieu_naissance) : ''}" required placeholder="Ex: Bagré, Tenkodogo...">
+          </div>
+          <div class="form-group">
             <label>Option CEP (obligatoire en CM2)</label>
             <select id="stuOptionCep" required>
               <option value="CEP seul" ${(isEdit && (student.option_cep || '') === 'CEP seul') ? 'selected' : ''}>CEP seul</option>
@@ -2367,16 +2371,19 @@ export function setupTitulaire(container, state, render, supabase) {
       : '';
     const isCM2Class = String(cls.level || cls.niveau || cls.name || '').toUpperCase().includes('CM2');
     const dobInput = viewContainer.querySelector('#stuDob');
+    const lieuInput = viewContainer.querySelector('#stuLieuNaissance');
     const optionCepInput = viewContainer.querySelector('#stuOptionCep');
     const dateNaissance = (dobInput && dobInput.value || '').trim();
+    const lieuNaissance = (lieuInput && lieuInput.value || '').trim();
     const optionCep = (optionCepInput && optionCepInput.value || '').trim();
     if (isCM2Class && !dateNaissance) { alert('La date de naissance est obligatoire pour la classe CM2.'); return; }
+    if (isCM2Class && !lieuNaissance) { alert('Le lieu de naissance est obligatoire pour la classe CM2.'); return; }
     if (isCM2Class && !optionCep) { alert("L'option CEP est obligatoire pour la classe CM2."); return; }
 
     if (editingId) {
       const { error } = await supabase.from('students').update({
         full_name, gender, status, edi, handicap,
-        ...(isCM2Class ? { date_naissance: dateNaissance || null, option_cep: optionCep } : {})
+        ...(isCM2Class ? { date_naissance: dateNaissance || null, lieu_naissance: lieuNaissance || null, option_cep: optionCep } : {})
       }).eq('id', editingId);
       if (error) alert(error.message);
     } else {
@@ -2384,7 +2391,7 @@ export function setupTitulaire(container, state, render, supabase) {
         class_id: cls.id,
         school_id: cls.school_id,
         full_name, gender, status, edi, handicap,
-        ...(isCM2Class ? { date_naissance: dateNaissance || null, option_cep: optionCep } : {})
+        ...(isCM2Class ? { date_naissance: dateNaissance || null, lieu_naissance: lieuNaissance || null, option_cep: optionCep } : {})
       });
       if (error) alert(error.message);
     }

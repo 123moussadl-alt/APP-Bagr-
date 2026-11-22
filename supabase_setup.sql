@@ -657,4 +657,5 @@ alter table public.registre_configs add column if not exists visa_encadreur_date
 alter table public.registre_configs add column if not exists visa_encadreur_nom text;
 alter table public.registre_configs add column if not exists visa_encadreur_signature text;
 alter table public.students add column if not exists date_naissance date;
+alter table public.students add column if not exists lieu_naissance text;
 alter table public.students add column if not exists option_cep text;

@@ -71,7 +71,8 @@ const FUNCTION_BY_ROLE = {
   chef_personnel: 'Chef du Personnel',
   'chef-personnel': 'Chef du Personnel',
   statisticien: 'Statisticien',
-  chef_ceb: 'Chef de la CEB'
+  chef_ceb: 'Chef de la CEB',
+  responsable_examens: 'Responsable des Examens et Concours'
 };
 
 const LEGACY_FUNCTION_LABELS = new Map([

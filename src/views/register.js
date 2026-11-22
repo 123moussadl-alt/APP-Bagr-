@@ -48,6 +48,7 @@ export function renderRegister({ onLogin, onRegister }) {
             <select name="role" id="roleSelect" required>
               <option value="">-- Choisir une fonction --</option>
               <option value="titulaire">Agent</option>
+              <option value="responsable_examens">Responsable des Examens et Concours</option>
             </select>
             <small>Les autres fonctions sont attribuées par un administrateur après vérification.</small>
           </div>
@@ -176,7 +177,7 @@ export function setupRegister(container, { onLogin, onRegister }) {
     const role = roleSelect ? roleSelect.value : '';
     const needsSchool = role === 'titulaire' || role === 'directeur';
     const isEncadreur = role === 'encadreur';
-    const isDistrictRole = ['chef_ceb', 'chef_personnel', 'statisticien'].includes(role);
+    const isDistrictRole = ['chef_ceb', 'chef_personnel', 'statisticien', 'responsable_examens'].includes(role);
     const canAssignClass = role === 'titulaire' || role === 'directeur';
     const hasClassLevel = classLevelSelect && classLevelSelect.value && classLevelSelect.value !== 'Aucune';
 
@@ -270,7 +271,7 @@ export function setupRegister(container, { onLogin, onRegister }) {
           schoolName,
           schoolId: role === 'titulaire' || role === 'directeur' ? (schoolSelect && schoolSelect.value) : null,
           followedSchools: role === 'encadreur' ? selectedSchools : [],
-          structure: role === 'encadreur' || ['chef_ceb', 'chef_personnel', 'statisticien'].includes(role)
+          structure: role === 'encadreur' || ['chef_ceb', 'chef_personnel', 'statisticien', 'responsable_examens'].includes(role)
             ? 'CEB de Bagré'
             : schoolName,
           classLevel,

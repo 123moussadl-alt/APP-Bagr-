@@ -8,7 +8,8 @@ const ADMIN_ROLES = [
   ['encadreur', 'Encadreur'],
   ['chef_personnel', 'Chef du Personnel'],
   ['statisticien', 'Statisticien'],
-  ['chef_ceb', 'Chef de la CEB']
+  ['chef_ceb', 'Chef de la CEB'],
+  ['responsable_examens', 'Responsable des Examens et Concours']
 ];
 
 export function renderAdminPrincipal(state) {

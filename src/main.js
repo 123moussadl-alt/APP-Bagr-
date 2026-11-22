@@ -22,6 +22,7 @@ const viewModules = {
   'chef-ceb': () => import('./views/chef-ceb.js'),
   'chef-personnel': () => import('./views/chef-personnel.js'),
   statisticien: () => import('./views/statisticien.js'),
+  'responsable-examens': () => import('./views/responsable-examens.js'),
   'admin-principal': () => import('./views/admin-principal.js')
 };
 
@@ -213,6 +214,7 @@ function routeToDashboard() {
     case 'chef_ceb': state.view = 'chef-ceb'; break;
     case 'chef_personnel': state.view = 'chef-personnel'; break;
     case 'statisticien': state.view = 'statisticien'; break;
+    case 'responsable_examens': state.view = 'responsable-examens'; break;
     default: state.view = 'dashboard';
   }
   render();
@@ -254,6 +256,7 @@ const viewExports = {
   'chef-ceb': 'ChefCEB',
   'chef-personnel': 'ChefPersonnel',
   statisticien: 'Statisticien',
+  'responsable-examens': 'ResponsableExamens',
   'admin-principal': 'AdminPrincipal'
 };
 
@@ -886,7 +889,7 @@ async function openSettings() {
       if (linkedClass && !state.classes.some(item => item.id === linkedClass.id)) state.classes = [...state.classes, linkedClass];
       const brand = document.querySelector('.role-brand span');
       if (brand) {
-        const roleNames = { titulaire: 'Titulaire', directeur: 'Directeur', encadreur: 'Encadreur', chef_ceb: 'Chef CEB', chef_personnel: 'Chef du Personnel', statisticien: 'Statisticien' };
+        const roleNames = { titulaire: 'Titulaire', directeur: 'Directeur', encadreur: 'Encadreur', chef_ceb: 'Chef CEB', chef_personnel: 'Chef du Personnel', statisticien: 'Statisticien', responsable_examens: 'Responsable des Examens et Concours' };
         brand.textContent = `${roleNames[state.profile.role] || 'Utilisateur'} — ${state.profile.full_name}`;
       }
       status.textContent = 'Paramètres enregistrés.';
@@ -935,6 +938,7 @@ function mountSettingsButton() {
       chef_ceb: 'Chef de la CEB',
       chef_personnel: 'Chef du Personnel',
       statisticien: 'Statisticien',
+      responsable_examens: 'Responsable des Examens et Concours',
       super_admin: 'Administrateur Principal'
     };
     if (heading && subtitle) {
@@ -1022,7 +1026,8 @@ const PREVIEW_ROLES = [
   ['encadreur', '🧭 Encadreur'],
   ['chef_ceb', '🏛️ Chef CEB'],
   ['chef_personnel', '👥 Chef du Personnel'],
-  ['statisticien', '📊 Statisticien']
+  ['statisticien', '📊 Statisticien'],
+  ['responsable_examens', '🎓 Responsable Examens']
 ];
 
 let previewBarEl = null;
@@ -1041,7 +1046,8 @@ function viewForRole(role) {
     encadreur: 'encadreur',
     chef_ceb: 'chef-ceb',
     chef_personnel: 'chef-personnel',
-    statisticien: 'statisticien'
+    statisticien: 'statisticien',
+    responsable_examens: 'responsable-examens'
   }[role] || 'dashboard';
 }
 

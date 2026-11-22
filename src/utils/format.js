@@ -62,7 +62,8 @@ export function roleLabel(role) {
     encadreur: 'Encadreur',
     chef_ceb: 'Chef CEB',
     chef_personnel: 'Chef du Personnel',
-    statisticien: 'Statisticien'
+    statisticien: 'Statisticien',
+    responsable_examens: 'Responsable des Examens et Concours'
   };
   return labels[role] || role;
 }
