@@ -6,7 +6,7 @@
 import { esc, formatClassName } from '../utils/format.js';
 import { downloadCSV, printPage, wirePDFExportButton, wireWordExportButton } from '../utils/export.js';
 import * as XLSX from 'xlsx';
-import { getAgentEmployment, getAgentFunction, getAgentNameParts } from '../utils/agents.js';
+import { getAgentEmployment, getAgentFunction, getAgentNameParts, agentMonths, getCurrentSchoolYearStart, getSchoolMonthPeriod } from '../utils/agents.js';
 import { getClassResult } from '../utils/stats.js';
 import { openPreview } from '../utils/preview.js';
 import { profileMatchesVisa, signatureBlockHTML, signatureUrlForProfile } from '../utils/signature.js';
@@ -32,6 +32,7 @@ export function renderChefCEB(state, render, supabase) {
         <nav class="role-nav">
           <button class="nav-item active" data-view="ecoles">🏫 Toutes les écoles</button>
           <button class="nav-item" data-view="personnel">👥 Personnel des écoles et de la CEB</button>
+          <button class="nav-item" data-view="presence">📋 Présence des agents</button>
           <button class="nav-item" data-view="synthese">📊 Synthèse CEB</button>
           <button class="nav-item" data-view="synthese-trim">📈 Synthèse trimestrielle</button>
           <button class="nav-item" data-view="synthese-ecole">📋 Synthèse trimestrielle d'école</button>
@@ -139,6 +140,7 @@ export function setupChefCEB(container, state, render, supabase) {
     const headings = {
       ecoles: ['Toutes les écoles', 'Gestion des écoles et synthèses de la CEB de Bagré'],
       personnel: ['Personnel des écoles et de la CEB', 'Répertoire séparé par affectation'],
+      presence: ['Présence des agents', 'Appel hebdomadaire des directeurs et agents du bureau de la CEB'],
       synthese: ['Synthèse CEB', 'Examens blancs par école et synthèse globale'],
       'synthese-trim': ['Synthèse trimestrielle', 'Résultats annuels et par trimestre'],
       'synthese-ecole': ["Synthèse trimestrielle d'école", 'Bilan détaillé par école ou par classe'],
@@ -151,6 +153,7 @@ export function setupChefCEB(container, state, render, supabase) {
     switch (view) {
       case 'ecoles': return renderEcoles();
       case 'personnel': return renderStaffDirectory();
+      case 'presence': return renderPresence();
       case 'synthese': return renderSynthese();
       case 'synthese-trim': return renderSyntheseTrim();
       case 'synthese-ecole': return renderSchoolTermSynthesis();
@@ -249,6 +252,232 @@ export function setupChefCEB(container, state, render, supabase) {
     const title = schoolTab ? 'Enseignants des Écoles' : 'Agents de la CEB';
     container.querySelector('#pageTitle').textContent = title;
     container.querySelector('#pageSubtitle').textContent = `${count} profil(s) dans cette liste`;
+  }
+
+  // ===== Présence des agents (Directeurs + Bureau de la CEB) =====
+  let presenceProfiles = [];
+  let presenceSchools = [];
+  let presenceWeekStart = startOfWeekISO(new Date());
+  let presenceMonth = (new Intl.DateTimeFormat('fr-FR', { month: 'long' }).format(new Date()).charAt(0).toUpperCase() + new Intl.DateTimeFormat('fr-FR', { month: 'long' }).format(new Date()).slice(1));
+  let presenceRecords = [];
+
+  function startOfWeekISO(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = (day === 0 ? -6 : 1 - day);
+    d.setDate(d.getDate() + diff);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}-${dd}`;
+  }
+
+  function presenceWeekDays() {
+    const start = new Date(presenceWeekStart + 'T00:00:00');
+    const labels = ['L', 'M', 'M', 'J', 'V'];
+    return labels.map((label, index) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + index);
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return { label, iso: `${d.getFullYear()}-${mm}-${dd}` };
+    });
+  }
+
+  function presenceProfilesList() {
+    return presenceProfiles.filter(profile => {
+      if (profile.role === 'chef_ceb' || profile.role === 'super_admin') return false;
+      const isDirector = profile.role === 'directeur';
+      const lieuCeb = String(profile.lieu_travail || '').trim().toLowerCase() === 'ceb';
+      const officeRole = ['encadreur', 'chef-personnel', 'chef_personnel', 'statisticien', 'responsable_examens'].includes(profile.role);
+      return isDirector || lieuCeb || officeRole;
+    });
+  }
+
+  function presenceSchoolLabel(profile) {
+    if (profile.role === 'directeur') {
+      const school = presenceSchools.find(item => String(item.id) === String(profile.school_id || profile.ecole_id));
+      return (school && school.name) || profile.ecole_nom || 'École';
+    }
+    return 'Bureau de la CEB';
+  }
+
+  async function renderPresence() {
+    const [profilesResult, schoolsResult] = await Promise.all([
+      supabase.from('profiles').select('*').order('full_name'),
+      supabase.from('schools').select('id,name').order('name')
+    ]);
+    if (profilesResult.error) {
+      viewContainer.innerHTML = `<div class="card" role="alert" style="color:#b91c1c">Impossible de charger les profils : ${esc(profilesResult.error.message)}</div>`;
+      return;
+    }
+    presenceProfiles = profilesResult.data || [];
+    presenceSchools = schoolsResult.data || [];
+    viewContainer.innerHTML = `
+      <div class="card">
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+          <div class="form-group" style="margin:0;min-width:200px">
+            <label for="presenceWeek">Semaine (lundi)</label>
+            <input type="date" id="presenceWeek" value="${esc(presenceWeekStart)}">
+          </div>
+          <div class="form-group" style="margin:0;min-width:200px">
+            <label for="presenceMonth">Mois du bilan</label>
+            <select id="presenceMonth">${agentMonths.map(month => `<option value="${esc(month)}"${month === presenceMonth ? ' selected' : ''}>${esc(month)}</option>`).join('')}</select>
+          </div>
+          <button type="button" class="btn" data-action="presence-preview">👁 Aperçu</button>
+          <button type="button" class="btn" id="presence-pdf">📄 PDF</button>
+          <button type="button" class="btn secondary" data-action="presence-excel">📥 Excel</button>
+        </div>
+        <p id="presenceStatus" role="status" style="margin:10px 0 0"></p>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3 style="margin-top:0">📋 Présence des Directeurs et Agents du Bureau de la CEB — semaine du ${esc(presenceWeekStart)}</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>N°</th><th>Nom et Prénom</th><th>Fonction</th><th>École / Structure</th>${presenceWeekDays().map(day => `<th style="text-align:center">${day.label}</th>`).join('')}<th>Présences</th></tr>
+            </thead>
+            <tbody id="presenceRows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3 style="margin-top:0">📊 Bilan Mensuel — ${esc(presenceMonth)}</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>N°</th><th>Nom et Prénom</th><th>Fonction</th><th>École / Structure</th><th>Jours pointés</th><th>Présences</th><th>Absences</th><th>Taux de présence</th></tr>
+            </thead>
+            <tbody id="presenceBilan"></tbody>
+          </table>
+        </div>
+      </div>`;
+    wirePDFExportButton(
+      viewContainer.querySelector('#presence-pdf'),
+      () => viewContainer.querySelector('#presenceRows')?.closest('.card'),
+      () => `Presence_CEB_${presenceWeekStart}.pdf`,
+      { orientation: 'landscape', format: 'a4', margin: 10 }
+    );
+    viewContainer.querySelector('#presenceWeek')?.addEventListener('change', async (e) => {
+      const value = e.target.value;
+      if (value) { presenceWeekStart = value; await loadPresenceData(); }
+    });
+    viewContainer.querySelector('#presenceMonth')?.addEventListener('change', async (e) => {
+      presenceMonth = e.target.value;
+      await loadPresenceData();
+    });
+    viewContainer.querySelector('[data-action="presence-preview"]')?.addEventListener('click', () => {
+      const card = viewContainer.querySelector('#presenceRows')?.closest('.card');
+      if (card) openPreview({ title: 'Présence des agents — CEB de Bagré', html: card.outerHTML, onPrint: printPage });
+    });
+    viewContainer.querySelector('[data-action="presence-excel"]')?.addEventListener('click', exportPresenceCSV);
+    await loadPresenceData();
+  }
+
+  async function loadPresenceData() {
+    const days = presenceWeekDays();
+    const weekEnd = days[days.length - 1].iso;
+    const { data: records } = await supabase.from('presences_agents').select('*')
+      .gte('date_jour', presenceWeekStart).lte('date_jour', weekEnd);
+    const monthStart = `${presenceWeekStart.slice(0, 4)}-`;
+    const { data: monthRecords } = await supabase.from('presences_agents').select('*')
+      .gte('date_jour', `${monthStart}01`).lte('date_jour', `${monthStart}31`);
+    presenceRecords = records || [];
+    renderPresenceRows(days);
+    renderPresenceBilan(monthRecords || []);
+  }
+
+  function presenceRecordFor(agentId, dateJour) {
+    return presenceRecords.find(record => String(record.agent_id) === String(agentId) && String(record.date_jour) === String(dateJour)) || null;
+  }
+
+  function renderPresenceRows(days) {
+    const target = viewContainer.querySelector('#presenceRows');
+    if (!target) return;
+    const list = presenceProfilesList();
+    target.innerHTML = list.map((profile, index) => {
+      const { nom, prenom } = getAgentNameParts(profile);
+      const cells = days.map(day => {
+        const record = presenceRecordFor(profile.id, day.iso);
+        const present = record ? record.present !== false : true;
+        const style = present
+          ? 'color:#15803d;font-weight:700;'
+          : 'color:#dc2626;font-weight:700;';
+        return `<td style="text-align:center;${style}"><button type="button" class="btn small" style="background:${present ? 'linear-gradient(180deg,#D4E83B 0%,#C2D928 100%)' : 'linear-gradient(180deg,#DC2626 0%,#B91C1C 100%)'};color:${present ? '#0B1E3D' : '#FFFFFF'};border-radius:8px;font-weight:700;padding:2px 8px" data-action="presence-toggle" data-agent="${esc(profile.id)}" data-date="${esc(day.iso)}">${present ? 'Oui' : 'Non'}</button></td>`;
+      }).join('');
+      const presences = days.filter(day => {
+        const record = presenceRecordFor(profile.id, day.iso);
+        return record ? record.present !== false : true;
+      }).length;
+      return `<tr>
+        <td>${index + 1}</td>
+        <td><strong>${esc(nom || '')}</strong> ${esc(prenom || '')}</td>
+        <td>${esc(getAgentFunction(profile))}</td>
+        <td>${esc(presenceSchoolLabel(profile))}</td>
+        ${cells}
+        <td style="text-align:center">${presences}/${days.length}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="${5 + days.length}">Aucun agent à appeler.</td></tr>`;
+  }
+
+  function renderPresenceBilan(records) {
+    const target = viewContainer.querySelector('#presenceBilan');
+    if (!target) return;
+    const list = presenceProfilesList();
+    target.innerHTML = list.map((profile, index) => {
+      const rows = records.filter(record => String(record.agent_id) === String(profile.id));
+      const presences = rows.filter(record => record.present !== false).length;
+      const absences = rows.length - presences;
+      const rate = rows.length ? Math.round((presences / rows.length) * 10000) / 100 : 0;
+      return `<tr>
+        <td>${index + 1}</td>
+        <td><strong>${esc(profile.full_name || '')}</strong></td>
+        <td>${esc(getAgentFunction(profile))}</td>
+        <td>${esc(presenceSchoolLabel(profile))}</td>
+        <td style="text-align:center">${rows.length}</td>
+        <td style="text-align:center;color:#16a34a;font-weight:700">${presences}</td>
+        <td style="text-align:center;color:#dc2626;font-weight:700">${absences}</td>
+        <td style="text-align:center;font-weight:700">${rate.toFixed(2)}%</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="8">Aucun agent à appeler.</td></tr>`;
+  }
+
+  async function togglePresence(btn) {
+    const agentId = btn.dataset.agent;
+    const dateJour = btn.dataset.date;
+    if (!agentId || !dateJour) return;
+    const existing = presenceRecordFor(agentId, dateJour);
+    const nextPresent = !(existing ? existing.present !== false : true);
+    const profile = presenceProfiles.find(item => String(item.id) === String(agentId)) || {};
+    const payload = {
+      agent_id: String(agentId),
+      date_jour: dateJour,
+      present: nextPresent,
+      observation: '',
+      mois: presenceMonth,
+      ecole_nom: presenceSchoolLabel(profile)
+    };
+    if (existing && existing.id) {
+      await supabase.from('presences_agents').update(payload).eq('id', existing.id);
+    } else {
+      await supabase.from('presences_agents').insert(payload);
+    }
+    const days = presenceWeekDays();
+    await loadPresenceData();
+    renderPresenceRows(days);
+  }
+
+  function exportPresenceCSV() {
+    const days = presenceWeekDays();
+    const rows = [['N°', 'Nom et Prénom', 'Fonction', 'École / Structure', ...days.map(day => day.iso), 'Présences']];
+    presenceProfilesList().forEach((profile, index) => {
+      const cells = days.map(day => {
+        const record = presenceRecordFor(profile.id, day.iso);
+        return record ? (record.present !== false ? 'Oui' : 'Non') : 'Oui';
+      });
+      const presences = cells.filter(value => value === 'Oui').length;
+      rows.push([index + 1, profile.full_name || '', getAgentFunction(profile), presenceSchoolLabel(profile), ...cells, `${presences}/${days.length}`]);
+    });
+    downloadCSV(`Presence_CEB_${presenceWeekStart}.csv`, rows);
   }
 
   async function renderStaffDirectory() {
@@ -818,6 +1047,8 @@ export function setupChefCEB(container, state, render, supabase) {
     if (a === 'staff-tab') {
       activeStaffTab = btn.dataset.staffTab === 'office' ? 'office' : 'schools';
       renderStaffTable();
+    } else if (a === 'presence-toggle') {
+      await togglePresence(btn);
     } else if (a === 'synth-ecole') { syntheseMode = 'ecole'; renderSubView('synthese'); }
     else if (a === 'synth-globale') { syntheseMode = 'globale'; renderSubView('synthese'); }
     else if (a === 'export-trim') exportTrimCSV();
