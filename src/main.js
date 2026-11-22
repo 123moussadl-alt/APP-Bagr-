@@ -1154,6 +1154,13 @@ function initSettings() {
   if (oldButton) oldButton.remove();
 }
 
+function insertBeforeSafe(parent, node, reference) {
+  if (!parent || !node) return;
+  if (node.parentNode === parent) return;
+  if (reference && reference.parentNode === parent) parent.insertBefore(node, reference);
+  else parent.appendChild(node);
+}
+
 function mountSettingsButton() {
   const roleHeader = document.querySelector('.role-topbar');
   const header = roleHeader || document.querySelector('.topbar');
@@ -1187,7 +1194,7 @@ function mountSettingsButton() {
         brandTitle.textContent = "Educ'CEB Bagré";
         identity.textContent = `${profile.full_name || 'Utilisateur'} — ${profile.fonction || profile.emploi || roleLabels[profile.role] || 'Utilisateur'}`;
         brand.append(brandTitle, identity);
-        roleHeader.insertBefore(brand, headingContainer);
+        insertBeforeSafe(roleHeader, brand, headingContainer);
       }
       if (headingContainer) headingContainer.classList.add('role-page-heading');
     }
@@ -1196,7 +1203,7 @@ function mountSettingsButton() {
     const roleMain = roleLayout && roleLayout.querySelector('.role-main');
     if (pageActions && roleMain) {
       pageActions.classList.add('role-page-actions');
-      roleMain.insertBefore(pageActions, roleMain.firstChild);
+      insertBeforeSafe(roleMain, pageActions, roleMain.firstChild);
     }
   }
 
@@ -1230,7 +1237,7 @@ function mountSettingsButton() {
     backupButton.dataset.action = 'quick-backup';
     backupButton.textContent = '☁️ Sauvegarder';
     backupButton.addEventListener('click', () => openBackupModal());
-    actions.insertBefore(backupButton, settingsButton);
+    insertBeforeSafe(actions, backupButton, settingsButton);
   }
 
   const logoutButton = document.querySelector('.btn-logout') ||
@@ -1244,7 +1251,7 @@ function mountSettingsButton() {
     const oldLeftActions = logoutButton.closest('.topbar-left');
     if (oldLeftActions && !oldLeftActions.children.length) oldLeftActions.remove();
   }
-  actions.insertBefore(settingsButton, logoutButton || null);
+  insertBeforeSafe(actions, settingsButton, logoutButton || null);
 }
 
 function isPrincipalAdmin() {
