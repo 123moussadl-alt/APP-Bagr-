@@ -1576,3 +1576,179 @@ body.comfortable .role-main .card { padding: 22px; }
     justify-content: flex-end;
   }
 }
+
+/* ==========================================================================
+   THÈME EXÉCUTIF — Dégradés multitons & boutons 3D ( palette CEB de Bagré )
+   ========================================================================== */
+
+/* --- Arrière-plans : dégradés multitons (jamais une couleur plate) --- */
+body {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.04) 0 22%, transparent 22%),
+    radial-gradient(circle at 88% 82%, rgba(255, 255, 255, 0.04) 0 26%, transparent 26%),
+    linear-gradient(145deg, #0B1E3D 0%, #103A6E 48%, #0F5C6E 100%) !important;
+  background-attachment: fixed !important;
+}
+
+body.bg-emerald {
+  background:
+    radial-gradient(circle at 14% 10%, rgba(255, 255, 255, 0.05) 0 22%, transparent 22%),
+    radial-gradient(circle at 86% 84%, rgba(255, 255, 255, 0.05) 0 26%, transparent 26%),
+    linear-gradient(145deg, #0D3B3E 0%, #116466 48%, #1D8A7E 100%) !important;
+}
+
+body.bg-royal {
+  background:
+    radial-gradient(circle at 14% 10%, rgba(255, 255, 255, 0.05) 0 22%, transparent 22%),
+    radial-gradient(circle at 86% 84%, rgba(255, 255, 255, 0.05) 0 26%, transparent 26%),
+    linear-gradient(145deg, #163A70 0%, #1D639B 48%, #2896A8 100%) !important;
+}
+
+body.bg-forest {
+  background:
+    radial-gradient(circle at 14% 10%, rgba(255, 255, 255, 0.05) 0 22%, transparent 22%),
+    radial-gradient(circle at 86% 84%, rgba(255, 255, 255, 0.05) 0 26%, transparent 26%),
+    linear-gradient(145deg, #134E4A 0%, #1E6B7B 48%, #2A8C9E 100%) !important;
+}
+
+/* Compat : anciens choix conservés mais transformés en dégradés */
+body.bg-dark {
+  background:
+    radial-gradient(circle at 14% 10%, rgba(255, 255, 255, 0.05) 0 22%, transparent 22%),
+    linear-gradient(145deg, #0B1E3D 0%, #103A6E 55%, #0F5C6E 100%) !important;
+}
+body.bg-sky {
+  background:
+    radial-gradient(circle at 14% 10%, rgba(255, 255, 255, 0.35) 0 22%, transparent 22%),
+    linear-gradient(145deg, #DBEAFE 0%, #BFDBFE 50%, #A5F3FC 100%) !important;
+}
+body.bg-mint {
+  background:
+    radial-gradient(circle at 14% 10%, rgba(255, 255, 255, 0.35) 0 22%, transparent 22%),
+    linear-gradient(145deg, #D1FAE5 0%, #A7F3D0 50%, #CCFBF1 100%) !important;
+}
+
+/* --- Cartes : blanc pur, arrondies, ombre douce --- */
+.card,
+.role-main .card,
+.auth-card,
+.settings-modal,
+#settingsModal,
+#backupModal,
+#previewModal {
+  background: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+/* --- Sidebar : bleu nuit profond --- */
+.role-sidebar,
+.sidebar {
+  background: linear-gradient(180deg, #0B1E3D 0%, #103A6E 100%) !important;
+}
+
+/* --- Boutons 3D : hiérarchie lime / teal / bleu roi --- */
+.btn,
+.btn-primary,
+.btn-install,
+.btn-danger,
+.btn-logout {
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.btn,
+.btn-primary,
+.btn-install {
+  background: linear-gradient(180deg, #D4E83B 0%, #C2D928 100%);
+  color: #0B1E3D;
+  box-shadow: 0 4px 0 #94A818;
+  border: 0;
+}
+.btn:hover,
+.btn-primary:hover,
+.btn-install:hover {
+  background: linear-gradient(180deg, #DDEC5C 0%, #CADD31 100%);
+}
+.btn:active,
+.btn-primary:active,
+.btn-install:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #94A818;
+}
+
+.btn.secondary {
+  background: linear-gradient(180deg, #146B7A 0%, #0F525E 100%);
+  color: #FFFFFF;
+  border: 0;
+  box-shadow: 0 4px 0 #09353D;
+}
+.btn.secondary:hover { background: linear-gradient(180deg, #177A8B 0%, #116070 100%); }
+.btn.secondary:active { transform: translateY(3px); box-shadow: 0 1px 0 #09353D; }
+
+.btn.accent {
+  background: linear-gradient(180deg, #D4E83B 0%, #C2D928 100%);
+  color: #0B1E3D;
+  box-shadow: 0 4px 0 #94A818;
+}
+
+.btn.danger {
+  background: linear-gradient(180deg, #DC2626 0%, #B91C1C 100%);
+  color: #FFFFFF;
+  border: 0;
+  box-shadow: 0 4px 0 #7F1D1D;
+}
+
+.btn-logout {
+  background: linear-gradient(180deg, #DC2626 0%, #B91C1C 100%);
+  color: #FFFFFF;
+  border: 0;
+  box-shadow: 0 4px 0 #7F1D1D;
+}
+.btn-logout:hover { background: linear-gradient(180deg, #E53535 0%, #C42020 100%); }
+
+.btn-settings,
+.btn-install {
+  border-radius: 12px;
+}
+
+/* Export & utilitaires ? bleu roi */
+.btn[data-action*="export" i],
+.btn[data-action*="pdf" i],
+.btn[data-action*="csv" i],
+.btn[data-action*="word" i],
+.btn[data-action*="backup" i],
+.btn[data-action*="Sauvegarder" i],
+.btn[data-action*="print" i],
+.btn-settings {
+  background: linear-gradient(180deg, #1A56DB 0%, #1E40AF 100%);
+  color: #FFFFFF;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 4px 0 #1E3A8A;
+}
+.btn[data-action*="export" i]:hover,
+.btn[data-action*="pdf" i]:hover,
+.btn[data-action*="csv" i]:hover,
+.btn[data-action*="word" i]:hover,
+.btn[data-action*="backup" i]:hover,
+.btn[data-action*="print" i]:hover,
+.btn-settings:hover {
+  background: linear-gradient(180deg, #2563EB 0%, #1E40AF 100%);
+}
+
+/* --- Onglets de navigation : teal profond --- */
+.role-nav .nav-item.active,
+.nav-item.active {
+  background: linear-gradient(180deg, #146B7A 0%, #0F525E 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 0 #09353D;
+}
+
+/* --- Préservation stricte des couleurs de données --- */
+.card table td,
+.card table th,
+.table-wrap table td,
+.table-wrap table th {
+  color: inherit;
+}

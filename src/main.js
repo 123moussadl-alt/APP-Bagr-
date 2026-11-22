@@ -427,7 +427,7 @@ function saveSettings(next) {
 
 function applySettings() {
   const s = loadSettings();
-  document.body.classList.remove('bg-white', 'bg-sky', 'bg-mint', 'bg-dark', 'comfortable');
+  document.body.classList.remove('bg-white', 'bg-sky', 'bg-mint', 'bg-dark', 'bg-emerald', 'bg-royal', 'bg-forest', 'comfortable');
   const bg = s.bg || '';
   if (bg) document.body.classList.add('bg-' + bg);
   if (s.size === 'comfortable') document.body.classList.add('comfortable');
@@ -596,11 +596,10 @@ async function openSettings() {
           <div class="form-group">
             <label for="setBg">Arrière-plan</label>
             <select id="setBg">
-              <option value="">Dégradé vert-bleu (défaut)</option>
-              <option value="white">Blanc</option>
-              <option value="sky">Bleu ciel</option>
-              <option value="mint">Vert menthe</option>
-              <option value="dark">Sombre</option>
+              <option value="">Bleu Nuit & Sarcelle (Par défaut)</option>
+              <option value="emerald">Vert Émeraude & Bleu Lagon</option>
+              <option value="royal">Bleu Royal & Turquoise Doux</option>
+              <option value="forest">Vert Forêt & Bleu Sarcelle Clair</option>
             </select>
           </div>
           <div class="form-group">
