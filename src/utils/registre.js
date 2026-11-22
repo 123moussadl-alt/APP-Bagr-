@@ -39,6 +39,19 @@ export function formatVisaStampDate(date = new Date()) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+export function formatRatePercent(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '0.00%';
+  return n.toFixed(2) + '%';
+}
+
+export function ratePair(effective, possible, absences) {
+  if (!(possible > 0)) return { presence: 0, absence: 0 };
+  const presence = Math.round((effective / possible) * 10000) / 100;
+  const absence = Math.round((absences / possible) * 10000) / 100;
+  return { presence, absence: Math.round((100 - presence) * 100) / 100 };
+}
+
 export function schoolMonths(startYear) {
   const y = startYear || 2026;
   return [
@@ -82,14 +95,16 @@ export function computeMonthlyRegister(students, absences, startYear, joursPoint
     const absF = activeAbsences.filter(p => gender[String(p.eleve_id)] === 'F').length;
     const absT = absG + absF;
     const possG = boys * demi, possF = girls * demi, possT = total * demi;
-    const effG = possG - absG, effF = possF - absF, effT = possT - absT;
+    const effG = Math.max(0, possG - absG), effF = Math.max(0, possF - absF), effT = Math.max(0, possT - absT);
     const counts = Object.entries(byStudent);
     const upTo3 = counts.filter(([, count]) => count <= 3);
     const over3 = counts.filter(([, count]) => count > 3);
     const ge3 = counts.filter(([, count]) => count >= 3);
     const countByGender = (entries, sex) => entries.filter(([sid]) => gender[sid] === sex).length;
     const absByGender = (entries, sex) => entries.filter(([sid]) => gender[sid] === sex).reduce((sum, [, count]) => sum + count, 0);
-    const pct = (n, d) => d ? Math.round((n / d) * 1000) / 10 : 0;
+    const presG = ratePair(effG, possG, absG);
+    const presF = ratePair(effF, possF, absF);
+    const presT = ratePair(effT, possT, absT);
     return {
       name: m.name, demi, boys, girls, total,
       possG, possF, possT, effG, effF, effT, absG, absF, absT,
@@ -98,8 +113,8 @@ export function computeMonthlyRegister(students, absences, startYear, joursPoint
       ge3G: countByGender(ge3, 'M'), ge3F: countByGender(ge3, 'F'),
       over3AbsG: absByGender(over3, 'M'), over3AbsF: absByGender(over3, 'F'),
       ge3AbsG: absByGender(ge3, 'M'), ge3AbsF: absByGender(ge3, 'F'),
-      pctPresG: pct(effG, possG), pctPresF: pct(effF, possF), pctPresT: pct(effT, possT),
-      pctAbsG: pct(absG, possG), pctAbsF: pct(absF, possF), pctAbsT: pct(absT, possT)
+      pctPresG: presG.presence, pctPresF: presF.presence, pctPresT: presT.presence,
+      pctAbsG: presG.absence, pctAbsF: presF.absence, pctAbsT: presT.absence
     };
   });
 }
@@ -117,7 +132,9 @@ export function computeAnnualTotals(rows) {
   const absG = sum('absG'), absF = sum('absF'), absT = sum('absT');
   const effG = sum('effG'), effF = sum('effF'), effT = sum('effT');
   const ge3AbsG = sum('ge3AbsG'), ge3AbsF = sum('ge3AbsF');
-  const pct = (n, d) => d ? Math.round((n / d) * 1000) / 10 : 0;
+  const presG = ratePair(effG, possG, absG);
+  const presF = ratePair(effF, possF, absF);
+  const presT = ratePair(effT, possT, absT);
   return {
     name: 'Total / Moyenne Annuelle',
     demi: sum('demi'),
@@ -125,8 +142,8 @@ export function computeAnnualTotals(rows) {
     possG, possF, possT, absG, absF, absT, effG, effF, effT,
     ge3G: max('ge3G'), ge3F: max('ge3F'),
     ge3AbsG, ge3AbsF,
-    pctPresG: pct(effG, possG), pctPresF: pct(effF, possF), pctPresT: pct(effT, possT),
-    pctAbsG: pct(absG, possG), pctAbsF: pct(absF, possF), pctAbsT: pct(absT, possT)
+    pctPresG: presG.presence, pctPresF: presF.presence, pctPresT: presT.presence,
+    pctAbsG: presG.absence, pctAbsF: presF.absence, pctAbsT: presT.absence
   };
 }
 
@@ -173,8 +190,8 @@ export function renderMonthlyRegisterTable(rows, options = {}) {
       ${group(r.effG, r.effF, r.effT)}
       ${group(r.ge3G, r.ge3F, (r.ge3G || 0) + (r.ge3F || 0))}
       ${group(r.ge3AbsG, r.ge3AbsF, (r.ge3AbsG || 0) + (r.ge3AbsF || 0))}
-      ${group(r.pctPresG + '%', r.pctPresF + '%', r.pctPresT + '%')}
-      ${group(r.pctAbsG + '%', r.pctAbsF + '%', r.pctAbsT + '%')}
+      ${group(formatRatePercent(r.pctPresG), formatRatePercent(r.pctPresF), formatRatePercent(r.pctPresT))}
+      ${group(formatRatePercent(r.pctAbsG), formatRatePercent(r.pctAbsF), formatRatePercent(r.pctAbsT))}
       ${stampCell(r.name, visaDirecteurByMonth, visaDirectorStamps, visaDirecteurProfile, 'Signature du Directeur')}
       ${stampCell(r.name, visaEncadreurByMonth, visaEncadreurStamps, visaEncadreurProfile, "Signature de l'Encadreur")}
     </tr>
@@ -191,8 +208,8 @@ export function renderMonthlyRegisterTable(rows, options = {}) {
       ${group(totals.effG, totals.effF, totals.effT)}
       ${group(totals.ge3G, totals.ge3F, totals.ge3G + totals.ge3F)}
       ${group(totals.ge3AbsG, totals.ge3AbsF, totals.ge3AbsG + totals.ge3AbsF)}
-      ${group(totals.pctPresG + '%', totals.pctPresF + '%', totals.pctPresT + '%')}
-      ${group(totals.pctAbsG + '%', totals.pctAbsF + '%', totals.pctAbsT + '%')}
+      ${group(formatRatePercent(totals.pctPresG), formatRatePercent(totals.pctPresF), formatRatePercent(totals.pctPresT))}
+      ${group(formatRatePercent(totals.pctAbsG), formatRatePercent(totals.pctAbsF), formatRatePercent(totals.pctAbsT))}
       ${cell('', '')}
       ${cell('', '')}
     </tr>` : '';
@@ -249,8 +266,8 @@ export function monthlyRegisterCSVRows(rows, options = {}) {
     r.effG, r.effF, r.effT,
     r.ge3G, r.ge3F, (r.ge3G || 0) + (r.ge3F || 0),
     r.ge3AbsG, r.ge3AbsF, (r.ge3AbsG || 0) + (r.ge3AbsF || 0),
-    r.pctPresG, r.pctPresF, r.pctPresT,
-    r.pctAbsG, r.pctAbsF, r.pctAbsT,
+    formatRatePercent(r.pctPresG), formatRatePercent(r.pctPresF), formatRatePercent(r.pctPresT),
+    formatRatePercent(r.pctAbsG), formatRatePercent(r.pctAbsF), formatRatePercent(r.pctAbsT),
     visaDirecteurByMonth[r.name] || 'Non visé',
     visaEncadreurByMonth[r.name] || 'Non visé'
   ]);
@@ -263,8 +280,8 @@ export function monthlyRegisterCSVRows(rows, options = {}) {
     totals.effG, totals.effF, totals.effT,
     totals.ge3G, totals.ge3F, totals.ge3G + totals.ge3F,
     totals.ge3AbsG, totals.ge3AbsF, totals.ge3AbsG + totals.ge3AbsF,
-    totals.pctPresG, totals.pctPresF, totals.pctPresT,
-    totals.pctAbsG, totals.pctAbsF, totals.pctAbsT,
+    formatRatePercent(totals.pctPresG), formatRatePercent(totals.pctPresF), formatRatePercent(totals.pctPresT),
+    formatRatePercent(totals.pctAbsG), formatRatePercent(totals.pctAbsF), formatRatePercent(totals.pctAbsT),
     '', ''
   ]] : [];
   return [header, ...dataRows, ...totalRow];
@@ -294,14 +311,16 @@ export function computeFicheArretMensuel(students, absences, monthInfo, joursVal
   const absF = inMonth.filter(p => gender[p.eleve_id] === 'F').length;
   const absT = absG + absF;
   const possG = boys * demi, possF = girls * demi, possT = total * demi;
-  const effG = possG - absG, effF = possF - absF, effT = possT - absT;
-  const pct = (n, d) => d ? Math.round((n / d) * 1000) / 10 : 0;
+  const effG = Math.max(0, possG - absG), effF = Math.max(0, possF - absF), effT = Math.max(0, possT - absT);
+  const presG = ratePair(effG, possG, absG);
+  const presF = ratePair(effF, possF, absF);
+  const presT = ratePair(effT, possT, absT);
   return {
     monthName: monthInfo.monthName,
     boys, girls, total, demi,
     possG, possF, possT, absG, absF, absT, effG, effF, effT,
-    pctPresG: pct(effG, possG), pctPresF: pct(effF, possF), pctPresT: pct(effT, possT),
-    pctAbsG: pct(absG, possG), pctAbsF: pct(absF, possF), pctAbsT: pct(absT, possT)
+    pctPresG: presG.presence, pctPresF: presF.presence, pctPresT: presT.presence,
+    pctAbsG: presG.absence, pctAbsF: presF.absence, pctAbsT: presT.absence
   };
 }
 
@@ -373,16 +392,16 @@ export function renderFicheArretMensuelHTML({ schoolName, className, monthName, 
           <tr>
             <th style="border:1px solid #cbd5e1;padding:12px 16px;text-align:left">Taux de présence (%)</th>
             <td style="border:1px solid #cbd5e1;padding:12px 16px">Présences effectives ÷ Présences possibles × 100</td>
-            <td style="border:1px solid #cbd5e1;padding:12px 16px;text-align:center">${r.pctPresG}%</td>
-            <td style="border:1px solid #cbd5e1;padding:12px 16px;text-align:center;color:#dc2626;font-weight:700">${r.pctPresF}%</td>
-            <td style="border:1px solid #cbd5e1;padding:12px 16px;text-align:center;color:#16a34a;font-weight:700">${r.pctPresT}%</td>
+            <td style="border:1px solid #cbd5e1;padding:12px 16px;text-align:center">${formatRatePercent(r.pctPresG)}</td>
+            <td style="border:1px solid #cbd5e1;padding:12px 16px;text-align:center;color:#dc2626;font-weight:700">${formatRatePercent(r.pctPresF)}</td>
+            <td style="border:1px solid #cbd5e1;padding:12px 16px;text-align:center;color:#16a34a;font-weight:700">${formatRatePercent(r.pctPresT)}</td>
           </tr>
           <tr>
             <th style="border:1px solid #cbd5e1;padding:12px 16px;text-align:left">Taux d'absence (%)</th>
             <td style="border:1px solid #cbd5e1;padding:12px 16px">Absences ÷ Présences possibles × 100</td>
-            <td style="border:1px solid #cbd5e1;padding:12px 16px;text-align:center">${r.pctAbsG}%</td>
-            <td style="border:1px solid #cbd5e1;padding:12px 16px;text-align:center;color:#dc2626;font-weight:700">${r.pctAbsF}%</td>
-            <td style="border:1px solid #cbd5e1;padding:12px 16px;text-align:center;color:#16a34a;font-weight:700">${r.pctAbsT}%</td>
+            <td style="border:1px solid #cbd5e1;padding:12px 16px;text-align:center">${formatRatePercent(r.pctAbsG)}</td>
+            <td style="border:1px solid #cbd5e1;padding:12px 16px;text-align:center;color:#dc2626;font-weight:700">${formatRatePercent(r.pctAbsF)}</td>
+            <td style="border:1px solid #cbd5e1;padding:12px 16px;text-align:center;color:#16a34a;font-weight:700">${formatRatePercent(r.pctAbsT)}</td>
           </tr>
         </tbody>
       </table>
@@ -410,7 +429,7 @@ export function monthlyClosureCSVRows(data) {
     ['Présences possibles', 'Effectif × Demi-journées', r.possG, r.possF, r.possT],
     ['Absences', "Demi-journées d'absence", r.absG, r.absF, r.absT],
     ['Présences effectives', 'Présences possibles − Absences', r.effG, r.effF, r.effT],
-    ['Taux de présence (%)', 'Présences effectives ÷ Présences possibles × 100', r.pctPresG + '%', r.pctPresF + '%', r.pctPresT + '%'],
-    ["Taux d'absence (%)", 'Absences ÷ Présences possibles × 100', r.pctAbsG + '%', r.pctAbsF + '%', r.pctAbsT + '%']
+    ['Taux de présence (%)', 'Présences effectives ÷ Présences possibles × 100', formatRatePercent(r.pctPresG), formatRatePercent(r.pctPresF), formatRatePercent(r.pctPresT)],
+    ["Taux d'absence (%)", 'Absences ÷ Présences possibles × 100', formatRatePercent(r.pctAbsG), formatRatePercent(r.pctAbsF), formatRatePercent(r.pctAbsT)]
   ];
 }

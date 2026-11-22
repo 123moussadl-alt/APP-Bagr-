@@ -9,7 +9,7 @@ import { getStudentAnnual, rankSuffix } from '../utils/stats.js';
 import { openPreview } from '../utils/preview.js';
 import { exportPDF, wirePDFExportButton, wireWordExportButton } from '../utils/export.js';
 import { renderSyntheseHTML, computeSubjectRows, computeClassAverageSummary } from '../utils/synthese.js';
-import { sumHalfDays, computeMonthlyRegister, monthlyRegisterCSVRows, computeFicheArretMensuel, renderFicheArretMensuelHTML, renderMonthlyRegisterTable, monthlyClosureCSVRows, schoolMonths, ANNUAL_SYNTHESIS_TITLE } from '../utils/registre.js';
+import { sumHalfDays, computeMonthlyRegister, monthlyRegisterCSVRows, computeFicheArretMensuel, renderFicheArretMensuelHTML, renderMonthlyRegisterTable, monthlyClosureCSVRows, schoolMonths, ANNUAL_SYNTHESIS_TITLE, ratePair, formatRatePercent } from '../utils/registre.js';
 import { loadPaiRecord, normalizePaiDiscipline, savePaiRecord, writePaiBackup } from '../utils/pai.js';
 import { profileMatchesVisa, signatureBlockHTML, signaturePeopleHTML, signatureUrlForProfile } from '../utils/signature.js';
 import {
@@ -1831,6 +1831,18 @@ export function setupTitulaire(container, state, render, supabase) {
       </div>`;
     };
     const colCount = isFullDay ? 5 : 4;
+    const demiJour = isFullDay ? 2 : 1;
+    const effG = list.filter(s => s.gender === 'M').length;
+    const effF = list.filter(s => s.gender === 'F').length;
+    const effT = list.length;
+    const absG = list.filter(s => s.gender === 'M' && ((pendingDayAttendance.map[String(s.id)] || {}).matin === 'A' || (isFullDay && (pendingDayAttendance.map[String(s.id)] || {}).soir === 'A'))).length;
+    const absF = list.filter(s => s.gender === 'F' && ((pendingDayAttendance.map[String(s.id)] || {}).matin === 'A' || (isFullDay && (pendingDayAttendance.map[String(s.id)] || {}).soir === 'A'))).length;
+    const absT = absG + absF;
+    const possG = effG * demiJour, possF = effF * demiJour, possT = effT * demiJour;
+    const dayEffG = Math.max(0, possG - absG), dayEffF = Math.max(0, possF - absF), dayEffT = Math.max(0, possT - absT);
+    const rateG = ratePair(dayEffG, possG, absG);
+    const rateF = ratePair(dayEffF, possF, absF);
+    const rateT = ratePair(dayEffT, possT, absT);
     return `
       <div class="card" style="margin-top:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
@@ -1841,6 +1853,24 @@ export function setupTitulaire(container, state, render, supabase) {
           </div>
         </div>
         ${excluded > 0 ? `<p style="font-size:12px;color:#64748b;margin-top:6px">${excluded} élève(s) abandonné(s) (A) exclu(s) des effectifs actifs.</p>` : ''}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px">
+          <div style="border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;background:#f8fafc">
+            <div style="font-weight:700;font-size:12px;color:#334155">Présences possibles</div>
+            <div style="font-weight:700"><span style="color:#111827">G ${possG}</span> · <span style="color:#dc2626">F ${possF}</span> · <span style="color:#16a34a">T ${possT}</span></div>
+          </div>
+          <div style="border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;background:#f8fafc">
+            <div style="font-weight:700;font-size:12px;color:#334155">Absences</div>
+            <div style="font-weight:700"><span style="color:#111827">G ${absG}</span> · <span style="color:#dc2626">F ${absF}</span> · <span style="color:#16a34a">T ${absT}</span></div>
+          </div>
+          <div style="border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;background:#f8fafc">
+            <div style="font-weight:700;font-size:12px;color:#334155">Présences effectives</div>
+            <div style="font-weight:700"><span style="color:#111827">G ${dayEffG}</span> · <span style="color:#dc2626">F ${dayEffF}</span> · <span style="color:#16a34a">T ${dayEffT}</span></div>
+          </div>
+          <div style="border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;background:#f8fafc">
+            <div style="font-weight:700;font-size:12px;color:#334155">Taux de présence / absence</div>
+            <div style="font-weight:700"><span style="color:#16a34a">${formatRatePercent(rateT.presence)}</span> / <span style="color:#dc2626">${formatRatePercent(rateT.absence)}</span></div>
+          </div>
+        </div>
         <div class="table-wrap" style="margin-top:12px">
           <table>
             <thead><tr><th>#</th><th>Élève</th><th>Sexe</th><th>Matin</th>${isFullDay ? '<th>Soir</th>' : ''}</tr></thead>
