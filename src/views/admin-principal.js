@@ -126,14 +126,15 @@ export function setupAdminPrincipal(container, state, render, supabase) {
       ).join('');
       const accountName = profile.full_name || profile.identifiant || profile.id;
       return `
-        <tr data-profile-id="${esc(profile.id)}">
-          <td><strong>${esc(accountName)}</strong><br><small>${esc(profile.identifiant || profile.id)}</small></td>
+        <tr data-profile-id="${esc(profile.id)}" data-est-actif="${profile.est_actif === false ? '0' : '1'}">
+          <td><strong>${esc(accountName)}</strong><br><small>${esc(profile.identifiant || profile.id)}</small><br><span data-user-status style="font-weight:700;color:${profile.est_actif === false ? '#b45309' : '#15803d'}">${profile.est_actif === false ? '⏳ En attente' : '✅ Actif'}</span></td>
           <td><select data-user-role aria-label="Fonction de ${esc(accountName)}" ${readOnly ? 'disabled' : ''}>${roleOptions}</select></td>
           <td><select data-user-employment aria-label="Emploi de ${esc(accountName)}" ${readOnly ? 'disabled' : ''}>${employmentOptions(profileRole, profile.emploi)}</select></td>
           <td data-user-school-cell>${renderSchoolAssignment(profileRole, profile)}</td>
           <td>
             ${readOnly ? '<span>Protégé</span>' : `
               <button type="button" class="btn" data-action="save-user">Enregistrer</button>
+              <button type="button" class="btn" data-action="toggle-access">${profile.est_actif === false ? '✅ Donner accès' : '⛔ Bloquer'}</button>
               <button type="button" class="btn secondary" data-action="delete-user">Supprimer</button>`}
           </td>
         </tr>`;
@@ -156,7 +157,7 @@ export function setupAdminPrincipal(container, state, render, supabase) {
   async function loadAdminData() {
     const [profilesResult, schoolsResult, activeSchoolYear] = await Promise.all([
       supabase.from('profiles')
-        .select('id,identifiant,full_name,role,emploi,fonction,school_id,ecole_id,ecole_nom,ecoles_encadrees,followed_schools')
+        .select('id,identifiant,full_name,role,emploi,fonction,school_id,ecole_id,ecole_nom,ecoles_encadrees,followed_schools,est_actif')
         .order('full_name'),
       supabase.from('schools').select('id,name').order('name'),
       fetchActiveSchoolYear(supabase)
@@ -203,6 +204,27 @@ export function setupAdminPrincipal(container, state, render, supabase) {
       accountStatus.textContent = 'Profil mis à jour.';
       accountStatus.style.color = '#15803d';
       await loadAdminData();
+    } else if (button.dataset.action === 'toggle-access') {
+      const isActive = row.dataset.estActif === '1';
+      const nextActive = !isActive;
+      button.disabled = true;
+      const { error } = await supabase.from('profiles').update({ est_actif: nextActive }).eq('id', profileId);
+      if (error) {
+        button.disabled = false;
+        accountStatus.textContent = `Échec de la mise à jour de l'accès : ${error.message}`;
+        accountStatus.style.color = '#b91c1c';
+        return;
+      }
+      row.dataset.estActif = nextActive ? '1' : '0';
+      const toggleBtn = row.querySelector('[data-action="toggle-access"]');
+      if (toggleBtn) toggleBtn.textContent = nextActive ? '⛔ Bloquer' : '✅ Donner accès';
+      const statusEl = row.querySelector('[data-user-status]');
+      if (statusEl) {
+        statusEl.textContent = nextActive ? '✅ Actif' : '⏳ En attente';
+        statusEl.style.color = nextActive ? '#15803d' : '#b45309';
+      }
+      accountStatus.textContent = nextActive ? 'Accès accordé à l’utilisateur.' : 'Accès bloqué pour l’utilisateur.';
+      accountStatus.style.color = '#15803d';
     } else if (button.dataset.action === 'delete-user') {
       const name = row.querySelector('strong')?.textContent || profileId;
       if (!window.confirm(`Supprimer définitivement le compte « ${name} » et son profil ?`)) return;

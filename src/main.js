@@ -262,6 +262,16 @@ const viewExports = {
 
 function render() {
   if (!appRoot) return;
+  if (state.profile && state.profile.est_actif === false && state.authenticatedAppRole !== 'super_admin' && !state.preview) {
+    appRoot.innerHTML = `
+      <div style="max-width:640px;margin:60px auto;padding:32px;background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.12);text-align:center;font-family:inherit">
+        <div style="font-size:42px;margin-bottom:10px">⏳</div>
+        <h2 style="margin:0 0 10px">Compte en attente d'autorisation</h2>
+        <p style="color:#475569;margin:0 0 22px">Compte en attente d'autorisation par l'Administrateur Principal de la CEB de Bagré</p>
+        <button type="button" class="btn" onclick="window.logout()">Se déconnecter</button>
+      </div>`;
+    return;
+  }
   if (isPrincipalAdmin()) initPreviewBar();
   else removePreviewBar();
   initSettings();
@@ -379,6 +389,7 @@ async function openSettings() {
   const isEncadreur = profileRole === 'encadreur';
   const isDistrictRole = ['chef_ceb', 'chef_personnel', 'chef-personnel', 'statisticien'].includes(profileRole);
   const canAssignClass = isSchoolRole;
+  const isSuperAdminSettings = state.authenticatedAppRole === 'super_admin' || profile.role === 'super_admin';
   let schools = mergeSchoolChoices();
   let schoolsError = null;
   if (isDemoMode) {
@@ -417,6 +428,17 @@ async function openSettings() {
   overlay.innerHTML = `
     <div id="settingsModal">
       <h3>⚙️ Paramètres</h3>
+      ${isSuperAdminSettings ? `
+      <section class="settings-section">
+        <h4>Gestion de l'Année Scolaire</h4>
+        <p style="color:#475569">Activez ou changez l'année scolaire de la CEB de Bagré (ex. 2026-2027) depuis le panneau Administrateur Principal.</p>
+        <div class="settings-actions"><button type="button" class="btn" id="settingsOpenAdmin">🏫 Gérer l'année scolaire</button></div>
+      </section>
+      <section class="settings-section">
+        <h4>Gestion & Autorisation des Comptes Utilisateurs</h4>
+        <p style="color:#475569">Donnez l'accès (« ✅ Donner accès ») ou bloquez (« ⛔ Bloquer ») un compte utilisateur depuis le panneau Administrateur Principal.</p>
+        <div class="settings-actions"><button type="button" class="btn" id="settingsOpenAdminAccounts">👥 Gérer les comptes utilisateurs</button></div>
+      </section>` : `
       <section class="settings-section">
         <h4>Mes paramètres</h4>
         <div class="settings-profile-grid">
@@ -442,7 +464,7 @@ async function openSettings() {
         </div>
         <p id="settingsProfileStatus" role="status" aria-live="polite"></p>
         <div class="settings-actions"><button class="btn" id="settingsProfileSave">Enregistrer mes paramètres</button></div>
-      </section>
+      </section>`}
       <section class="settings-section">
         <h4>Options</h4>
         <div class="settings-profile-grid">
@@ -492,8 +514,10 @@ async function openSettings() {
     status.style.color = '#dc2626';
   }
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-  overlay.querySelector('#setClose').addEventListener('click', () => overlay.remove());
-  overlay.querySelector('#settingsSignatureOpen').addEventListener('click', () => {
+  overlay.querySelector('#setClose')?.addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#settingsOpenAdmin')?.addEventListener('click', () => { overlay.remove(); openAdminPrincipal(); });
+  overlay.querySelector('#settingsOpenAdminAccounts')?.addEventListener('click', () => { overlay.remove(); openAdminPrincipal(); });
+  overlay.querySelector('#settingsSignatureOpen')?.addEventListener('click', () => {
     const signatureOverlay = document.createElement('div');
     signatureOverlay.id = 'signatureModalOverlay';
     signatureOverlay.innerHTML = `
@@ -649,7 +673,7 @@ async function openSettings() {
       }
     });
   });
-  overlay.querySelector('#settingsProfileSave').addEventListener('click', async (event) => {
+  overlay.querySelector('#settingsProfileSave')?.addEventListener('click', async (event) => {
     const saveButton = event.currentTarget;
     if (isEncadreur && schoolsError) {
       status.textContent = 'Impossible d’enregistrer les écoles encadrées car la liste est indisponible : ' + (schoolsError.message || schoolsError);
@@ -1423,7 +1447,8 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
     structure: profileStructure,
     role,
     school_id: schoolId,
-    class_id: classId || null
+    class_id: classId || null,
+    est_actif: false
   });
   if (profileError) {
     showToast(profileError.message);

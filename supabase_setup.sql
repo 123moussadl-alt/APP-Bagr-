@@ -659,3 +659,4 @@ alter table public.registre_configs add column if not exists visa_encadreur_sign
 alter table public.students add column if not exists date_naissance date;
 alter table public.students add column if not exists lieu_naissance text;
 alter table public.students add column if not exists option_cep text;
+alter table public.profiles add column if not exists est_actif boolean default true;
