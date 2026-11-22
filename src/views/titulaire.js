@@ -115,6 +115,7 @@ export function setupTitulaire(container, state, render, supabase) {
   let currentAnnualBulletinSchool = '';
   let currentPropRows = [];
   let currentPropSchoolName = '';
+  let propRedoublants = new Set();
   let currentSynthese = null;
   let registreMode = 'appel';
   let currentMonthRows = [];
@@ -939,7 +940,13 @@ export function setupTitulaire(container, state, render, supabase) {
     myClassLevel = cls.level || null;
     updateExamBlancNav();
     const previousStudentId = viewContainer.querySelector('#annualBulletinStudent')?.value || '';
-    currentAnnualBulletinRows = await loadAnnualData(cls);
+    currentAnnualBulletinRows = (await loadAnnualData(cls)).map(row => ({ ...row, decision: decisionFor(row) }));
+    const bulletinRedoublants = loadPropRedoublants(cls.id);
+    currentAnnualBulletinRows.forEach(row => {
+      if (bulletinRedoublants.has(String(row.s.id)) && !(row.abandon || (row.s && row.s.status === 'A'))) {
+        row.decision = 'Redouble';
+      }
+    });
 
     let schoolName = '';
     if (cls.school_id) {
@@ -1089,6 +1096,7 @@ export function setupTitulaire(container, state, render, supabase) {
   }
 
   function propSheetsHTML(rows, cls, editable = false) {
+    const summary = computePropSummary(rows.map(row => ({ ...row, decision: row.decision || decisionFor(row) })));
     return `
       <div class="proposition-sheet landscape-sheet">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;border-bottom:2px solid #111827;padding-bottom:10px">
@@ -1104,6 +1112,20 @@ export function setupTitulaire(container, state, render, supabase) {
       </div>
       <div style="width:100%;text-align:center;margin:14px 0;font-size:21px;font-weight:800;text-transform:uppercase">
         PROPOSITION DE FIN D'ANNÉE
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin:0 0 12px">
+        <div style="flex:1;min-width:190px;border:1px solid #333;padding:8px;text-align:center">
+          <div style="font-weight:700;margin-bottom:4px">Admis / Passent</div>
+          <div style="font-weight:700"><span style="color:#0f172a">G : ${summary.boysPass}</span> · <span style="color:#dc2626">F : ${summary.girlsPass}</span> · <span style="color:#16a34a">T : ${summary.totalPass}</span></div>
+        </div>
+        <div style="flex:1;min-width:190px;border:1px solid #333;padding:8px;text-align:center">
+          <div style="font-weight:700;margin-bottom:4px">Redoublants</div>
+          <div style="font-weight:700"><span style="color:#0f172a">G : ${summary.boysRedouble}</span> · <span style="color:#dc2626">F : ${summary.girlsRedouble}</span> · <span style="color:#dc2626">T : ${summary.totalRedouble}</span></div>
+        </div>
+        <div style="flex:1;min-width:190px;border:1px solid #333;padding:8px;text-align:center">
+          <div style="font-weight:700;margin-bottom:4px">Abandons</div>
+          <div style="font-weight:700"><span style="color:#0f172a">G : ${summary.boysAbandon}</span> · <span style="color:#dc2626">F : ${summary.girlsAbandon}</span> · <span style="color:#16a34a">T : ${summary.totalAbandon}</span></div>
+        </div>
       </div>
       <div class="table-wrap" style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;table-layout:fixed">
@@ -1137,8 +1159,8 @@ export function setupTitulaire(container, state, render, supabase) {
               <td style="border:1px solid #333;padding:6px;text-align:center"><strong>${annualTxt}</strong></td>
               <td style="border:1px solid #333;padding:6px;text-align:center">${statutTxt}</td>
               <td style="border:1px solid #333;padding:6px;text-align:center;word-wrap:break-word;overflow-wrap:anywhere;white-space:normal">${editable
-                ? `<input class="prop-conseil" data-id="${esc(r.s.id)}" value="${esc(r.decision)}" style="width:100%;min-width:0">`
-                : esc(r.decision)}</td>
+                ? `<input class="prop-conseil" data-id="${esc(r.s.id)}" value="${esc(decisionLabel(r.decision))}" style="width:100%;min-width:0;${decisionStyle(r.decision)}">`
+                : `<span style="${decisionStyle(r.decision)}">${esc(decisionLabel(r.decision))}</span>`}</td>
               <td style="border:1px solid #333;padding:6px">${editable
                 ? `<input class="prop-cceb" data-id="${esc(r.s.id)}" placeholder="—" style="width:100%;min-width:0">`
                 : ''}</td>
@@ -1157,8 +1179,67 @@ export function setupTitulaire(container, state, render, supabase) {
 
   function decisionFor(r) {
     if (r && (r.abandon || (r.s && r.s.status === 'A'))) return 'Abandon (A)';
-    if (!r || r.annual == null) return 'Absent / Non évalué';
-    return r.annual >= 5 ? 'Passe' : 'Redouble';
+    return 'Passe';
+  }
+
+  function decisionLabel(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return 'Passe';
+    if (raw === 'Abandon (A)') return 'Abandon (A)';
+    if (raw === 'Redouble') return 'Redouble';
+    return 'Passe';
+  }
+
+  function decisionStyle(value) {
+    const raw = String(value || '').trim();
+    if (raw === 'Redouble') return 'color:#dc2626;font-weight:700;';
+    if (raw === 'Abandon (A)') return 'color:#64748b;font-weight:700;';
+    return 'color:#16a34a;font-weight:700;';
+  }
+
+  function propStorageKey(classId) {
+    return `educ_ceb_redoublants_${classId || 'classe'}`;
+  }
+
+  function loadPropRedoublants(classId) {
+    try {
+      const raw = localStorage.getItem(propStorageKey(classId));
+      const parsed = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+    } catch (error) {
+      return new Set();
+    }
+  }
+
+  function savePropRedoublants(classId) {
+    try {
+      localStorage.setItem(propStorageKey(classId), JSON.stringify(Array.from(propRedoublants)));
+    } catch (error) {
+      console.warn('Sauvegarde des redoublants impossible.', error);
+    }
+  }
+
+  function computePropSummary(rows) {
+    const summary = {
+      boysPass: 0, girlsPass: 0, totalPass: 0,
+      boysRedouble: 0, girlsRedouble: 0, totalRedouble: 0,
+      boysAbandon: 0, girlsAbandon: 0, totalAbandon: 0
+    };
+    (rows || []).forEach(row => {
+      const decision = decisionLabel(row.decision);
+      const isGirl = row.isGirl || row.s.gender === 'F';
+      if (decision === 'Redouble') {
+        if (isGirl) summary.girlsRedouble += 1; else summary.boysRedouble += 1;
+        summary.totalRedouble += 1;
+      } else if (decision === 'Abandon (A)') {
+        if (isGirl) summary.girlsAbandon += 1; else summary.boysAbandon += 1;
+        summary.totalAbandon += 1;
+      } else {
+        if (isGirl) summary.girlsPass += 1; else summary.boysPass += 1;
+        summary.totalPass += 1;
+      }
+    });
+    return summary;
   }
 
   async function loadAnnualData(cls) {
@@ -1219,6 +1300,61 @@ export function setupTitulaire(container, state, render, supabase) {
     downloadCSV('moyenne_annuelle.csv', rows);
   }
 
+  function openRedoublerPanel() {
+    if (!currentPropRows.length || !currentClass) { alert('Ouvrez la Proposition d\'abord.'); return; }
+    const existing = document.getElementById('redoublerOverlay');
+    if (existing) { existing.remove(); return; }
+    const candidates = currentPropRows
+      .map((row, index) => ({ row, order: index + 1 }))
+      .filter(item => !(item.row.abandon || (item.row.s && item.row.s.status === 'A')));
+    const overlay = document.createElement('div');
+    overlay.id = 'redoublerOverlay';
+    overlay.innerHTML = `
+      <div id="redoublerModal" style="max-width:760px;width:100%">
+        <h3>🔁 Redoubler un élève</h3>
+        <p style="color:#475569">Cochez les élèves qui doivent redoubler, puis validez la décision du conseil.</p>
+        <div class="table-wrap" style="max-height:52vh;overflow-y:auto">
+          <table>
+            <thead>
+              <tr><th>Cocher</th><th>N° d'ordre</th><th>Nom et Prénom</th><th>Moyenne annuelle</th></tr>
+            </thead>
+            <tbody>
+              ${candidates.map(({ row, order }) => `
+                <tr>
+                  <td style="text-align:center"><input type="checkbox" class="redoubler-check" data-id="${esc(row.s.id)}" ${propRedoublants.has(String(row.s.id)) ? 'checked' : ''}></td>
+                  <td style="text-align:center">${order}</td>
+                  <td>${row.isGirl || row.s.gender === 'F' ? `<strong style="color:#dc2626">${esc(row.s.full_name)}</strong>` : `<strong>${esc(row.s.full_name)}</strong>`}</td>
+                  <td style="text-align:center">${row.annual != null ? row.annual.toFixed(2) + ' / 10' : '—'}</td>
+                </tr>`).join('') || '<tr><td colspan="4" style="text-align:center">Aucun élève</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+        <div class="settings-actions">
+          <button type="button" class="btn" id="redoublerValidate">✅ Valider la décision du conseil</button>
+          <button type="button" class="btn secondary" id="redoublerCancel">Fermer</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#redoublerCancel')?.addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', event => { if (event.target === overlay) overlay.remove(); });
+    overlay.querySelector('#redoublerValidate')?.addEventListener('click', () => {
+      const selected = new Set();
+      overlay.querySelectorAll('.redoubler-check').forEach(box => {
+        if (box.checked) selected.add(String(box.dataset.id));
+      });
+      propRedoublants = selected;
+      savePropRedoublants(currentClass ? currentClass.id : '');
+      currentPropRows.forEach(row => {
+        const key = String(row.s.id);
+        if (row.abandon || (row.s && row.s.status === 'A')) return;
+        row.decision = selected.has(key) ? 'Redouble' : 'Passe';
+      });
+      overlay.remove();
+      renderProposition();
+      showToast('Décision du conseil enregistrée.');
+    });
+  }
+
   async function renderProposition() {
     const cls = await getMyClass();
     if (!cls) return renderClassSetup();
@@ -1234,6 +1370,13 @@ export function setupTitulaire(container, state, render, supabase) {
       }
     }
     const rows = (await loadAnnualData(cls)).map(r => ({ ...r, decision: decisionFor(r) }));
+    propRedoublants = loadPropRedoublants(cls.id);
+    rows.forEach(row => {
+      const key = String(row.s.id);
+      if (!propRedoublants.has(key)) return;
+      if (row.abandon || (row.s && row.s.status === 'A')) return;
+      row.decision = 'Redouble';
+    });
     rows.sort((a, b) => {
       // Élèves abandonnés (A) toujours en dernière position
       if (a.abandon && !b.abandon) return 1;
@@ -1248,6 +1391,7 @@ export function setupTitulaire(container, state, render, supabase) {
       <div class="card">
         <div class="no-print" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
           <h3 style="margin:0;flex:1">Proposition de fin d'année — ${esc(classLabel(cls))}</h3>
+          <button class="btn" data-action="prop-redoubler">🔁 Redoubler un élève</button>
           <button class="btn" data-action="preview-prop">👁 Aperçu</button>
           <button class="btn" data-action="csv-prop">📥 Excel/CSV</button>
           <button class="btn secondary" data-action="print-page">🖨️ Imprimer / PDF</button>
@@ -2837,6 +2981,7 @@ export function setupTitulaire(container, state, render, supabase) {
     else if (action === 'save-all-notes') saveAllNotes();
     else if (action === 'print-bulletins') window.print();
     else if (action === 'print-page') window.print();
+    else if (action === 'prop-redoubler') openRedoublerPanel();
     else if (action === 'preview-bulletins') {
       const sheets = viewContainer.querySelector('#bulletinSheets');
       if (sheets) openPreview({ title: 'Bulletins trimestriels', html: sheets.innerHTML, onPrint: () => window.print() });

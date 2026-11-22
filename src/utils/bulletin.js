@@ -150,6 +150,17 @@ function rankRows(rows, field) {
   return result;
 }
 
+function decisionMarkup(row) {
+  const raw = String(row.decision || '').trim();
+  if (row.abandon || raw === 'Abandon (A)') {
+    return '<span style="color:#64748b;font-weight:700">Abandon (A)</span>';
+  }
+  if (raw === 'Redouble') {
+    return '<span style="color:#dc2626;font-weight:800">Redouble</span>';
+  }
+  return '<span style="color:#16a34a;font-weight:800">Passe en classe supérieure</span>';
+}
+
 export function renderBulletinsAnnuelsHTML({ rows, className, schoolName, teacherName, teacherSigners, studentId }) {
   const list = rows || [];
   const ranks = {
@@ -193,6 +204,10 @@ export function renderBulletinsAnnuelsHTML({ rows, className, schoolName, teache
         </div>
       </div>
       <h2 style="margin:12px 0;text-align:center;font-size:19px;letter-spacing:.3px">BULLETIN ANNUEL</h2>
+      <div style="display:flex;justify-content:space-between;gap:12px;border:1px solid #333;padding:10px 14px;margin-bottom:12px;font-size:15px">
+        <div><strong>Décision :</strong> ${decisionMarkup(row)}</div>
+        <div><strong>Effectif :</strong> ${totalStudents} élèves</div>
+      </div>
       <div style="display:flex;justify-content:space-between;gap:12px;border:1px solid #333;padding:10px 14px;margin-bottom:12px;font-size:15px">
         <div><strong>Nom et Prénom :</strong> <span style="${nameStyle}">${esc(row.s.full_name || '')}</span></div>
         <div><strong>Sexe :</strong> ${row.s.gender === 'F' ? 'F' : 'M'}</div>
@@ -242,8 +257,14 @@ export function annualBulletinCSVRows(rows, className) {
   const rankText = (row, rank) => row.abandon
     ? 'Abandon (A)'
     : (rank ? `${rankSuffix(rank.rank, row.isGirl, rank.tie)} / ${totalStudents} élèves` : '—');
+  const decisionText = row => {
+    const raw = String(row.decision || '').trim();
+    if (row.abandon || raw === 'Abandon (A)') return 'Abandon (A)';
+    if (raw === 'Redouble') return 'Redouble';
+    return 'Passe en classe supérieure';
+  };
   return [
-    ['Nom et Prénom', 'Sexe', 'Classe', 'Moyenne T1', 'Rang T1', 'Moyenne T2', 'Rang T2', 'Moyenne T3', 'Rang T3', 'Moyenne annuelle', 'Rang annuel'],
+    ['Nom et Prénom', 'Sexe', 'Classe', 'Moyenne T1', 'Rang T1', 'Moyenne T2', 'Rang T2', 'Moyenne T3', 'Rang T3', 'Moyenne annuelle', 'Rang annuel', 'Décision'],
     ...list.map(row => [
       row.s.full_name || '',
       row.s.gender === 'F' ? 'F' : 'M',
@@ -257,7 +278,8 @@ export function annualBulletinCSVRows(rows, className) {
       row.annual == null ? '' : row.annual.toFixed(2),
       row.abandon
         ? `Abandon (A) — ${rankSuffix(totalStudents, row.isGirl, false)} / ${totalStudents} élèves`
-        : rankText(row, ranks.annual[row.s.id])
+        : rankText(row, ranks.annual[row.s.id]),
+      decisionText(row)
     ])
   ];
 }
