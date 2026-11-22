@@ -207,18 +207,16 @@ export function setupAdminPrincipal(container, state, render, supabase) {
       const name = row.querySelector('strong')?.textContent || profileId;
       if (!window.confirm(`Supprimer définitivement le compte « ${name} » et son profil ?`)) return;
       button.disabled = true;
-      const { error } = await supabase.functions.invoke('admin-user-management', {
-        body: { action: 'delete', userId: profileId }
-      });
-      button.disabled = false;
+      const { error } = await supabase.rpc('admin_delete_user', { target_user_id: profileId });
       if (error) {
+        button.disabled = false;
         accountStatus.textContent = `Échec de la suppression : ${error.message}`;
         accountStatus.style.color = '#b91c1c';
         return;
       }
+      row.remove();
       accountStatus.textContent = 'Compte supprimé.';
       accountStatus.style.color = '#15803d';
-      await loadAdminData();
     }
   });
 
