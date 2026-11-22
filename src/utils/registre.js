@@ -395,7 +395,7 @@ export function renderFicheArretMensuelHTML({ schoolName, className, monthName, 
         </div>
         <div style="min-width:220px;text-align:center">
           <div style="font-weight:800;margin-bottom:6px">Visa du Directeur / de la Directrice</div>
-          ${visaDirecteur ? `<div style="border-top:1px solid #cbd5e1;padding-top:6px;font-weight:700">${profileMatchesVisa(visaDirecteur, visaDirecteurSignatureProfile) ? signatureImageHTML(signatureUrlForProfile(visaDirecteurSignatureProfile), 'Signature du Directeur') : ''}${esc(visaDirecteur)}</div>` : (showVisaButton ? `<div style="border-top:1px dashed #cbd5e1;padding-top:6px;color:#64748b">Zone de visa</div>` : `<div style="border-top:1px solid #cbd5e1;padding-top:6px;color:#64748b">Zone de visa</div>`)}
+          ${visaDirecteur ? `<div style="border-top:1px solid #cbd5e1;padding-top:6px;font-weight:700">${esc(visaDirecteur)}${profileMatchesVisa(visaDirecteur, visaDirecteurSignatureProfile) ? signatureImageHTML(signatureUrlForProfile(visaDirecteurSignatureProfile), 'Signature du Directeur', 'max-height:40px;width:auto;height:auto;object-fit:contain;margin:4px auto 0;display:block') : ''}</div>` : (showVisaButton ? `<div style="border-top:1px dashed #cbd5e1;padding-top:6px;color:#64748b">Zone de visa</div>` : `<div style="border-top:1px solid #cbd5e1;padding-top:6px;color:#64748b">Zone de visa</div>`)}
         </div>
       </div>
     </div>`;

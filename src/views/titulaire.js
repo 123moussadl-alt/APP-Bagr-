@@ -415,6 +415,7 @@ export function setupTitulaire(container, state, render, supabase) {
 
     const list = students || [];
     currentStudents = list;
+    const isCM2Class = String(cls.level || cls.niveau || cls.name || '').toUpperCase().includes('CM2');
 
     viewContainer.innerHTML = `
       <div class="card">
@@ -424,7 +425,7 @@ export function setupTitulaire(container, state, render, supabase) {
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>Nom et prénoms</th><th>Sexe</th><th>Statut</th><th>EDF</th><th>Handicap</th><th>Actions</th></tr></thead>
+            <thead><tr><th>N°</th><th>Nom et prénoms</th><th>Sexe</th><th>Statut</th><th>EDF</th><th>Handicap</th>${isCM2Class ? '<th>Date de naissance</th><th>Option CEP</th>' : ''}<th>Actions</th></tr></thead>
             <tbody>
               ${list.map((s, i) => `
                 <tr>
@@ -434,12 +435,13 @@ export function setupTitulaire(container, state, render, supabase) {
                   <td>${s.status === 'A' ? '<strong>A</strong>' : esc(s.status || 'Actif')}</td>
                   <td>${s.edi ? 'Oui' : '—'}</td>
                   <td>${s.handicap && String(s.handicap).trim() ? esc(s.handicap) : '—'}</td>
+                  ${isCM2Class ? `<td>${esc(s.date_naissance || '—')}</td><td>${esc(s.option_cep || '—')}</td>` : ''}
                   <td>
                     <button class="btn small" data-action="edit-student" data-id="${esc(s.id)}">✏️</button>
                     <button class="btn small danger" data-action="delete-student" data-id="${esc(s.id)}">🗑</button>
                   </td>
                 </tr>
-              `).join('') || '<tr><td colspan="7">Aucun élève</td></tr>'}
+              `).join('') || `<tr><td colspan="${isCM2Class ? 9 : 7}">Aucun élève</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -2207,6 +2209,9 @@ export function setupTitulaire(container, state, render, supabase) {
   async function openStudentForm(student) {
     const isEdit = !!student;
     editingId = isEdit ? student.id : null;
+    const clsLevel = String(currentClass?.level || localClass?.level || myClassLevel || '').toUpperCase();
+    const clsName = String(currentClass?.name || localClass?.name || '').toUpperCase();
+    const isCM2 = clsLevel === 'CM2' || clsName.includes('CM2');
     const handicapChecked = isEdit && student.handicap && String(student.handicap).trim() !== '';
 
     viewContainer.innerHTML = `
@@ -2228,6 +2233,20 @@ export function setupTitulaire(container, state, render, supabase) {
             <label>Statut</label>
             <input type="text" id="stuStatus" value="${isEdit ? esc(student.status || 'Nouveau') : 'Nouveau'}">
           </div>
+          ${isCM2 ? `
+          <div class="form-group">
+            <label>Date de naissance (obligatoire en CM2)</label>
+            <input type="date" id="stuDob" value="${isEdit && student.date_naissance ? esc(student.date_naissance) : ''}" required>
+          </div>
+          <div class="form-group">
+            <label>Option CEP (obligatoire en CM2)</label>
+            <select id="stuOptionCep" required>
+              <option value="CEP seul" ${(isEdit && (student.option_cep || '') === 'CEP seul') ? 'selected' : ''}>CEP seul</option>
+              <option value="CEP + EG" ${(isEdit && (student.option_cep || '') === 'CEP + EG') ? 'selected' : ''}>CEP + EG (Entrée en Sixième / Enseignement Général)</option>
+              <option value="CEP + BP" ${(isEdit && (student.option_cep || '') === 'CEP + BP') ? 'selected' : ''}>CEP + BP (Brevet / Bourse Professionnelle)</option>
+            </select>
+          </div>
+          ` : ''}
           <div class="form-group" style="flex-direction:row;align-items:center;gap:8px">
             <input type="checkbox" id="stuEdi" ${isEdit && student.edi ? 'checked' : ''} style="width:auto">
             <label for="stuEdi" style="margin:0">Élève Déplacé Forcé (EDF)</label>
@@ -2271,17 +2290,26 @@ export function setupTitulaire(container, state, render, supabase) {
     const handicap = handicapChecked
       ? ((viewContainer.querySelector('#stuHandicapType').value || '').trim() || 'Oui')
       : '';
+    const isCM2Class = String(cls.level || cls.niveau || cls.name || '').toUpperCase().includes('CM2');
+    const dobInput = viewContainer.querySelector('#stuDob');
+    const optionCepInput = viewContainer.querySelector('#stuOptionCep');
+    const dateNaissance = (dobInput && dobInput.value || '').trim();
+    const optionCep = (optionCepInput && optionCepInput.value || '').trim();
+    if (isCM2Class && !dateNaissance) { alert('La date de naissance est obligatoire pour la classe CM2.'); return; }
+    if (isCM2Class && !optionCep) { alert("L'option CEP est obligatoire pour la classe CM2."); return; }
 
     if (editingId) {
       const { error } = await supabase.from('students').update({
-        full_name, gender, status, edi, handicap
+        full_name, gender, status, edi, handicap,
+        ...(isCM2Class ? { date_naissance: dateNaissance || null, option_cep: optionCep } : {})
       }).eq('id', editingId);
       if (error) alert(error.message);
     } else {
       const { error } = await supabase.from('students').insert({
         class_id: cls.id,
         school_id: cls.school_id,
-        full_name, gender, status, edi, handicap
+        full_name, gender, status, edi, handicap,
+        ...(isCM2Class ? { date_naissance: dateNaissance || null, option_cep: optionCep } : {})
       });
       if (error) alert(error.message);
     }
