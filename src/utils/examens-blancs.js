@@ -275,7 +275,7 @@ export function renderExamSyntheseHTML(context) {
       </table>
 
       <div style="border:1px solid #333;padding:8px;margin-bottom:14px;min-height:70px">
-        <div style="font-weight:700;margin-bottom:4px">Plan d'Amélioration Individuelle / Difficultés et Suggestions</div>
+        <div style="font-weight:700;margin-bottom:4px">PAI / Difficultés et Suggestions</div>
         <div style="color:#64748b;font-size:12px">Zone réservée aux observations du titulaire et du directeur.</div>
       </div>
 

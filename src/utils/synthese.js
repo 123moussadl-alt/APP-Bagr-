@@ -193,35 +193,56 @@ export function renderSyntheseHTML({ schoolName, cls, students, subjects, notes,
         </tbody>
       </table>
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:0 0 16px;padding:14px 16px;border:1px solid #cbd5e1;background:#ffffff;color:#111827;line-height:1.6">
-        <div><strong>Plus forte moyenne</strong><br><span>${formatAverage(averageSummary.highest)}</span></div>
-        <div><strong>Plus faible moyenne</strong><br><span>${formatAverage(averageSummary.lowest)}</span></div>
-        <div><strong>Moyenne de la classe</strong><br><span>${formatAverage(averageSummary.classAverage)}</span></div>
-      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:0 0 16px">
+        <table style="width:100%;border-collapse:collapse;border:1px solid #333;align-self:start">
+          <thead>
+            <tr><th colspan="2" style="border:1px solid #333;padding:6px;background:#f1f5f9;font-size:13px">Moyennes de la Classe</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th style="border:1px solid #333;padding:6px;text-align:left;width:52%">Forte moyenne</th>
+              <td style="border:1px solid #333;padding:6px;text-align:center">${formatAverage(averageSummary.highest)}</td>
+            </tr>
+            <tr>
+              <th style="border:1px solid #333;padding:6px;text-align:left">Faible moyenne</th>
+              <td style="border:1px solid #333;padding:6px;text-align:center">${formatAverage(averageSummary.lowest)}</td>
+            </tr>
+            <tr>
+              <th style="border:1px solid #333;padding:6px;text-align:left">Moyenne de la classe</th>
+              <td style="border:1px solid #333;padding:6px;text-align:center"><strong>${formatAverage(averageSummary.classAverage)}</strong></td>
+            </tr>
+          </tbody>
+        </table>
 
-      <div style="border:1px solid #333;padding:10px;margin-bottom:12px">
-        <strong>Plan d'Amélioration Individuelle (PAI)</strong>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">
-          <div>
-            <label style="display:block;font-size:12px">Discipline du PAI</label>
-            ${disciplineControl}
-          </div>
-          <div>
-            <label style="display:block;font-size:12px">Taux de début d'année (%)</label>
-            ${tauxControl}
-          </div>
-          <div>
-            <label style="display:block;font-size:12px">Taux de réussite du trimestre (%)</label>
-            ${editable
-              ? `<div style="position:relative;display:inline-block"><input type="number" id="paiTauxTrim" min="0" max="100" step="0.1" value="${tauxTrimFinal != null ? tauxTrimFinal : ''}" ${hasPaiRow ? 'readonly' : ''} placeholder="Ex: 45" style="padding-right:24px"><span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);color:#64748b;font-weight:700">%</span></div><small id="paiTauxTrimMode" style="display:block;color:#64748b">${hasPaiRow ? 'Calculé automatiquement depuis les résultats.' : 'Saisie manuelle : discipline non évaluée.'}</small>`
-              : `<strong data-pai-trim="${tauxTrimFinal != null ? tauxTrimFinal : ''}">${tauxTrimFinal != null ? tauxTrimFinal + '%' : '—'}</strong>`}
-          </div>
-          <div>
-            <label style="display:block;font-size:12px">Écart</label>
-            <strong id="paiEcart" style="color:${ecartColor}">${ecartText}</strong>
-          </div>
-        </div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid #333;align-self:start">
+          <thead>
+            <tr><th colspan="2" style="border:1px solid #333;padding:6px;background:#f1f5f9;font-size:13px">PAI</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th style="border:1px solid #333;padding:6px;text-align:left;width:42%">Discipline PAI</th>
+              <td style="border:1px solid #333;padding:6px">${disciplineControl}</td>
+            </tr>
+            <tr>
+              <th style="border:1px solid #333;padding:6px;text-align:left">Taux du début (%)</th>
+              <td style="border:1px solid #333;padding:6px">${tauxControl}</td>
+            </tr>
+            <tr>
+              <th style="border:1px solid #333;padding:6px;text-align:left">Taux du trimestre (%)</th>
+              <td style="border:1px solid #333;padding:6px">
+                ${editable
+                  ? `<div style="position:relative;display:inline-block"><input type="number" id="paiTauxTrim" min="0" max="100" step="0.1" value="${tauxTrimFinal != null ? tauxTrimFinal : ''}" ${hasPaiRow ? 'readonly' : ''} placeholder="Ex: 45" style="padding-right:24px"><span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);color:#64748b;font-weight:700">%</span></div><small id="paiTauxTrimMode" style="display:block;color:#64748b;font-size:10px">${hasPaiRow ? 'Calculé automatiquement depuis les résultats.' : 'Saisie manuelle : discipline non évaluée.'}</small>`
+                  : `<strong data-pai-trim="${tauxTrimFinal != null ? tauxTrimFinal : ''}">${tauxTrimFinal != null ? tauxTrimFinal + '%' : '—'}</strong>`}
+              </td>
+            </tr>
+            <tr>
+              <th style="border:1px solid #333;padding:6px;text-align:left">Écart (%)</th>
+              <td style="border:1px solid #333;padding:6px;text-align:center"><strong id="paiEcart" style="color:${ecartColor}">${ecartText}</strong></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
+      ${pai && (pai.savedAt || pai.enregistre) ? '<p style="margin:-6px 0 12px;color:#15803d;font-weight:700">✅ PAI enregistré</p>' : ''}
 
       <div style="border:1px solid #333;padding:10px;margin-bottom:12px">
         <strong>Difficultés rencontrées et Suggestions</strong>

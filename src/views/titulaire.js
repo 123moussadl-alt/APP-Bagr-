@@ -1634,11 +1634,12 @@ export function setupTitulaire(container, state, render, supabase) {
           return;
         }
 
+        record.savedAt = new Date().toISOString();
         currentSynthese.pai = record;
         if (localSaved) {
-          showStatus('Fiche synthèse enregistrée avec succès', 'success');
+          showStatus('✅ PAI enregistré', 'success');
         } else {
-          showStatus('Fiche enregistrée dans Supabase, mais la sauvegarde locale a échoué : ' + (localError && localError.message ? localError.message : String(localError)), 'error');
+          showStatus('PAI enregistré dans Supabase, mais la sauvegarde locale a échoué : ' + (localError && localError.message ? localError.message : String(localError)), 'error');
         }
       } catch (error) {
         showStatus(error && error.message ? error.message : String(error), 'error');

@@ -23,7 +23,7 @@ Plateforme officielle de gestion scolaire pour la **Circonscription d'Éducation
    - **Effectifs et Rendement :** Début d'année (G, F, T), Ayant composé (G, F, T), Ayant eu la moyenne (G, F, T et %), Forte moyenne, Faible moyenne, Moyenne de la classe.
    - **Tableau des Matières :** G, %G, F, %F, T, %T pour chaque discipline.
    - **Élèves par moyenne :** Décompte par note de 9 à 0.
-   - **Section PAI (Plan d'Amélioration Individuelle) :**
+   - **Section PAI :**
      - Discipline ciblée (ex: *Lecture*, *ECP*...).
      - Taux début (saisi dans les paramètres).
      - Taux Trimestre (%T de réussite effectif obtenu automatiquement).
