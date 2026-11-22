@@ -9,7 +9,7 @@ import { getStudentAnnual, rankSuffix } from '../utils/stats.js';
 import { openPreview } from '../utils/preview.js';
 import { exportPDF, wirePDFExportButton, wireWordExportButton } from '../utils/export.js';
 import { renderSyntheseHTML, computeSubjectRows, computeClassAverageSummary } from '../utils/synthese.js';
-import { sumHalfDays, computeMonthlyRegister, monthlyRegisterCSVRows, computeFicheArretMensuel, renderFicheArretMensuelHTML, renderMonthlyRegisterTable, monthlyClosureCSVRows, schoolMonths } from '../utils/registre.js';
+import { sumHalfDays, computeMonthlyRegister, monthlyRegisterCSVRows, computeFicheArretMensuel, renderFicheArretMensuelHTML, renderMonthlyRegisterTable, monthlyClosureCSVRows, schoolMonths, ANNUAL_SYNTHESIS_TITLE } from '../utils/registre.js';
 import { loadPaiRecord, normalizePaiDiscipline, savePaiRecord, writePaiBackup } from '../utils/pai.js';
 import { profileMatchesVisa, signatureBlockHTML, signaturePeopleHTML, signatureUrlForProfile } from '../utils/signature.js';
 
@@ -111,6 +111,13 @@ export function setupTitulaire(container, state, render, supabase) {
   let currentJoursValidesByMonth = {};
   let ficheMonthIdx = 0;
   let currentFicheData = null;
+  let evalClass = null;
+  let evalClassesList = [];
+  let evalSchoolLabel = '';
+  let evalSubjects = [];
+  let evalStudents = [];
+  let evalSubjectId = null;
+  let evalTerm = 1;
   const REG_MONTHS = [
     { name: 'Octobre', yearOff: 0, month: 9 },
     { name: 'Novembre', yearOff: 0, month: 10 },
@@ -1783,18 +1790,6 @@ export function setupTitulaire(container, state, render, supabase) {
     });
     currentMonthRows = activeMonth ? [computeFicheArretMensuel(allStudents, absences, activeMonth, joursValidesByMonth[activeMonth.name] || [])] : [];
 
-    if (!activeMonth) {
-      viewContainer.innerHTML = `
-        <div class="card">
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn ${registreMode === 'appel' ? '' : 'secondary'}" data-action="reg-mode" data-mode="appel">📅 Appel Journalier</button>
-            <button class="btn secondary" data-action="reg-mode" data-mode="synthese">📄 Fiche d'Arrêt Mensuel</button>
-          </div>
-          <p style="color:#64748b;margin-top:14px">Aucun mois clôturé. Arrêtez le mois depuis l'Appel Journalier.</p>
-        </div>`;
-      return;
-    }
-
     let schoolName = '';
     if (cls.school_id) {
       const { data: school } = await supabase.from('schools').select('name').eq('id', cls.school_id).single();
@@ -1818,14 +1813,38 @@ export function setupTitulaire(container, state, render, supabase) {
     if (!teacherNames.length && actingTeacher && !String(actingTeacher).includes('Aperçu')) teacherNames = [actingTeacher];
     if (!teacherSigners.length && titularSigners.length && teacherNames.join(', ').includes(titularSigners[0].full_name)) teacherSigners = titularSigners;
 
-    const monthConfig = (configs || []).find(c => c.mois === activeMonth.name) || {};
-    currentFicheData = {
+    const monthConfig = activeMonth ? ((configs || []).find(c => c.mois === activeMonth.name) || {}) : {};
+    currentFicheData = activeMonth ? {
       cls, schoolName, className: classLabel(cls), monthName: activeMonth.name,
       data: currentMonthRows[0], teacherNames, teacherSigners,
       visaDirecteur: monthConfig.visa_directeur || ''
-    };
+    } : null;
 
     const opts = closedMonths.map((m, i) => `<option value="${i}" ${i === ficheMonthIdx ? 'selected' : ''}>${m.name}</option>`).join('');
+
+    const ficheCard = activeMonth
+      ? `<div class="card" style="margin-top:16px">
+          <div id="ficheSheet" class="portrait-sheet">${renderFicheArretMensuelHTML({
+            schoolName: currentFicheData.schoolName,
+            className: currentFicheData.className,
+            monthName: currentFicheData.monthName,
+            data: currentFicheData.data,
+            teacherNames: currentFicheData.teacherNames,
+            teacherSigners: currentFicheData.teacherSigners,
+            visaDirecteur: currentFicheData.visaDirecteur,
+            visaDirecteurSignatureProfile: actualProfile.role === 'directeur' && profileMatchesVisa(currentFicheData.visaDirecteur, actualProfile) ? actualProfile : null,
+            showVisaButton: false,
+            onVisaLabel: ''
+          })}</div>
+        </div>`
+      : `<div class="card" style="margin-top:16px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" data-action="reg-mode" data-mode="appel">📅 Appel Journalier</button>
+            <button class="btn secondary" data-action="reg-mode" data-mode="synthese">📄 Fiche d'Arrêt Mensuel</button>
+          </div>
+          <p style="color:#64748b;margin-top:14px">Aucun mois clôturé. Arrêtez le mois depuis l'Appel Journalier.</p>
+        </div>`;
+
     viewContainer.innerHTML = `
       <div class="card">
         <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
@@ -1834,36 +1853,25 @@ export function setupTitulaire(container, state, render, supabase) {
             <button class="btn ${registreMode === 'synthese' ? '' : 'secondary'}" data-action="reg-mode" data-mode="synthese">📄 Fiche d'Arrêt Mensuel</button>
           </div>
           <div style="flex:1"></div>
-          <div class="form-group" style="margin:0;min-width:180px">
-            <label>Mois clôturé</label>
-            <select id="ficheMonth">${opts}</select>
-          </div>
-          <button class="btn" data-action="preview-reg">👁 Aperçu</button>
-          <button class="btn" data-action="csv-reg">📥 Excel/CSV</button>
-          <button class="btn secondary" data-action="print-page">🖨️ Imprimer / PDF</button>
+          ${activeMonth ? `
+            <div class="form-group" style="margin:0;min-width:180px">
+              <label>Mois clôturé</label>
+              <select id="ficheMonth">${opts}</select>
+            </div>
+            <button class="btn" data-action="preview-reg">👁 Aperçu</button>
+            <button class="btn" data-action="csv-reg">📥 Excel/CSV</button>
+            <button class="btn secondary" data-action="print-page">🖨️ Imprimer / PDF</button>` : ''}
         </div>
       </div>
-      <div class="card" style="margin-top:16px">
-        <div id="ficheSheet" class="portrait-sheet">${renderFicheArretMensuelHTML({
-          schoolName: currentFicheData.schoolName,
-          className: currentFicheData.className,
-          monthName: currentFicheData.monthName,
-          data: currentFicheData.data,
-          teacherNames: currentFicheData.teacherNames,
-          teacherSigners: currentFicheData.teacherSigners,
-          visaDirecteur: currentFicheData.visaDirecteur,
-          visaDirecteurSignatureProfile: actualProfile.role === 'directeur' && profileMatchesVisa(currentFicheData.visaDirecteur, actualProfile) ? actualProfile : null,
-          showVisaButton: false,
-          onVisaLabel: ''
-        })}</div>
-      </div>`;
+      ${ficheCard}`;
+
     viewContainer.insertAdjacentHTML('beforeend', `
       <div class="card monthly-register-sheet" style="margin-top:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-          <h3 style="margin:0">Synthèse des Mois Arrêtés (Octobre à Mai)</h3>
+          <h3 style="margin:0">${ANNUAL_SYNTHESIS_TITLE}</h3>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn" data-action="preview-closed-months">👁 Aperçu</button>
-            <button class="btn" data-action="pdf-closed-months">📄 Exporter en PDF</button>
+            <button class="btn" data-action="pdf-closed-months">📄 PDF (A4 paysage)</button>
             <button class="btn secondary" data-action="print-closed-months">🖨️ Imprimer</button>
             <button class="btn" data-action="csv-closed-months">📥 Excel/CSV</button>
           </div>
@@ -1873,7 +1881,7 @@ export function setupTitulaire(container, state, render, supabase) {
           visaEncadreurByMonth: currentClosedVisaEncadreur,
           visaDirecteurProfile: actualProfile.role === 'directeur' ? actualProfile : null,
           visaEncadreurProfile: actualProfile.role === 'encadreur' ? actualProfile : null
-        })}${signatureBlockHTML('Le(s) Titulaire(s)', titularSigners, currentFicheData.teacherNames.join(', '))}</div>
+        })}${signatureBlockHTML('Le(s) Titulaire(s)', titularSigners, currentFicheData ? currentFicheData.teacherNames.join(', ') : (teacherNames || []).join(', '))}</div>
       </div>`);
     wirePDFExportButton(
       viewContainer.querySelector('[data-action="pdf-closed-months"]'),
@@ -1910,34 +1918,241 @@ export function setupTitulaire(container, state, render, supabase) {
     downloadCSV('arre_t_' + String(currentFicheData.monthName || 'mois').toLowerCase() + '_' + String(currentFicheData.className || 'classe').replace(/\s+/g, '_') + '.csv', rows);
   }
 
-  async function renderEvaluer() {
-    const schoolId = state.profile && state.profile.school_id;
+  async function loadSchoolClasses() {
+    const profile = state.profile || {};
+    let schoolId = profile.school_id || profile.ecole_id || null;
+    let schoolName = profile.ecole_nom || profile.school_name || '';
     let school = null;
-    let classes = [];
     if (schoolId) {
-      const r = await supabase.from('schools').select('*').eq('id', schoolId).single();
-      school = r.data;
-      const c = await supabase.from('classes').select('*').eq('school_id', schoolId).order('name');
-      classes = c.data || [];
+      try {
+        const { data: s } = await supabase.from('schools').select('*').eq('id', schoolId).maybeSingle();
+        if (s) { school = s; schoolName = s.name || schoolName; }
+      } catch (e) { /* ignore */ }
     }
+    const queries = [];
+    if (schoolId) {
+      queries.push(supabase.from('classes').select('*').eq('school_id', schoolId));
+      queries.push(supabase.from('classes').select('*').eq('ecole_id', schoolId));
+    }
+    if (schoolName) {
+      queries.push(supabase.from('classes').select('*').eq('ecole_nom', schoolName));
+    }
+    const results = await Promise.all(queries);
+    const byKey = new Map();
+    results.forEach(res => {
+      if (!res || res.error || !Array.isArray(res.data)) return;
+      res.data.forEach(c => {
+        if (!c) return;
+        const key = String(formatClassName(c) || c.name || c.id || '').trim().toLowerCase();
+        if (!key) return;
+        if (!byKey.has(key)) byKey.set(key, c);
+      });
+    });
+    const classes = Array.from(byKey.values())
+      .sort((a, b) => formatClassName(a).localeCompare(formatClassName(b)));
+    return { school, schoolName, classes };
+  }
+
+  async function renderEvaluer() {
+    const { school, schoolName, classes } = await loadSchoolClasses();
+    evalClassesList = classes;
+    evalSchoolLabel = (school && school.name) || schoolName || '—';
+    const selectedClassId = evalClass ? String(evalClass.id) : '';
+    const opts = classes.map(c =>
+      `<option value="${esc(c.id)}" ${selectedClassId === String(c.id) ? 'selected' : ''}>${esc(formatClassName(c))}</option>`
+    ).join('');
     viewContainer.innerHTML = `
       <div class="card">
         <h3>Évaluer une classe</h3>
-        <p>Évaluation inter-classes — l'école est <strong>verrouillée</strong> sur votre école : ${esc((school && school.name) || '—')}. Vous ne pouvez choisir qu'une classe de votre propre école.</p>
+        <p>Évaluation inter-classes — l'école est <strong>verrouillée</strong> sur votre école : ${esc(evalSchoolLabel)}. Vous ne pouvez choisir qu'une classe de votre propre école.</p>
         <div class="form-group">
           <label>École (verrouillée)</label>
-          <input type="text" value="${esc((school && school.name) || '')}" disabled>
+          <input type="text" value="${esc(evalSchoolLabel === '—' ? '' : evalSchoolLabel)}" disabled>
         </div>
         <div class="form-group">
-          <label>Classe à évaluer</label>
+          <label>Choisir la classe à évaluer</label>
           <select id="evalClassSelect">
-            <option value="">-- Choisir une classe --</option>
-            ${classes.map(c => `<option value="${esc(c.id)}">${esc(formatClassName(c))}</option>`).join('') || '<option value="">Aucune classe dans votre école</option>'}
+            <option value="">-- Choisir la classe à évaluer --</option>
+            ${opts || '<option value="">Aucune classe dans votre école</option>'}
           </select>
         </div>
-        <button class="btn" data-action="proceed-evaluate" style="margin-top:8px">Continuer →</button>
+      </div>
+      <div id="evalPanel"></div>
+    `;
+    await renderEvalPanel();
+  }
+
+  async function renderEvalPanel() {
+    const panel = viewContainer.querySelector('#evalPanel');
+    if (!panel) return;
+    if (!evalClass) {
+      panel.innerHTML = '<div class="card"><p style="color:#64748b">Sélectionnez une classe pour afficher la fiche de saisie des notes.</p></div>';
+      return;
+    }
+    if (!evalSubjectId || !evalSubjects.some(s => String(s.id) === String(evalSubjectId))) {
+      evalSubjectId = evalSubjects[0] ? evalSubjects[0].id : null;
+    }
+    const subject = evalSubjects.find(s => String(s.id) === String(evalSubjectId)) || null;
+    const term = evalTerm || 1;
+    const max = subject ? subject.max : 10;
+    const rows = evalStudents;
+    panel.innerHTML = `
+      <div class="card" style="margin-top:16px">
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+          <h3 style="margin:0;flex:1">Saisie des notes — ${esc(formatClassName(evalClass))}</h3>
+          <button class="btn" data-action="eval-save-notes" id="evalSaveNotesBtn" style="margin-bottom:2px">💾 Enregistrer les notes</button>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+          <div class="form-group" style="margin:0;min-width:220px">
+            <label>Matière</label>
+            <select id="evalSubjectSelect">
+              ${evalSubjects.map(s => `<option value="${esc(s.id)}" ${subject && String(s.id) === String(evalSubjectId) ? 'selected' : ''}>${esc(s.name)} (/${esc(s.max)})</option>`).join('') || '<option value="">Aucune matière</option>'}
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;min-width:160px">
+            <label>Trimestre</label>
+            <select id="evalTermSelect">
+              <option value="1" ${term === 1 ? 'selected' : ''}>1er Trimestre (T1)</option>
+              <option value="2" ${term === 2 ? 'selected' : ''}>2e Trimestre (T2)</option>
+              <option value="3" ${term === 3 ? 'selected' : ''}>3e Trimestre (T3)</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-top:12px">
+          <table id="evalGradeTable">
+            <thead>
+              <tr>
+                <th>N°</th>
+                <th>Élève</th>
+                <th>Sexe</th>
+                <th>${subject ? esc(subject.name) + ` <span style="font-weight:400;color:#64748b">(/${esc(max)})</span>` : 'Note'}</th>
+                <th>Note /10</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((s, i) => `
+                <tr data-eval-row="${esc(s.id)}">
+                  <td>${i + 1}</td>
+                  <td>${s.gender === 'F' ? `<strong style="color:#dc2626">${esc(s.full_name)}</strong>` : `<strong>${esc(s.full_name)}</strong>`}${s.status === 'A' ? ' <span style="color:#64748b;font-weight:700">(A)</span>' : ''}</td>
+                  <td>${s.gender === 'M' ? 'M' : 'F'}</td>
+                  <td><input type="number" step="0.01" min="0" max="${esc(max)}" class="eval-grade-input" data-student="${esc(s.id)}" data-subject="${subject ? esc(subject.id) : ''}" value=""></td>
+                  <td class="moyenne-cell">—</td>
+                </tr>
+              `).join('') || '<tr><td colspan="5">Aucun élève</td></tr>'}
+            </tbody>
+          </table>
+        </div>
       </div>
     `;
+    await loadEvalGrades();
+  }
+
+  function recomputeEvalAverages() {
+    const subject = (evalSubjects || []).find(s => String(s.id) === String(evalSubjectId)) || null;
+    const max = subject ? (parseFloat(subject.max) || 10) : 10;
+    viewContainer.querySelectorAll('#evalGradeTable [data-eval-row]').forEach(row => {
+      const inp = row.querySelector('.eval-grade-input');
+      const cell = row.querySelector('.moyenne-cell');
+      if (!cell) return;
+      if (!inp || inp.value === '' || inp.value == null) { cell.textContent = '—'; return; }
+      const num = parseFloat(inp.value);
+      if (isNaN(num)) { cell.textContent = '—'; return; }
+      cell.textContent = ((num / max) * 10).toFixed(2);
+    });
+  }
+
+  async function loadEvalGrades() {
+    const inputs = viewContainer.querySelectorAll('.eval-grade-input');
+    inputs.forEach(i => { i.value = ''; });
+    recomputeEvalAverages();
+    if (!evalClass || !evalSubjectId || !inputs.length) return;
+    const term = evalTerm || 1;
+    const { data: notes } = await supabase
+      .from('notes')
+      .select('*')
+      .eq('classe_id', evalClass.id)
+      .eq('trimestre', term);
+    const subjectKey = String(evalSubjectId);
+    const map = {};
+    (notes || []).forEach(n => {
+      const matKey = n.matiere_id !== undefined ? n.matiere_id : n.subject_id;
+      if (String(matKey) !== subjectKey) return;
+      const eleveKey = n.eleve_id !== undefined ? n.eleve_id : n.student_id;
+      const noteKey = n.note !== undefined ? n.note : n.valeur;
+      if (eleveKey !== undefined && noteKey !== undefined && noteKey !== null) map[String(eleveKey)] = noteKey;
+    });
+    inputs.forEach(input => {
+      const v = map[String(input.dataset.student)];
+      input.value = (v !== undefined) ? v : '';
+    });
+    recomputeEvalAverages();
+  }
+
+  async function onEvalClassChange(classId) {
+    if (!classId) {
+      evalClass = null;
+      evalSubjects = [];
+      evalStudents = [];
+      evalSubjectId = null;
+      renderEvalPanel();
+      return;
+    }
+    const cls = (evalClassesList || []).find(c => String(c.id) === String(classId));
+    if (cls) {
+      evalClass = cls;
+    } else {
+      const { data } = await supabase.from('classes').select('*').eq('id', classId).single();
+      if (!data) { alert('Classe introuvable.'); return; }
+      evalClass = data;
+    }
+    evalSubjects = await getSubjectsForClass(evalClass);
+    const { data: students } = await supabase
+      .from('students')
+      .select('*')
+      .eq('class_id', evalClass.id)
+      .order('full_name');
+    evalStudents = students || [];
+    if (!evalSubjectId || !evalSubjects.some(s => String(s.id) === String(evalSubjectId))) {
+      evalSubjectId = evalSubjects[0] ? evalSubjects[0].id : null;
+    }
+    await renderEvalPanel();
+  }
+
+  async function saveEvalNotes() {
+    if (!evalClass || !evalSubjectId) { alert('Sélectionnez une classe et une matière.'); return; }
+    const term = evalTerm || 1;
+    const sub = (evalSubjects || []).find(s => String(s.id) === String(evalSubjectId));
+    const rows = Array.from(viewContainer.querySelectorAll('#evalGradeTable [data-eval-row]'));
+    const btn = viewContainer.querySelector('#evalSaveNotesBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enregistrement…'; }
+    let ok = 0, fail = 0, firstErr = null;
+    try {
+      for (const row of rows) {
+        const inp = row.querySelector('.eval-grade-input');
+        if (!inp) continue;
+        const raw = inp.value;
+        if (raw === '' || raw == null) continue;
+        const eleveId = inp.dataset.student;
+        const res = await saveNoteRow(eleveId, evalSubjectId, term, parseFloat(raw), sub ? sub.max : null, evalClass.id);
+        if (res && res.ok) ok++;
+        else { fail++; if (!firstErr && res && res.error) firstErr = res.error; }
+      }
+      if (ok === 0 && fail === 0) { gradeToast('Aucune note à enregistrer.'); return; }
+      if (fail > 0 && firstErr) gradeErrorBanner(firstErr);
+      gradeToast(ok + ' note(s) enregistrée(s), ' + fail + ' échec(s)');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Enregistrer les notes'; }
+    }
+  }
+
+  async function saveEvalGradeInput(input) {
+    if (!evalClass || !evalSubjectId) return;
+    const term = evalTerm || 1;
+    const sub = (evalSubjects || []).find(s => String(s.id) === String(evalSubjectId));
+    const raw = input.value;
+    const res = await saveNoteRow(input.dataset.student, evalSubjectId, term, raw === '' ? null : parseFloat(raw), sub ? sub.max : null, evalClass.id);
+    if (res && !res.ok && res.error) gradeErrorBanner(res.error);
+    recomputeEvalAverages();
   }
 
   async function renderExamBlanc() {
@@ -2083,8 +2298,8 @@ export function setupTitulaire(container, state, render, supabase) {
     return notesCols;
   }
 
-  async function saveNoteRow(eleveId, matiereId, trimestre, note, bareme) {
-    const classeId = currentClass ? currentClass.id : null;
+  async function saveNoteRow(eleveId, matiereId, trimestre, note, bareme, classeIdOverride) {
+    const classeId = classeIdOverride != null ? classeIdOverride : (currentClass ? currentClass.id : null);
     const cols = await detectNotesCols();
     const has = (name) => !cols || cols.includes(name);
     const eleveCol = (has('student_id') && !has('eleve_id')) ? 'student_id' : 'eleve_id';
@@ -2168,14 +2383,6 @@ export function setupTitulaire(container, state, render, supabase) {
     const sub = currentSubjects.find(s => s.id === matiereId);
     const res = await saveNoteRow(eleveId, matiereId, term, raw === '' ? null : parseFloat(raw), sub ? sub.max : null);
     if (res && !res.ok && res.error) gradeErrorBanner(res.error);
-  }
-
-  async function proceedEvaluate() {
-    const sel = viewContainer.querySelector('#evalClassSelect');
-    const classId = (sel && sel.value) || '';
-    if (!classId) { alert('Sélectionnez une classe à évaluer.'); return; }
-    const { data: cls } = await supabase.from('classes').select('*').eq('id', classId).single();
-    alert('Vous allez évaluer la classe : ' + (cls ? formatClassName(cls) : '—'));
   }
 
   async function createExamBlanc() {
@@ -2331,13 +2538,31 @@ export function setupTitulaire(container, state, render, supabase) {
       if (stu) openStudentForm(stu);
     }
     else if (action === 'cancel-student') renderSubView('eleves');
-    else if (action === 'proceed-evaluate') proceedEvaluate();
+    else if (action === 'eval-save-notes') saveEvalNotes();
     else if (action === 'create-exam') createExamBlanc();
     else if (action === 'export-students') exportStudentsCSV();
     else if (action === 'export-grades') exportGradesCSV();
   });
 
   viewContainer.addEventListener('change', (e) => {
+    if (e.target.classList.contains('eval-grade-input')) {
+      saveEvalGradeInput(e.target);
+      return;
+    }
+    if (e.target.id === 'evalClassSelect') {
+      onEvalClassChange(e.target.value);
+      return;
+    }
+    if (e.target.id === 'evalSubjectSelect') {
+      evalSubjectId = e.target.value || null;
+      renderEvalPanel();
+      return;
+    }
+    if (e.target.id === 'evalTermSelect') {
+      evalTerm = parseInt(e.target.value, 10) || 1;
+      renderEvalPanel();
+      return;
+    }
     if (e.target.classList.contains('grade-input')) {
       saveGrade(e.target);
       recomputeAverages();

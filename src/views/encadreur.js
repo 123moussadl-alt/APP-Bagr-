@@ -7,7 +7,7 @@ import { esc, formatClassName } from '../utils/format.js';
 import { downloadCSV, printPage, wirePDFExportButton, wireWordExportButton } from '../utils/export.js';
 import { openPreview } from '../utils/preview.js';
 import { renderSyntheseHTML, computeSubjectRows, computeClassAverageSummary } from '../utils/synthese.js';
-import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTable, formatVisaStampDate } from '../utils/registre.js';
+import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTable, formatVisaStampDate, computeFicheArretMensuel, renderFicheArretMensuelHTML, schoolMonths, ANNUAL_SYNTHESIS_TITLE } from '../utils/registre.js';
 import { profileMatchesVisa, signatureUrlForProfile } from '../utils/signature.js';
 import { loadPaiRecord, normalizePaiDiscipline } from '../utils/pai.js';
 import { mergeSchoolChoices } from '../utils/schools.js';
@@ -87,6 +87,9 @@ export function setupEncadreur(container, state, render, supabase) {
       renderSubView('ecoles');
     } else if (e.target.id === 'encSynthClass' || e.target.id === 'encSynthTerm') {
       renderEncSynthese();
+    } else if (e.target.id === 'encRegMonth') {
+      encSelectedMonth = e.target.value || null;
+      renderEncRegSheet();
     }
   });
 
@@ -100,7 +103,7 @@ export function setupEncadreur(container, state, render, supabase) {
       return;
     }
     if (e.target.closest('[data-action="enc-reg-summary-preview"]')) {
-      const summary = viewContainer.querySelector('#encRegSheet');
+      const summary = viewContainer.querySelector('#encRegSummary');
       if (summary) openPreview({ title: 'Synthèse des Mois Arrêtés', html: summary.innerHTML, onPrint: printPage, onCSV: exportEncMonthlyCSV });
       return;
     }
@@ -109,14 +112,14 @@ export function setupEncadreur(container, state, render, supabase) {
       return;
     }
     if (e.target.closest('[data-action="enc-reg-summary-print"]')) {
-      const summary = viewContainer.querySelector('#encRegSheet');
+      const summary = viewContainer.querySelector('#encRegSummary');
       if (summary) openPreview({ title: 'Synthèse des Mois Arrêtés', html: summary.innerHTML, onPrint: printPage, onCSV: exportEncMonthlyCSV });
       return;
     }
     const btn = e.target.closest('[data-action="visa-encadreur"]');
     if (!btn) return;
     const classId = viewContainer.querySelector('#encRegClass')?.value;
-    const mois = btn.dataset.mois;
+    const mois = btn.dataset.mois || encSelectedMonth;
     if (!classId || !mois) return;
     const dateStr = new Date().toLocaleDateString('fr-FR');
     const stampDate = formatVisaStampDate();
@@ -195,7 +198,7 @@ export function setupEncadreur(container, state, render, supabase) {
     const list = classes || [];
     viewContainer.innerHTML = `
       <div class="card">
-        <h3>Registre d'appel — Synthèse Mensuelle</h3>
+        <h3>Registre d'appel — Fiche d'Arrêt Mensuel &amp; Synthèse Annuelle</h3>
         <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
           <div class="form-group" style="margin:0;min-width:240px">
             <label>Classe</label>
@@ -204,40 +207,80 @@ export function setupEncadreur(container, state, render, supabase) {
               ${list.map(c => `<option value="${esc(c.id)}">${esc(formatClassName(c))}</option>`).join('')}
             </select>
           </div>
+          <div class="form-group" style="margin:0;min-width:200px">
+            <label>Mois clôturé</label>
+            <select id="encRegMonth" style="width:100%"><option value="">-- Choisir --</option></select>
+          </div>
           <button class="btn" onclick="window.print()">🖨️ Imprimer / PDF</button>
-          <button type="button" class="btn" data-action="visa-encadreur">✍️ Viser</button>
+          <button type="button" class="btn" data-action="visa-encadreur">✍️ Viser le mois</button>
         </div>
       </div>
-      <div class="card landscape-sheet monthly-register-sheet" style="margin-top:16px">
-        <div id="encRegSheet"><p style="color:#64748b">Sélectionnez une classe pour afficher la synthèse mensuelle.</p></div>
+      <div class="card" style="margin-top:16px">
+        <div id="encRegSheet" class="portrait-sheet"><p style="color:#64748b">Sélectionnez une classe pour afficher sa Fiche d'Arrêt Mensuel.</p></div>
+      </div>
+      <div class="card monthly-register-sheet" style="margin-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <h3 style="margin:0">${ANNUAL_SYNTHESIS_TITLE}</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn" data-action="enc-reg-summary-preview">👁 Aperçu</button>
+            <button type="button" class="btn" data-action="enc-reg-summary-pdf">📄 PDF (A4 paysage)</button>
+            <button type="button" class="btn secondary" data-action="enc-reg-summary-print">🖨️ Imprimer</button>
+            <button type="button" class="btn" data-action="enc-reg-summary-csv">📥 Excel/CSV</button>
+          </div>
+        </div>
+        <div id="encRegSummary" style="margin-top:12px"><p style="color:#64748b">Sélectionnez une classe pour afficher la synthèse annuelle.</p></div>
       </div>`;
     const sel = viewContainer.querySelector('#encRegClass');
     if (sel) sel.addEventListener('change', renderEncRegSheet);
+    wirePDFExportButton(
+      viewContainer.querySelector('[data-action="enc-reg-summary-pdf"]'),
+      () => viewContainer.querySelector('#encRegSummary')?.closest('.monthly-register-sheet'),
+      'synthese_mois_arretes.pdf',
+      { orientation: 'landscape', format: 'a4', margin: 10 }
+    );
   }
 
   async function renderEncRegSheet() {
     const classId = viewContainer.querySelector('#encRegClass')?.value;
     const sheetEl = viewContainer.querySelector('#encRegSheet');
+    const summaryEl = viewContainer.querySelector('#encRegSummary');
+    const monthSel = viewContainer.querySelector('#encRegMonth');
     if (!sheetEl) return;
-    if (!classId) { sheetEl.innerHTML = '<p style="color:#64748b">Sélectionnez une classe.</p>'; return; }
+    if (!classId) {
+      if (monthSel) monthSel.innerHTML = '<option value="">-- Choisir --</option>';
+      sheetEl.innerHTML = '<p style="color:#64748b">Sélectionnez une classe.</p>';
+      if (summaryEl) summaryEl.innerHTML = '<p style="color:#64748b">Sélectionnez une classe pour afficher la synthèse annuelle.</p>';
+      encMonthlyRows = [];
+      encSelectedMonth = null;
+      return;
+    }
     const { data: cls } = await supabase.from('classes').select('*').eq('id', classId).single();
-    if (!cls) { sheetEl.innerHTML = ''; return; }
+    if (!cls) {
+      sheetEl.innerHTML = '';
+      if (summaryEl) summaryEl.innerHTML = '';
+      encMonthlyRows = [];
+      return;
+    }
     const { data: students } = await supabase.from('students').select('*').eq('class_id', classId);
     const { data: presences } = await supabase.from('presences').select('*').eq('classe_id', classId);
     const absences = (presences || []).filter(p => p.statut === 'A');
     const startYear = parseInt((cls.year || state.activeSchoolYear || '2026-2027').split('-')[0], 10) || 2026;
+    const months = schoolMonths(startYear);
     const { data: configs } = await supabase.from('registre_configs').select('*').eq('classe_id', classId);
     const joursPointesByMonth = {};
-    const closedMonths = new Set();
+    const closedSet = new Set();
     const configByMonth = {};
     (configs || []).forEach(c => {
       joursPointesByMonth[c.mois] = (c.jours_valides && c.jours_valides.length ? c.jours_valides : c.jours_pointes) || [];
-      if (c.mois_cloture) closedMonths.add(c.mois);
+      if (c.mois_cloture) closedSet.add(c.mois);
       configByMonth[c.mois] = c;
     });
-    encMonthlyRows = computeMonthlyRegister(students || [], absences, startYear, joursPointesByMonth).filter(r => closedMonths.has(r.name));
+    const closedMonths = months.filter(m => closedSet.has(m.name));
+    encMonthlyRows = computeMonthlyRegister(students || [], absences, startYear, joursPointesByMonth).filter(r => closedSet.has(r.name));
     encVisaDirecteurByMonth = {};
     encVisaEncadreurByMonth = {};
+    encVisaDirectorStamps = {};
+    encVisaEncadreurStamps = {};
     closedMonths.forEach(month => {
       encVisaDirecteurByMonth[month] = (configByMonth[month] && configByMonth[month].visa_directeur) || '';
       encVisaEncadreurByMonth[month] = (configByMonth[month] && configByMonth[month].visa_encadreur) || '';
@@ -248,15 +291,46 @@ export function setupEncadreur(container, state, render, supabase) {
         ? { date: (configByMonth[month] && configByMonth[month].visa_encadreur_date) || '', nom: configByMonth[month].visa_encadreur_nom, signatureUrl: (configByMonth[month] && configByMonth[month].visa_encadreur_signature) || '' }
         : null;
     });
-    sheetEl.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-        <h3 style="margin:0">Synthèse des Mois Arrêtés — ${esc(formatClassName(cls))}</h3>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button type="button" class="btn" data-action="enc-reg-summary-preview">👁 Aperçu</button>
-          <button type="button" class="btn secondary" data-action="enc-reg-summary-print">🖨️ PDF</button>
-          <button type="button" class="btn" data-action="enc-reg-summary-csv">📥 Excel/CSV</button>
-        </div>
-      </div>` +
-      renderMonthlyRegisterTable(encMonthlyRows, {
+    const active = closedMonths.find(m => m.name === encSelectedMonth) || closedMonths[0] || null;
+    encSelectedMonth = active ? active.name : null;
+    if (monthSel) {
+      monthSel.innerHTML = closedMonths.length
+        ? closedMonths.map(m => `<option value="${esc(m.name)}" ${encSelectedMonth === m.name ? 'selected' : ''}>${esc(m.name)}</option>`).join('')
+        : '<option value="">Aucun mois clôturé</option>';
+    }
+    let schoolName = '';
+    if (cls.school_id) { const { data: school } = await supabase.from('schools').select('name').eq('id', cls.school_id).single(); schoolName = (school && school.name) || ''; }
+    let teacherNames = [];
+    let teacherSigners = [];
+    try {
+      const { data: links } = await supabase.from('class_teachers').select('teacher_id, profiles(id,full_name,signature_url)').eq('class_id', classId);
+      teacherSigners = (links || []).map(link => link.profiles).filter(person => person && person.full_name && !String(person.full_name).includes('Aperçu'));
+      teacherNames = teacherSigners.map(person => person.full_name);
+    } catch (e) { /* ignore */ }
+    if (!teacherNames.length && cls.titulaire_id) {
+      const { data: t } = await supabase.from('profiles').select('id,full_name,signature_url').eq('id', cls.titulaire_id).single();
+      if (t) { teacherNames = [t.full_name]; teacherSigners = [t]; }
+    }
+    if (active) {
+      const data = computeFicheArretMensuel(students || [], absences, active, joursPointesByMonth[active.name] || []);
+      const visa = (configByMonth[active.name] && configByMonth[active.name].visa_directeur) || '';
+      sheetEl.innerHTML = renderFicheArretMensuelHTML({
+        schoolName,
+        className: formatClassName(cls),
+        monthName: active.name,
+        data,
+        teacherNames,
+        teacherSigners,
+        visaDirecteur: visa,
+        visaDirecteurSignatureProfile: actualProfile.role === 'directeur' && profileMatchesVisa(visa, actualProfile) ? actualProfile : null,
+        showVisaButton: false,
+        onVisaLabel: ''
+      });
+    } else {
+      sheetEl.innerHTML = '<p style="color:#64748b">Aucun mois clôturé pour cette classe. La Fiche Synthèse Annuelle ci-dessous reste visible et se remplira au fil des mois arrêtés.</p>';
+    }
+    if (summaryEl) {
+      summaryEl.innerHTML = renderMonthlyRegisterTable(encMonthlyRows, {
         visaDirecteurByMonth: encVisaDirecteurByMonth,
         visaEncadreurByMonth: encVisaEncadreurByMonth,
         visaDirectorStamps: encVisaDirectorStamps,
@@ -265,6 +339,7 @@ export function setupEncadreur(container, state, render, supabase) {
         visaDirecteurProfile: actualProfile.role === 'directeur' ? actualProfile : null,
         visaEncadreurProfile: actualProfile.role === 'encadreur' ? actualProfile : null
       });
+    }
   }
 
   function exportEncMonthlyCSV() {

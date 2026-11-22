@@ -8,6 +8,8 @@ import { profileMatchesVisa, signatureImageHTML, signaturePeopleHTML, signatureU
 
 const MOIS_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
+export const ANNUAL_SYNTHESIS_TITLE = '📊 Fiche Synthèse Annuelle du Registre d\'Appel (Synthèse des Mois Arrêtés)';
+
 export function workingHalfDays(year, monthIndex) {
   const days = new Date(year, monthIndex + 1, 0).getDate();
   let count = 0;
@@ -84,19 +86,48 @@ export function computeMonthlyRegister(students, absences, startYear, joursPoint
     const counts = Object.entries(byStudent);
     const upTo3 = counts.filter(([, count]) => count <= 3);
     const over3 = counts.filter(([, count]) => count > 3);
+    const ge3 = counts.filter(([, count]) => count >= 3);
     const countByGender = (entries, sex) => entries.filter(([sid]) => gender[sid] === sex).length;
-    const absByGender = sex => over3.filter(([sid]) => gender[sid] === sex).reduce((sum, [, count]) => sum + count, 0);
+    const absByGender = (entries, sex) => entries.filter(([sid]) => gender[sid] === sex).reduce((sum, [, count]) => sum + count, 0);
     const pct = (n, d) => d ? Math.round((n / d) * 1000) / 10 : 0;
     return {
       name: m.name, demi, boys, girls, total,
       possG, possF, possT, effG, effF, effT, absG, absF, absT,
       upTo3G: countByGender(upTo3, 'M'), upTo3F: countByGender(upTo3, 'F'),
       over3G: countByGender(over3, 'M'), over3F: countByGender(over3, 'F'),
-      over3AbsG: absByGender('M'), over3AbsF: absByGender('F'),
+      ge3G: countByGender(ge3, 'M'), ge3F: countByGender(ge3, 'F'),
+      over3AbsG: absByGender(over3, 'M'), over3AbsF: absByGender(over3, 'F'),
+      ge3AbsG: absByGender(ge3, 'M'), ge3AbsF: absByGender(ge3, 'F'),
       pctPresG: pct(effG, possG), pctPresF: pct(effF, possF), pctPresT: pct(effT, possT),
       pctAbsG: pct(absG, possG), pctAbsF: pct(absF, possF), pctAbsT: pct(absT, possT)
     };
   });
+}
+
+/**
+ * Agrège les lignes mensuelles (Octobre → Mai) en une ligne annuelle
+ * « Total / Moyenne Annuelle » : sommes pour les volumes, maximum pour
+ * l'effectif et les comptages d'élèves, moyennes pondérées pour les taux.
+ */
+export function computeAnnualTotals(rows) {
+  const list = rows || [];
+  const sum = key => list.reduce((acc, r) => acc + (Number(r[key]) || 0), 0);
+  const max = key => list.reduce((acc, r) => Math.max(acc, Number(r[key]) || 0), 0);
+  const possG = sum('possG'), possF = sum('possF'), possT = sum('possT');
+  const absG = sum('absG'), absF = sum('absF'), absT = sum('absT');
+  const effG = sum('effG'), effF = sum('effF'), effT = sum('effT');
+  const ge3AbsG = sum('ge3AbsG'), ge3AbsF = sum('ge3AbsF');
+  const pct = (n, d) => d ? Math.round((n / d) * 1000) / 10 : 0;
+  return {
+    name: 'Total / Moyenne Annuelle',
+    demi: sum('demi'),
+    boys: max('boys'), girls: max('girls'), total: max('total'),
+    possG, possF, possT, absG, absF, absT, effG, effF, effT,
+    ge3G: max('ge3G'), ge3F: max('ge3F'),
+    ge3AbsG, ge3AbsF,
+    pctPresG: pct(effG, possG), pctPresF: pct(effF, possF), pctPresT: pct(effT, possT),
+    pctAbsG: pct(absG, possG), pctAbsF: pct(absF, possF), pctAbsT: pct(absT, possT)
+  };
 }
 
 export function renderMonthlyRegisterTable(rows, options = {}) {
@@ -104,47 +135,75 @@ export function renderMonthlyRegisterTable(rows, options = {}) {
   const visaEncadreurByMonth = options.visaEncadreurByMonth || {};
   const visaDirecteurProfile = options.visaDirecteurProfile || null;
   const visaEncadreurProfile = options.visaEncadreurProfile || null;
-  const visaAction = options.visaAction || '';
+  const visaDirectorStamps = options.visaDirectorStamps || {};
+  const visaEncadreurStamps = options.visaEncadreurStamps || {};
+
   const cell = (value, gender) => {
-    const color = gender === 'F' ? 'color:#dc2626' : (gender === 'T' ? 'color:#16a34a;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact' : '');
+    const color = gender === 'F'
+      ? 'color:#dc2626'
+      : (gender === 'T'
+        ? 'color:#16a34a;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact'
+        : 'color:#111827');
     return `<td style="border:1px solid #333;padding:4px;text-align:center;${color}">${value}</td>`;
   };
   const group = (g, f, t) => cell(g, 'M') + cell(f, 'F') + cell(t, 'T');
-  const directorStampHTML = (month) => {
-    const stamp = visaDirectorStamps[month] || null;
-    const signatureUrl = (stamp && stamp.signatureUrl) || signatureUrlForProfile(visaDirecteurProfile);
-    const img = signatureImageHTML(signatureUrl, 'Signature du Directeur', 'max-height:36px;width:auto;height:auto;object-fit:contain;margin:0 auto 4px;display:block');
-    if (!stamp) return `<div><span style="color:#64748b">En attente de visa</span></div>`;
-    const value = visaDirecteurByMonth[month] || stamp.nom || '';
-    const name = stamp.nom || value;
-    return `<div>${img}${esc('Vu ce jour ' + (stamp.date || ''))}<br/>${esc('Visé par ' + name)}</div>`;
+
+  const stampCell = (month, byMonth, stamps, profile, altLabel) => {
+    const stamp = stamps[month] || null;
+    const storedValue = byMonth[month] || '';
+    const name = (stamp && stamp.nom) || storedValue || '';
+    const date = (stamp && stamp.date) || '';
+    const signatureUrl = (stamp && stamp.signatureUrl) || signatureUrlForProfile(profile);
+    const img = signatureImageHTML(signatureUrl, altLabel, 'max-height:36px;width:auto;height:auto;object-fit:contain;margin:4px auto 0;display:block');
+    if (!stamp && !storedValue) {
+      return `<td style="border:1px solid #333;padding:4px;text-align:center;min-width:120px"><span style="color:#64748b">En attente de visa</span></td>`;
+    }
+    const dateLine = date ? `Vu ce jour ${esc(date)}` : '';
+    const nameLine = name ? esc(name) : '';
+    return `<td style="border:1px solid #333;padding:4px;text-align:center;min-width:120px">${dateLine ? dateLine + '<br/>' : ''}${nameLine}${img}</td>`;
   };
-  const encadreurStampHTML = (month) => {
-    const stamp = visaEncadreurStamps[month] || null;
-    const signatureUrl = (stamp && stamp.signatureUrl) || signatureUrlForProfile(visaEncadreurProfile);
-    const img = signatureImageHTML(signatureUrl, 'Signature de l\'Encadreur', 'max-height:36px;width:auto;height:auto;object-fit:contain;margin:0 auto 4px;display:block');
-    if (!stamp) return `<div><span style="color:#64748b">En attente de visa</span></div>`;
-    const value = visaEncadreurByMonth[month] || stamp.nom || '';
-    const name = stamp.nom || value;
-    return `<div>${img}${esc('Vu ce jour ' + (stamp.date || ''))}<br/>${esc('Visé par ' + name)}</div>`;
-  };
-  const visaDirectorCell = (month) => {
-    const stamp = visaDirectorStamps[month] || null;
-    const signed = !!stamp;
-    if (signed) return `<td style="border:1px solid #333;padding:4px;text-align:center;min-width:120px">${directorStampHTML(month)}</td>`;
-    const value = visaDirecteurByMonth[month] || '';
-    return `<td style="border:1px solid #333;padding:4px;text-align:center;min-width:120px"><div>${value ? esc(value) : '<span style="color:#64748b">En attente de visa</span>'}</div></td>`;
-  };
-  const visaEncadreurCell = (month) => {
-    const stamp = visaEncadreurStamps[month] || null;
-    const signed = !!stamp;
-    if (signed) return `<td style="border:1px solid #333;padding:4px;text-align:center;min-width:120px">${encadreurStampHTML(month)}</td>`;
-    const value = visaEncadreurByMonth[month] || '';
-    return `<td style="border:1px solid #333;padding:4px;text-align:center;min-width:120px"><div>${value ? esc(value) : '<span style="color:#64748b">En attente de visa</span>'}</div></td>`;
-  };
+
+  const monthRows = (rows || []).map(r => `
+    <tr>
+      ${cell(`<strong>${esc(r.name)}</strong>`, '')}
+      ${cell(r.demi, '')}
+      ${group(r.boys, r.girls, r.total)}
+      ${group(r.possG, r.possF, r.possT)}
+      ${group(r.absG, r.absF, r.absT)}
+      ${group(r.effG, r.effF, r.effT)}
+      ${group(r.ge3G, r.ge3F, (r.ge3G || 0) + (r.ge3F || 0))}
+      ${group(r.ge3AbsG, r.ge3AbsF, (r.ge3AbsG || 0) + (r.ge3AbsF || 0))}
+      ${group(r.pctPresG + '%', r.pctPresF + '%', r.pctPresT + '%')}
+      ${group(r.pctAbsG + '%', r.pctAbsF + '%', r.pctAbsT + '%')}
+      ${stampCell(r.name, visaDirecteurByMonth, visaDirectorStamps, visaDirecteurProfile, 'Signature du Directeur')}
+      ${stampCell(r.name, visaEncadreurByMonth, visaEncadreurStamps, visaEncadreurProfile, "Signature de l'Encadreur")}
+    </tr>
+  `).join('');
+
+  const totals = computeAnnualTotals(rows);
+  const totalRow = (rows && rows.length) ? `
+    <tr style="background:#f1f5f9">
+      ${cell('<strong>Total / Moyenne Annuelle</strong>', '')}
+      ${cell(totals.demi, '')}
+      ${group(totals.boys, totals.girls, totals.total)}
+      ${group(totals.possG, totals.possF, totals.possT)}
+      ${group(totals.absG, totals.absF, totals.absT)}
+      ${group(totals.effG, totals.effF, totals.effT)}
+      ${group(totals.ge3G, totals.ge3F, totals.ge3G + totals.ge3F)}
+      ${group(totals.ge3AbsG, totals.ge3AbsF, totals.ge3AbsG + totals.ge3AbsF)}
+      ${group(totals.pctPresG + '%', totals.pctPresF + '%', totals.pctPresT + '%')}
+      ${group(totals.pctAbsG + '%', totals.pctAbsF + '%', totals.pctAbsT + '%')}
+      ${cell('', '')}
+      ${cell('', '')}
+    </tr>` : '';
+
+  const emptyRow = (!rows || !rows.length)
+    ? '<tr><td colspan="28" style="border:1px solid #333;padding:10px;text-align:center;color:#64748b">Aucun mois arrêté pour le moment.</td></tr>'
+    : '';
+
   return `
-    <div class="table-wrap monthly-register-wrap monthly-register-sheet">
-      <table class="monthly-register-table" style="border-collapse:collapse;min-width:1600px;width:100%">
+    <div class="table-wrap monthly-register-wrap monthly-register-sheet" style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <table class="monthly-register-table" style="border-collapse:collapse;min-width:1500px;width:100%">
         <thead>
           <tr>
             <th rowspan="2">Mois</th>
@@ -153,35 +212,16 @@ export function renderMonthlyRegisterTable(rows, options = {}) {
             <th colspan="3" style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px">Présences possibles</th>
             <th colspan="3" style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px">Absences</th>
             <th colspan="3" style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px">Présences effectives</th>
-            <th colspan="3" style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px">Élèves ≤ 3 absences</th>
-            <th colspan="3" style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px">Élèves &gt; 3 absences</th>
-            <th colspan="3" style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px">Absences imputables (&gt; 3 abs.)</th>
-            <th colspan="3" style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px">Taux présence (%)</th>
-            <th colspan="3" style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px">Taux absence (%)</th>
+            <th colspan="3" style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px">Élèves ayant ≥ 3 absences</th>
+            <th colspan="3" style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px">Total absences imputables aux élèves ayant ≥ 3 absences</th>
+            <th colspan="3" style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px">Taux de présence (%)</th>
+            <th colspan="3" style="writing-mode:vertical-rl;transform:rotate(180deg);height:112px">Taux d'absence (%)</th>
             <th rowspan="2">Visa du Directeur</th>
             <th rowspan="2">Visa de l'Encadreur</th>
           </tr>
-          <tr>${'<th>G</th><th style="color:#dc2626">F</th><th style="color:#16a34a">T</th>'.repeat(9)}</tr>
+          <tr>${'<th>G</th><th style="color:#dc2626">F</th><th style="color:#16a34a">T</th>'.repeat(8)}</tr>
         </thead>
-        <tbody>
-          ${rows.map(r => `
-            <tr>
-              ${cell(`<strong>${esc(r.name)}</strong>`, '')}
-              ${cell(r.demi, '')}
-              ${group(r.boys, r.girls, r.total)}
-              ${group(r.possG, r.possF, r.possT)}
-              ${group(r.absG, r.absF, r.absT)}
-              ${group(r.effG, r.effF, r.effT)}
-              ${group(r.upTo3G, r.upTo3F, r.upTo3G + r.upTo3F)}
-              ${group(r.over3G, r.over3F, r.over3G + r.over3F)}
-              ${group(r.over3AbsG, r.over3AbsF, r.over3AbsG + r.over3AbsF)}
-              ${group(r.pctPresG + '%', r.pctPresF + '%', r.pctPresT + '%')}
-              ${group(r.pctAbsG + '%', r.pctAbsF + '%', r.pctAbsT + '%')}
-              ${visaCell(visaDirecteurByMonth[r.name], r.name, 'visa-directeur', visaDirecteurProfile)}
-              ${visaCell(visaEncadreurByMonth[r.name], r.name, 'visa-encadreur', visaEncadreurProfile)}
-            </tr>
-          `).join('') || '<tr><td colspan="31" style="padding:10px;text-align:center">Aucun mois clôturé.</td></tr>'}
-        </tbody>
+        <tbody>${monthRows}${totalRow}${emptyRow}</tbody>
       </table>
     </div>`;
 }
@@ -191,34 +231,43 @@ export function monthlyRegisterCSVRows(rows, options = {}) {
   const visaEncadreurByMonth = options.visaEncadreurByMonth || {};
   const header = [
     'Mois', 'Nombre de demi-journées',
-    'Effectif inscrit - Garçons', 'Effectif inscrit - Filles', 'Effectif inscrit - Total',
+    'Effectif - Garçons', 'Effectif - Filles', 'Effectif - Total',
     'Présences possibles - Garçons', 'Présences possibles - Filles', 'Présences possibles - Total',
     'Absences - Garçons', 'Absences - Filles', 'Absences - Total',
     'Présences effectives - Garçons', 'Présences effectives - Filles', 'Présences effectives - Total',
-    'Élèves ayant 3 absences ou moins (≤ 3 absences) - Garçons', 'Élèves ayant 3 absences ou moins (≤ 3 absences) - Filles', 'Élèves ayant 3 absences ou moins (≤ 3 absences) - Total',
-    'Élèves ayant plus de 3 absences - Garçons', 'Élèves ayant plus de 3 absences - Filles', 'Élèves ayant plus de 3 absences - Total',
-    'Absences imputables > 3 - Garçons', 'Absences imputables > 3 - Filles', 'Absences imputables > 3 - Total',
+    'Élèves ayant ≥ 3 absences - Garçons', 'Élèves ayant ≥ 3 absences - Filles', 'Élèves ayant ≥ 3 absences - Total',
+    'Total absences imputables aux élèves ayant ≥ 3 absences - Garçons', 'Total absences imputables aux élèves ayant ≥ 3 absences - Filles', 'Total absences imputables aux élèves ayant ≥ 3 absences - Total',
     'Taux de présence (%) - Garçons', 'Taux de présence (%) - Filles', 'Taux de présence (%) - Total',
     'Taux d’absence (%) - Garçons', 'Taux d’absence (%) - Filles', 'Taux d’absence (%) - Total',
     'Visa du Directeur', 'Visa de l’Encadreur'
   ];
-  return [
-    header,
-    ...rows.map(r => [
-      r.name, r.demi,
-      r.boys, r.girls, r.total,
-      r.possG, r.possF, r.possT,
-      r.absG, r.absF, r.absT,
-      r.effG, r.effF, r.effT,
-      r.upTo3G, r.upTo3F, r.upTo3G + r.upTo3F,
-      r.over3G, r.over3F, r.over3G + r.over3F,
-      r.over3AbsG, r.over3AbsF, r.over3AbsG + r.over3AbsF,
-      r.pctPresG, r.pctPresF, r.pctPresT,
-      r.pctAbsG, r.pctAbsF, r.pctAbsT,
-      visaDirecteurByMonth[r.name] || 'Non visé',
-      visaEncadreurByMonth[r.name] || 'Non visé'
-    ])
-  ];
+  const dataRows = (rows || []).map(r => [
+    r.name, r.demi,
+    r.boys, r.girls, r.total,
+    r.possG, r.possF, r.possT,
+    r.absG, r.absF, r.absT,
+    r.effG, r.effF, r.effT,
+    r.ge3G, r.ge3F, (r.ge3G || 0) + (r.ge3F || 0),
+    r.ge3AbsG, r.ge3AbsF, (r.ge3AbsG || 0) + (r.ge3AbsF || 0),
+    r.pctPresG, r.pctPresF, r.pctPresT,
+    r.pctAbsG, r.pctAbsF, r.pctAbsT,
+    visaDirecteurByMonth[r.name] || 'Non visé',
+    visaEncadreurByMonth[r.name] || 'Non visé'
+  ]);
+  const totals = computeAnnualTotals(rows);
+  const totalRow = (rows && rows.length) ? [[
+    'Total / Moyenne Annuelle', totals.demi,
+    totals.boys, totals.girls, totals.total,
+    totals.possG, totals.possF, totals.possT,
+    totals.absG, totals.absF, totals.absT,
+    totals.effG, totals.effF, totals.effT,
+    totals.ge3G, totals.ge3F, totals.ge3G + totals.ge3F,
+    totals.ge3AbsG, totals.ge3AbsF, totals.ge3AbsG + totals.ge3AbsF,
+    totals.pctPresG, totals.pctPresF, totals.pctPresT,
+    totals.pctAbsG, totals.pctAbsF, totals.pctAbsT,
+    '', ''
+  ]] : [];
+  return [header, ...dataRows, ...totalRow];
 }
 export function halfDaysForMonthLabel(startYear, monthName) {
   const months = schoolMonths(startYear);

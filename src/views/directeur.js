@@ -6,7 +6,7 @@
 import { esc, formatClassName, normalizeNotes } from '../utils/format.js';
 import { downloadCSV, printPage, wirePDFExportButton, wireWordExportButton } from '../utils/export.js';
 import { renderBulletinsHTML } from '../utils/bulletin.js';
-import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTable, computeFicheArretMensuel, renderFicheArretMensuelHTML, monthlyClosureCSVRows, schoolMonths, formatVisaStampDate } from '../utils/registre.js';
+import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTable, computeFicheArretMensuel, renderFicheArretMensuelHTML, monthlyClosureCSVRows, schoolMonths, formatVisaStampDate, ANNUAL_SYNTHESIS_TITLE } from '../utils/registre.js';
 import { openPreview } from '../utils/preview.js';
 import { profileMatchesVisa, signatureBlockHTML, signatureUrlForProfile } from '../utils/signature.js';
 import { computeSubjectRows } from '../utils/synthese.js';
@@ -833,8 +833,14 @@ export function setupDirecteur(container, state, render, supabase) {
         : '<option value="">Aucun mois clôturé</option>';
     }
     if (!closedMonths.length) {
-      sheetEl.innerHTML = '<p style="color:#64748b">Aucun mois clôturé pour cette classe.</p>';
-      viewContainer.querySelector('#dirRegSummary')?.closest('.monthly-register-sheet')?.remove();
+      sheetEl.innerHTML = '<p style="color:#64748b">Aucun mois clôturé pour cette classe. La Fiche Synthèse Annuelle ci-dessous reste visible et se remplira au fil des mois arrêtés.</p>';
+      dirCurrentFiche = null;
+      dirMonthlyRows = [];
+      dirVisaDirecteurByMonth = {};
+      dirVisaEncadreurByMonth = {};
+      dirVisaDirectorStamps = {};
+      dirVisaEncadreurStamps = {};
+      renderDirRegSummaryPanel(cls);
       return;
     }
     if (dirFicheMonthIdx >= closedMonths.length) dirFicheMonthIdx = 0;
@@ -875,20 +881,28 @@ export function setupDirecteur(container, state, render, supabase) {
       showVisaButton: true,
       onVisaLabel: 'visa-directeur'
     });
+    renderDirRegSummaryPanel(cls);
+  }
+
+  function renderDirRegSummaryPanel(cls) {
     let summaryPanel = viewContainer.querySelector('#dirRegSummary')?.closest('.monthly-register-sheet');
     if (!summaryPanel) {
       summaryPanel = document.createElement('div');
       summaryPanel.className = 'card monthly-register-sheet';
       summaryPanel.style.marginTop = '16px';
-      const ficheCard = sheetEl.closest('.card');
-      ficheCard.parentElement.insertBefore(summaryPanel, ficheCard.nextSibling);
+      const ficheCard = viewContainer.querySelector('#dirRegSheet')?.closest('.card');
+      if (ficheCard && ficheCard.parentElement) {
+        ficheCard.parentElement.insertBefore(summaryPanel, ficheCard.nextSibling);
+      } else {
+        viewContainer.appendChild(summaryPanel);
+      }
     }
     summaryPanel.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-        <h3 style="margin:0">Synthèse des Mois Arrêtés (Octobre à Mai)</h3>
+        <h3 style="margin:0">${ANNUAL_SYNTHESIS_TITLE}${cls ? ' — ' + esc(formatClassName(cls)) : ''}</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button type="button" class="btn" data-action="dir-reg-summary-preview">👁 Aperçu</button>
-          <button type="button" class="btn" data-action="dir-reg-summary-pdf">📄 Exporter en PDF</button>
+          <button type="button" class="btn" data-action="dir-reg-summary-pdf">📄 PDF (A4 paysage)</button>
           <button type="button" class="btn secondary" data-action="dir-reg-summary-print">🖨️ Imprimer</button>
           <button type="button" class="btn" data-action="dir-reg-summary-csv">📥 Excel/CSV</button>
         </div>
