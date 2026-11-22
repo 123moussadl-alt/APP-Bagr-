@@ -467,6 +467,25 @@ export function setupTitulaire(container, state, render, supabase) {
 
     const list = students || [];
 
+    const girlRowStyle = 'color:#dc2626;font-weight:600;';
+    const splitName = (fullName) => {
+      const parts = String(fullName || '').trim().split(/\s+/);
+      return { nom: parts[0] || '', prenom: parts.slice(1).join(' ') };
+    };
+    const entryRows = (subject) => list.map((s, i) => {
+      const st = s.gender === 'F' ? girlRowStyle : '';
+      const { nom, prenom } = splitName(s.full_name);
+      return `
+        <tr data-entry-row="${esc(s.id)}" data-gender="${esc(s.gender)}">
+          <td style="${st}">${i + 1}</td>
+          <td style="${st}">${esc(nom)}</td>
+          <td style="${st}">${esc(prenom)}</td>
+          <td style="${st}">${s.gender === 'M' ? 'M' : 'F'}</td>
+          <td style="${st}"><input type="number" step="0.01" min="0" max="${esc(subject ? subject.max : '')}" value="" class="grade-input" data-student="${esc(s.id)}" data-subject="${esc(subject ? subject.id : '')}"></td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="5">Aucun élève</td></tr>';
+
+    const initialSubject = subjects[0] || null;
     viewContainer.innerHTML = `
       <div class="card">
         <h3>Cahier de notes — ${esc(formatClassName(cls))}</h3>
@@ -479,10 +498,34 @@ export function setupTitulaire(container, state, render, supabase) {
               <option value="3">3e Trimestre</option>
             </select>
           </div>
+          <div class="form-group" style="margin:0;min-width:240px">
+            <label>Matière à noter</label>
+            <select id="subjectSelect">
+              ${subjects.map((s, idx) => `<option value="${esc(s.id)}"${idx === 0 ? ' selected' : ''}>${esc(s.name)} (/ ${esc(s.max)})</option>`).join('') || '<option value="">Aucune matière</option>'}
+            </select>
+          </div>
           <button class="btn secondary" data-action="go-matieres" style="margin-bottom:2px">📚 Gérer les matières</button>
           <button class="btn" data-action="save-all-notes" id="saveNotesBtn" style="margin-bottom:2px">💾 Enregistrer les notes</button>
         </div>
-        <div class="table-wrap" style="margin-top:12px">
+
+        <h4 style="margin:18px 0 6px;font-size:15px">✍️ Saisie rapide — <span id="entrySubjectLabel">${esc(initialSubject ? initialSubject.name + ' (/ ' + initialSubject.max + ')' : '')}</span></h4>
+        <div class="table-wrap">
+          <table id="gradeEntryTable">
+            <thead>
+              <tr>
+                <th>N°</th>
+                <th>Nom</th>
+                <th>Prénom</th>
+                <th>Sexe</th>
+                <th id="entryNoteHeader">Note${initialSubject ? ' — ' + esc(initialSubject.name) + ' (/ ' + esc(initialSubject.max) + ')' : ''}</th>
+              </tr>
+            </thead>
+            <tbody id="gradeEntryBody">${entryRows(initialSubject)}</tbody>
+          </table>
+        </div>
+
+        <h4 style="margin:22px 0 6px;font-size:15px">📊 Tableau récapitulatif des notes</h4>
+        <div class="table-wrap" style="margin-top:6px">
           <table>
             <thead>
               <tr>
@@ -490,29 +533,26 @@ export function setupTitulaire(container, state, render, supabase) {
                 <th>Élève</th>
                 <th>Sexe</th>
                 ${subjects.map(s => `<th>${esc(s.name)} <span style="font-weight:400;color:#64748b">(/${esc(s.max)})</span></th>`).join('')}
-                <th>Total</th>
-                <th>Moyenne /10</th>
-                <th>Rang</th>
+                <th style="color:#15803d;background-color:#f0fdf4">Total</th>
+                <th style="color:#1d4ed8;background-color:#eff6ff">Moyenne /10</th>
+                <th style="color:#7e22ce;background-color:#faf5ff">Rang</th>
               </tr>
             </thead>
             <tbody>
-              ${list.map((s, i) => `
-                <tr data-student-row="${esc(s.id)}">
-                  <td>${i + 1}</td>
-                  <td>${s.gender === 'F' ? `<strong style="color:#dc2626">${esc(s.full_name)}</strong>` : `<strong>${esc(s.full_name)}</strong>`}${s.status === 'A' ? ' <span style="color:#64748b;font-weight:700">(A)</span>' : ''}</td>
-                  <td>${s.gender === 'M' ? 'M' : 'F'}</td>
-                  ${subjects.map(sub => `
-                    <td>
-                      <input type="number" step="0.01" min="0" max="${esc(sub.max)}" value=""
-                        class="grade-input"
-                        data-student="${esc(s.id)}" data-subject="${esc(sub.id)}">
-                    </td>
-                  `).join('')}
-                  <td class="total-cell">—</td>
-                  <td class="moyenne-cell">—</td>
-                  <td class="rang-cell">—</td>
-                </tr>
-              `).join('') || `<tr><td colspan="${subjects.length + 6}">Aucun élève</td></tr>`}
+              ${list.map((s, i) => {
+                const st = s.gender === 'F' ? girlRowStyle : '';
+                const nameCell = `<strong>${esc(s.full_name)}</strong>${s.status === 'A' ? ' <span style="color:#64748b;font-weight:700">(A)</span>' : ''}`;
+                return `
+                <tr data-student-row="${esc(s.id)}" data-gender="${esc(s.gender)}">
+                  <td style="${st}">${i + 1}</td>
+                  <td style="${st}">${nameCell}</td>
+                  <td style="${st}">${s.gender === 'M' ? 'M' : 'F'}</td>
+                  ${subjects.map(sub => `<td style="${st}"><input type="number" step="0.01" min="0" max="${esc(sub.max)}" value="" class="grade-input" data-student="${esc(s.id)}" data-subject="${esc(sub.id)}"></td>`).join('')}
+                  <td class="total-cell" style="color:#15803d;background-color:#f0fdf4;font-weight:700;${st}">—</td>
+                  <td class="moyenne-cell" style="color:#1d4ed8;background-color:#eff6ff;font-weight:700;${st}">—</td>
+                  <td class="rang-cell" style="color:#7e22ce;background-color:#faf5ff;font-weight:700;${st}">—</td>
+                </tr>`;
+              }).join('') || `<tr><td colspan="${subjects.length + 6}">Aucun élève</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -520,9 +560,38 @@ export function setupTitulaire(container, state, render, supabase) {
     `;
 
     const termSelect = viewContainer.querySelector('#termSelect');
+    const subjectSelect = viewContainer.querySelector('#subjectSelect');
     if (termSelect) {
       await loadGradesIntoInputs(list, subjects, termSelect.value);
       termSelect.addEventListener('change', () => loadGradesIntoInputs(list, subjects, termSelect.value));
+    }
+    if (subjectSelect) {
+      subjectSelect.addEventListener('change', () => {
+        const sub = subjects.find(s => s.id === subjectSelect.value) || null;
+        const label = viewContainer.querySelector('#entrySubjectLabel');
+        if (label) label.textContent = sub ? `${sub.name} (/ ${sub.max})` : '';
+        const header = viewContainer.querySelector('#entryNoteHeader');
+        if (header) header.textContent = sub ? `Note — ${sub.name} (/ ${sub.max})` : 'Note';
+        const body = viewContainer.querySelector('#gradeEntryBody');
+        if (body) {
+          body.innerHTML = list.map((s, i) => {
+            const st = s.gender === 'F' ? girlRowStyle : '';
+            const parts = String(s.full_name || '').trim().split(/\s+/);
+            const nom = parts[0] || '';
+            const prenom = parts.slice(1).join(' ');
+            return `
+              <tr data-entry-row="${esc(s.id)}" data-gender="${esc(s.gender)}">
+                <td style="${st}">${i + 1}</td>
+                <td style="${st}">${esc(nom)}</td>
+                <td style="${st}">${esc(prenom)}</td>
+                <td style="${st}">${s.gender === 'M' ? 'M' : 'F'}</td>
+                <td style="${st}"><input type="number" step="0.01" min="0" max="${esc(sub ? sub.max : '')}" value="" class="grade-input" data-student="${esc(s.id)}" data-subject="${esc(sub ? sub.id : '')}"></td>
+              </tr>`;
+          }).join('') || '<tr><td colspan="5">Aucun élève</td></tr>';
+        }
+        loadGradesIntoInputs(list, subjects, termSelect ? termSelect.value : '1');
+        recomputeAverages();
+      });
     }
     recomputeAverages();
   }
@@ -552,12 +621,17 @@ export function setupTitulaire(container, state, render, supabase) {
 
   function recomputeAverages() {
     const rows = Array.from(viewContainer.querySelectorAll('[data-student-row]'));
+    const entryValues = {};
+    viewContainer.querySelectorAll('#gradeEntryTable .grade-input').forEach(inp => {
+      entryValues[`${inp.dataset.student}:${inp.dataset.subject}`] = inp.value;
+    });
     const stats = [];
     rows.forEach(row => {
       let sumPoints = 0, sumPN = 0, sumCoef = 0, count = 0;
       row.querySelectorAll('.grade-input').forEach(inp => {
         const sub = currentSubjects.find(s => s.id === inp.dataset.subject);
-        const raw = inp.value;
+        const key = `${inp.dataset.student}:${inp.dataset.subject}`;
+        const raw = (key in entryValues) ? entryValues[key] : inp.value;
         if (raw !== '' && raw != null && sub) {
           const num = parseFloat(raw);
           if (!isNaN(num)) {
@@ -614,18 +688,19 @@ export function setupTitulaire(container, state, render, supabase) {
 
   async function saveAllNotes() {
     const term = parseInt(viewContainer.querySelector('#termSelect')?.value || '1', 10);
-    const rows = Array.from(viewContainer.querySelectorAll('[data-student-row]'));
+    const seen = new Set();
     let ok = 0, fail = 0, firstErr = null;
-    for (const row of rows) {
-      const eleveId = row.dataset.studentRow;
-      for (const inp of row.querySelectorAll('.grade-input')) {
-        const raw = inp.value;
-        if (raw === '' || raw == null) continue;
-        const sub = currentSubjects.find(s => s.id === inp.dataset.subject);
-        const res = await saveNoteRow(eleveId, inp.dataset.subject, term, parseFloat(raw), sub ? sub.max : null);
-        if (res.ok) ok++;
-        else { fail++; if (!firstErr && res.error) firstErr = res.error; }
-      }
+    const inputs = Array.from(viewContainer.querySelectorAll('.grade-input'));
+    for (const inp of inputs) {
+      const key = `${inp.dataset.student}:${inp.dataset.subject}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const raw = inp.value;
+      if (raw === '' || raw == null) continue;
+      const sub = currentSubjects.find(s => s.id === inp.dataset.subject);
+      const res = await saveNoteRow(inp.dataset.student, inp.dataset.subject, term, parseFloat(raw), sub ? sub.max : null);
+      if (res.ok) ok++;
+      else { fail++; if (!firstErr && res.error) firstErr = res.error; }
     }
     if (ok === 0 && fail === 0) { gradeToast('Aucune note à enregistrer.'); return; }
     if (fail > 0 && firstErr) {
@@ -2592,6 +2667,11 @@ export function setupTitulaire(container, state, render, supabase) {
       return;
     }
     if (e.target.classList.contains('grade-input')) {
+      const studentId = e.target.dataset.student;
+      const subjectId = e.target.dataset.subject;
+      viewContainer.querySelectorAll(`.grade-input[data-student="${studentId}"][data-subject="${subjectId}"]`).forEach(inp => {
+        if (inp !== e.target) inp.value = e.target.value;
+      });
       saveGrade(e.target);
       recomputeAverages();
     } else if (e.target.id === 'stuHandicap') {
