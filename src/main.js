@@ -285,6 +285,29 @@ const viewExports = {
   'admin-principal': 'AdminPrincipal'
 };
 
+function renderViewFallback(view, error) {
+  const message = error && error.message ? error.message : String(error || 'Erreur inconnue');
+  appRoot.innerHTML = `
+    <div style="max-width:720px;margin:40px auto;padding:24px;background:#fff;border:1px solid #fecaca;border-left:4px solid #dc2626;border-radius:10px;font-family:inherit">
+      <h2 style="margin:0 0 8px;color:#b91c1c;font-size:18px">Erreur de chargement de la vue</h2>
+      <p style="margin:0 0 8px;color:#475569">La vue « ${esc(view || 'inconnue')} » n'a pas pu être chargée.</p>
+      <pre style="white-space:pre-wrap;word-break:break-word;background:#fef2f2;color:#991b1b;padding:10px;border-radius:6px;font-size:12px;margin:0 0 14px">${esc(message)}</pre>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn" id="viewErrorRetry">🔄 Réessayer</button>
+        <button type="button" class="btn secondary" id="viewErrorHome">🏠 Retour à l'accueil</button>
+      </div>
+    </div>`;
+  const retry = appRoot.querySelector('#viewErrorRetry');
+  if (retry) retry.addEventListener('click', () => render());
+  const home = appRoot.querySelector('#viewErrorHome');
+  if (home) {
+    home.addEventListener('click', () => {
+      state.view = viewForRole((state.profile || {}).role) || 'dashboard';
+      render();
+    });
+  }
+}
+
 function render() {
   if (!appRoot) return;
   if (state.profile && state.profile.est_actif === false && state.authenticatedAppRole !== 'super_admin' && !state.preview) {
@@ -312,7 +335,8 @@ function render() {
   if (!loader) return;
 
   loader().then(module => {
-    if (view === 'login' || view === 'admin-login' || view === 'register') {
+    try {
+      if (view === 'login' || view === 'admin-login' || view === 'register') {
       const isLoginView = view === 'login' || view === 'admin-login';
       const renderFn = view === 'register'
         ? module.renderRegister
@@ -349,14 +373,25 @@ function render() {
     const suffix = viewExports[view] || '';
     const renderFn = module[`render${suffix}`] || module.default;
     if (!renderFn) return;
-    appRoot.innerHTML = renderFn(state, render, supabase);
-    mountSettingsButton();
+    appRoot.innerHTML = renderFn(state, render, supabase) || '';
+    try { mountSettingsButton(); } catch (buttonError) { console.warn('Barre de paramètres non montée :', buttonError); }
 
     const setupFn = module[`setup${suffix}`];
-    if (setupFn) setupFn(appRoot, state, render, supabase);
+    if (setupFn) {
+      try {
+        setupFn(appRoot, state, render, supabase);
+      } catch (setupError) {
+        console.error('Erreur dans l’initialisation de la vue « ' + view + ' » :', setupError);
+        showToast('La vue s’est chargée partiellement : ' + (setupError && setupError.message ? setupError.message : setupError));
+      }
+    }
+    } catch (error) {
+      console.error('Erreur de rendu de la vue « ' + view + ' » :', error);
+      renderViewFallback(view, error);
+    }
   }).catch(err => {
-    console.error('Erreur de rendu de la vue :', err);
-    appRoot.innerHTML = '<div style="padding:2rem;color:#dc2626">Erreur de chargement de la vue. Vérifiez la console.</div>';
+    console.error('Erreur de chargement du module de vue « ' + view + ' » :', err);
+    renderViewFallback(view, err);
   });
 }
 
@@ -1063,9 +1098,9 @@ async function openSettings() {
       const updatedProfile = { ...profile, id: userId, ...profilePayload };
       if (state.realProfile && state.realProfile.id === userId) state.realProfile = updatedProfile;
       if (state.preview && state.realProfile) {
-        const previewName = state.profile.full_name;
+        const previewName = (state.profile || {}).full_name;
         state.profile = {
-          ...state.profile,
+          ...(state.profile || {}),
           ...updatedProfile,
           role: state.preview.role,
           full_name: previewName
@@ -1087,7 +1122,8 @@ async function openSettings() {
       const brand = document.querySelector('.role-brand span');
       if (brand) {
         const roleNames = { titulaire: 'Titulaire', directeur: 'Directeur', encadreur: 'Encadreur', chef_ceb: 'Chef CEB', chef_personnel: 'Chef du Personnel', statisticien: 'Statisticien', responsable_examens: 'Responsable des Examens et Concours' };
-        brand.textContent = `${roleNames[state.profile.role] || 'Utilisateur'} — ${state.profile.full_name}`;
+        const currentProfile = state.profile || {};
+        brand.textContent = `${roleNames[currentProfile.role] || 'Utilisateur'} — ${currentProfile.full_name || ''}`;
       }
       status.textContent = 'Paramètres enregistrés.';
       status.style.color = '#15803d';
@@ -1270,14 +1306,19 @@ function initPreviewBar() {
   renderPreviewBar();
 }
 
+let previewSchoolsCache = null;
+
 async function renderPreviewBar() {
   if (!previewBarEl) return;
-  let schools = mergeSchoolChoices();
-  try {
-    const r = await supabase.from('schools').select('id,name,ceb').order('name');
-    schools = mergeSchoolChoices(r.data || []);
-  } catch (e) {
-    schools = mergeSchoolChoices();
+  let schools = previewSchoolsCache || mergeSchoolChoices();
+  if (!previewSchoolsCache) {
+    try {
+      const r = await supabase.from('schools').select('id,name,ceb').order('name');
+      schools = mergeSchoolChoices(r.data || []);
+      previewSchoolsCache = schools;
+    } catch (e) {
+      schools = mergeSchoolChoices();
+    }
   }
 
   previewBarEl.innerHTML = `
@@ -1326,13 +1367,14 @@ async function loadPreviewClasses(schoolId) {
 
 function enterPreview(role) {
   if (!isPrincipalAdmin()) return;
-  if (!state.realProfile) state.realProfile = state.profile;
+  if (!state.realProfile) state.realProfile = state.profile || {};
   const schoolId = (previewBarEl && previewBarEl.querySelector('#pvSchool') && previewBarEl.querySelector('#pvSchool').value) || null;
   const classId = (previewBarEl && previewBarEl.querySelector('#pvClass') && previewBarEl.querySelector('#pvClass').value) || null;
+  const currentUserId = state.user && state.user.id ? state.user.id : ((state.realProfile || {}).id || null);
   state.preview = { role, schoolId, classId };
   state.profile = {
-    id: state.user.id,
-    identifiant: state.realProfile.identifiant,
+    id: currentUserId,
+    identifiant: (state.realProfile || {}).identifiant || '',
     full_name: '👁 Aperçu',
     role,
     school_id: schoolId,

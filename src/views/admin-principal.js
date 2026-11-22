@@ -143,9 +143,9 @@ export function setupAdminPrincipal(container, state, render, supabase) {
   }
 
   function renderAccounts(profiles) {
-    accountBody.innerHTML = profiles.map(profile => {
+    accountBody.innerHTML = (profiles || []).map(profile => {
       const profileRole = profile.role === 'chef-personnel' ? 'chef_personnel' : profile.role;
-      const readOnly = profile.role === 'super_admin' || profile.id === state.user.id;
+      const readOnly = profile.role === 'super_admin' || (state.user && state.user.id ? profile.id === state.user.id : false);
       const roleOptions = ADMIN_ROLES.map(([value, label]) =>
         `<option value="${value}" ${profileRole === value ? 'selected' : ''}>${label}</option>`
       ).join('');
