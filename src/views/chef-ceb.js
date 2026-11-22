@@ -163,19 +163,21 @@ export function setupChefCEB(container, state, render, supabase) {
       return staffProfiles.filter(profile => {
         const hasSchoolAssignment = [profile.ecole_id, profile.school_id, profile.ecole_nom]
           .some(value => String(value || '').trim());
+        const lieuEcole = String(profile.lieu_travail || '').trim().toLowerCase() === 'ecole';
         return ['titulaire', 'directeur'].includes(profile.role) &&
           profile.structure !== 'CEB' &&
-          hasSchoolAssignment;
+          hasSchoolAssignment &&
+          (lieuEcole || !profile.lieu_travail);
       });
     }
 
-    const cebRoles = ['encadreur', 'chef-personnel', 'chef_personnel', 'statisticien'];
+    const cebRoles = ['encadreur', 'chef-personnel', 'chef_personnel', 'statisticien', 'responsable_examens'];
     return staffProfiles.filter(profile => {
       const isCurrentChef = activeProfile.id && String(profile.id) === String(activeProfile.id);
-      return !isCurrentChef && (
-        profile.structure === 'CEB de Bagré' ||
-        cebRoles.includes(profile.role)
-      );
+      if (isCurrentChef) return false;
+      if (profile.role === 'chef_ceb' || profile.role === 'super_admin') return false;
+      const lieuCeb = String(profile.lieu_travail || '').trim().toLowerCase() === 'ceb';
+      return lieuCeb || profile.structure === 'CEB de Bagré' || cebRoles.includes(profile.role);
     });
   }
 
