@@ -1005,6 +1005,7 @@ export function setupTitulaire(container, state, render, supabase) {
           rows: currentAnnualBulletinRows,
           className: classLabel(cls),
           schoolName: currentAnnualBulletinSchool,
+          schoolYear: state.activeSchoolYear || '',
           teacherName: currentAnnualBulletinTeacher,
           teacherSigners: currentAnnualBulletinSigners,
           studentId
@@ -1042,6 +1043,7 @@ export function setupTitulaire(container, state, render, supabase) {
       rows: currentAnnualBulletinRows,
       className: classLabel(currentAnnualBulletinClass),
       schoolName: currentAnnualBulletinSchool,
+      schoolYear: state.activeSchoolYear || '',
       teacherName: currentAnnualBulletinTeacher,
       teacherSigners: currentAnnualBulletinSigners
     })}</div>`;

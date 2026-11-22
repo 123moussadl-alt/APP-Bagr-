@@ -62,6 +62,16 @@ export function renderRegister({ onLogin, onRegister }) {
             </select>
           </div>
 
+          <div class="form-group">
+            <label for="lieuTravailSelect">Lieu de travail</label>
+            <select name="lieu_travail" id="lieuTravailSelect">
+              <option value="">-- Choisir --</option>
+              <option value="Ecole">École</option>
+              <option value="CEB">Bureau de la CEB</option>
+            </select>
+            <small>« École » pour les titulaires et directeurs ; « Bureau de la CEB » pour le personnel de la circonscription.</small>
+          </div>
+
           <div id="roleFields" style="display:none;margin-top:12px;padding:12px;background:#f1f5f9;border-radius:6px">
             <div id="schoolClassFields">
             <div class="form-group">
@@ -194,6 +204,11 @@ export function setupRegister(container, { onLogin, onRegister }) {
     }
 
     if (roleFields) roleFields.style.display = role ? 'block' : 'none';
+    const lieuTravailSelect = container.querySelector('#lieuTravailSelect');
+    if (lieuTravailSelect) {
+      const defaultLieu = (role === 'titulaire' || role === 'directeur') ? 'Ecole' : (role ? 'CEB' : '');
+      if (defaultLieu && !lieuTravailSelect.value) lieuTravailSelect.value = defaultLieu;
+    }
     if (schoolClassFields) schoolClassFields.style.display = needsSchool ? 'block' : 'none';
     if (encadreurSchoolsGroup) encadreurSchoolsGroup.style.display = isEncadreur ? 'block' : 'none';
     if (districtStructureGroup) districtStructureGroup.style.display = isDistrictRole ? 'block' : 'none';
@@ -276,6 +291,7 @@ export function setupRegister(container, { onLogin, onRegister }) {
             : schoolName,
           classLevel,
           className,
+          lieuTravail: (formData.get('lieu_travail') || '').trim() || null,
           whatsapp: (formData.get('whatsapp') || '').trim(),
           identifiant: formData.get('identifiant'),
           password: formData.get('password')

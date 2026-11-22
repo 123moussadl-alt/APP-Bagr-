@@ -192,8 +192,14 @@ export function setupChefPersonnel(container, state, render, supabase) {
     const women = filtered.filter(p => (p.sexe || p.gender) === 'F').length;
     const total = filtered.length;
 
-    const enseignants = filtered.filter(p => p.role === 'titulaire' || p.role === 'directeur');
-    const agents = filtered.filter(p => p.role !== 'titulaire' && p.role !== 'directeur');
+    const lieuDeTravail = (profile) => {
+      const raw = String(profile.lieu_travail || '').trim().toLowerCase();
+      if (raw === 'ceb') return 'CEB';
+      if (raw === 'ecole') return 'Ecole';
+      return (profile.role === 'titulaire' || profile.role === 'directeur') ? 'Ecole' : 'CEB';
+    };
+    const enseignants = filtered.filter(p => lieuDeTravail(p) === 'Ecole');
+    const agents = filtered.filter(p => lieuDeTravail(p) === 'CEB');
 
     viewContainer.innerHTML = `
       <div class="card">
@@ -217,11 +223,11 @@ export function setupChefPersonnel(container, state, render, supabase) {
           </div>
         </div>
 
-        <h4 style="margin:18px 0 6px;font-size:15px">👥 Agents de la CEB</h4>
+        <h4 style="margin:18px 0 6px;font-size:15px">🏢 Agents de bureau de la CEB</h4>
         ${personnelSummaryHTML(personnelCounts(agents))}
         ${personnelTableHTML(agents)}
 
-        <h4 style="margin:24px 0 6px;font-size:15px">🏫 Enseignants / Directeurs des Écoles</h4>
+        <h4 style="margin:24px 0 6px;font-size:15px">🏫 Enseignants &amp; Directeurs des Écoles</h4>
         ${personnelSummaryHTML(personnelCounts(enseignants))}
         ${personnelTableHTML(enseignants)}
 

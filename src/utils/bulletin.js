@@ -161,7 +161,7 @@ function decisionMarkup(row) {
   return '<span style="color:#16a34a;font-weight:800">Passe en classe supérieure</span>';
 }
 
-export function renderBulletinsAnnuelsHTML({ rows, className, schoolName, teacherName, teacherSigners, studentId }) {
+export function renderBulletinsAnnuelsHTML({ rows, className, schoolName, teacherName, teacherSigners, studentId, schoolYear }) {
   const list = rows || [];
   const ranks = {
     t1: rankRows(list, 't1'),
@@ -178,9 +178,9 @@ export function renderBulletinsAnnuelsHTML({ rows, className, schoolName, teache
       ? 'Abandon (A)'
       : (rank ? `${rankSuffix(rank.rank, row.isGirl, rank.tie)} / ${totalStudents} élèves` : '—');
     return `<tr>
-      <th style="border:1px solid #333;padding:10px 14px;text-align:left">${label}</th>
-      <td style="border:1px solid #333;padding:10px 14px;text-align:center">${average}</td>
-      <td style="border:1px solid #333;padding:10px 14px;text-align:center">${rankText}</td>
+      <th style="border:1px solid #333;padding:4px 6px;text-align:left">${label}</th>
+      <td style="border:1px solid #333;padding:4px 6px;text-align:center">${average}</td>
+      <td style="border:1px solid #333;padding:4px 6px;text-align:center">${rankText}</td>
     </tr>`;
   };
 
@@ -192,32 +192,31 @@ export function renderBulletinsAnnuelsHTML({ rows, className, schoolName, teache
         ? `${rankSuffix(ranks.annual[row.s.id].rank, row.isGirl, ranks.annual[row.s.id].tie)} / ${totalStudents} élèves`
         : '—');
     return `<div class="bulletin-sheet bulletin-annuel-sheet" style="font-family:Arial,sans-serif;width:100%;max-width:100%;margin:0 auto 22px;background:#fff;color:#111;padding:12px;box-sizing:border-box">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;border-bottom:2px solid #111;padding-bottom:8px">
-        <div style="font-size:14px;line-height:1.45">
-          <strong style="font-size:16px">CEB de Bagré</strong><br>
-          <strong>École : ${esc(schoolName || '—')}</strong><br>
-          <strong>Classe : ${esc(className || '—')}</strong>
+      <div style="border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:8px">
+        <div style="font-size:11pt;font-weight:800;letter-spacing:.2px">
+          CEB DE BAGRÉ — BULLETIN ANNUEL${schoolYear ? ' ' + esc(schoolYear) : ''}
         </div>
-        <div class="official-motto" style="display:flex;flex-direction:column;align-items:center;flex:1;text-align:center;font-size:14px;line-height:1.5;padding-top:4px">
-          <strong>Burkina Faso</strong>
-          <em>La Patrie ou la Mort, nous vaincrons</em>
+        <div style="font-size:8.5pt;line-height:1.3;color:#334155">
+          ${esc(schoolName || '—')} • Classe : ${esc(className || '—')} • Effectif : ${totalStudents}
+        </div>
+        <div style="font-size:7.5pt;line-height:1.2;color:#475569">
+          Burkina Faso — La Patrie ou la Mort, nous vaincrons
         </div>
       </div>
-      <h2 style="margin:12px 0;text-align:center;font-size:19px;letter-spacing:.3px">BULLETIN ANNUEL</h2>
-      <div style="display:flex;justify-content:space-between;gap:12px;border:1px solid #333;padding:10px 14px;margin-bottom:12px;font-size:15px">
+      <div style="display:flex;justify-content:space-between;gap:8px;border:1px solid #333;padding:6px 8px;margin-bottom:6px;font-size:9pt">
         <div><strong>Décision :</strong> ${decisionMarkup(row)}</div>
         <div><strong>Effectif :</strong> ${totalStudents} élèves</div>
       </div>
-      <div style="display:flex;justify-content:space-between;gap:12px;border:1px solid #333;padding:10px 14px;margin-bottom:12px;font-size:15px">
+      <div style="display:flex;justify-content:space-between;gap:8px;border:1px solid #333;padding:6px 8px;margin-bottom:6px;font-size:9pt">
         <div><strong>Nom et Prénom :</strong> <span style="${nameStyle}">${esc(row.s.full_name || '')}</span></div>
         <div><strong>Sexe :</strong> ${row.s.gender === 'F' ? 'F' : 'M'}</div>
       </div>
-      <table style="width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed;font-size:14px">
+      <table style="width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.5pt;line-height:1.25">
         <thead>
           <tr>
-            <th style="border:1px solid #333;padding:10px 14px;text-align:left">Période</th>
-            <th style="border:1px solid #333;padding:10px 14px">Moyenne</th>
-            <th style="border:1px solid #333;padding:10px 14px">Rang</th>
+            <th style="border:1px solid #333;padding:4px 6px;text-align:left">Période</th>
+            <th style="border:1px solid #333;padding:4px 6px">Moyenne</th>
+            <th style="border:1px solid #333;padding:4px 6px">Rang</th>
           </tr>
         </thead>
         <tbody>
@@ -225,20 +224,24 @@ export function renderBulletinsAnnuelsHTML({ rows, className, schoolName, teache
           ${periodRow(row, '2e Trimestre', 't2', ranks.t2)}
           ${periodRow(row, '3e Trimestre', 't3', ranks.t3)}
           <tr style="-webkit-print-color-adjust:exact;print-color-adjust:exact">
-            <th style="border:1px solid #333;padding:10px 14px;text-align:left">Bilan Annuel</th>
-            <td style="border:1px solid #333;padding:10px 14px;text-align:center;color:#16a34a;font-weight:800">${row.annual == null ? '—' : `${row.annual.toFixed(2)} / 10`}</td>
-            <td style="border:1px solid #333;padding:10px 14px;text-align:center">${annualRank}</td>
+            <th style="border:1px solid #333;padding:4px 6px;text-align:left">Bilan Annuel</th>
+            <td style="border:1px solid #333;padding:4px 6px;text-align:center;color:#1d4ed8;font-weight:800">${row.annual == null ? '—' : `${row.annual.toFixed(2)} / 10`}</td>
+            <td style="border:1px solid #333;padding:4px 6px;text-align:center;color:#7e22ce;font-weight:800">${annualRank}</td>
           </tr>
         </tbody>
       </table>
-      <div style="display:flex;justify-content:space-between;gap:24px;margin-top:42px;font-size:14px">
+      <div style="display:flex;justify-content:space-between;gap:6px;margin-top:16px;font-size:7.5pt">
         <div style="flex:1;text-align:center">
-          <div style="font-weight:700">Le(s) Titulaire(s)</div>
-          <div style="border-top:1px solid #333;padding-top:5px;margin:12px 18px 0;font-weight:700">${signaturePeopleHTML(teacherSigners, teacherName || '')}</div>
+          <div style="font-weight:700">Le Titulaire</div>
+          <div style="border-top:1px solid #333;padding-top:4px;margin:6px 6px 0;min-height:34px;font-size:7.5pt">${signaturePeopleHTML(teacherSigners, teacherName || '')}</div>
         </div>
         <div style="flex:1;text-align:center">
-          <div style="font-weight:700">Le Directeur / La Directrice</div>
-          <div style="border-top:1px solid #333;padding-top:5px;margin:12px 18px 0">&nbsp;</div>
+          <div style="font-weight:700">Le Directeur</div>
+          <div style="border-top:1px solid #333;padding-top:4px;margin:6px 6px 0;min-height:34px;font-size:7.5pt">&nbsp;</div>
+        </div>
+        <div style="flex:1;text-align:center">
+          <div style="font-weight:700">Parents</div>
+          <div style="border-top:1px solid #333;padding-top:4px;margin:6px 6px 0;min-height:34px;font-size:7.5pt">&nbsp;</div>
         </div>
       </div>
     </div>`;

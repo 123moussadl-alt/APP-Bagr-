@@ -1189,31 +1189,42 @@ th {
 /* BULLETINS ANNUELS — 3 bulletins par page A4 paysage */
 .bulletins-annuels-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 14px;
 }
 .bulletins-annuels-grid .bulletin-sheet {
   page-break-inside: avoid;
   border: 1px solid #333;
   padding: 6px;
-  font-size: 9.5pt;
+  font-size: 8.5pt;
+  line-height: 1.25;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 .bulletins-annuels-grid .bulletin-sheet:nth-child(3n) {
   page-break-after: always;
 }
 @media print {
+  @page { size: A4 landscape; margin: 5mm; }
   .bulletins-annuels-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    gap: 6mm;
   }
   .bulletins-annuels-grid .bulletin-sheet {
     page-break-inside: avoid;
-    border: 1px solid #333 !important;
+    break-inside: avoid;
+    border: 1px dashed #64748b !important;
     box-shadow: none !important;
+    font-size: 8.5pt;
+    line-height: 1.25;
+    padding: 6px;
+    word-break: normal;
+    overflow-wrap: break-word;
   }
   .bulletins-annuels-grid .bulletin-sheet:nth-child(3n) {
     page-break-after: always;
+    break-after: page;
   }
 }
 .ceb-staff-directory { page: landscape; }

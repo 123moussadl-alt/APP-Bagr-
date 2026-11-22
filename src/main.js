@@ -531,6 +531,9 @@ async function openSettings() {
   const currentEmploi = normalizeEmployment(profile.emploi || profile.fonction, profileRole) ||
     (emploiOptions.length === 1 ? emploiOptions[0].value : '');
   const currentFonction = getAgentFunction({ ...profile, role: profileRole });
+  const currentLieuTravail = (String(profile.lieu_travail || '').trim().toLowerCase() === 'ceb')
+    ? 'CEB'
+    : ((String(profile.lieu_travail || '').trim().toLowerCase() === 'ecole') ? 'Ecole' : (isSchoolRole ? 'Ecole' : 'CEB'));
   const overlay = document.createElement('div');
   overlay.id = 'settingsOverlay';
   overlay.innerHTML = `
@@ -576,6 +579,7 @@ async function openSettings() {
           <div class="form-group"><label for="settingsEmploi">Emploi</label><select id="settingsEmploi" required><option value="">-- Choisir --</option>${emploiOptions.map(option => `<option value="${esc(option.value)}">${esc(option.label)}</option>`).join('')}</select></div>
           <div class="form-group"><label for="settingsFunction">Fonction</label><input id="settingsFunction" value="${esc(currentFonction)}" readonly aria-readonly="true"><small>La fonction détermine les accès et ne peut pas être modifiée depuis ce profil.</small></div>
           <div class="form-group"><label for="settingsServiceDate">Date de prise de service à la CEB</label><input id="settingsServiceDate" type="date" value="${esc(profile.date_prise_service_ceb || '')}"></div>
+          <div class="form-group"><label for="settingsLieuTravail">Lieu de travail</label><select id="settingsLieuTravail"><option value="Ecole"${currentLieuTravail === 'Ecole' ? ' selected' : ''}>École</option><option value="CEB"${currentLieuTravail === 'CEB' ? ' selected' : ''}>Bureau de la CEB</option></select></div>
           ${isSchoolRole ? `<div class="form-group"><label for="settingsSchool">École</label><select id="settingsSchool"><option value="">-- Choisir --</option>${schools.map(school => `<option value="${esc(school.id)}">${esc(school.name)}</option>`).join('')}</select></div>` : ''}
           ${canAssignClass ? `<div class="form-group"><label for="settingsClass">Classe tenue</label><select id="settingsClass" required><option value="">-- Choisir --</option>${classOptions.map(value => `<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select></div>` : ''}
           ${isEncadreur ? `<div class="form-group" style="grid-column:1/-1"><label>Écoles encadrées / Zone d'encadrement</label><div id="settingsEncadreeSchools" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px">${schools.map(school => `<label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff"><input type="checkbox" name="settingsEncadreeSchool" value="${esc(school.id)}" ${savedEncadreeIds.includes(String(school.id)) ? 'checked' : ''}><span>${esc(school.name)}</span></label>`).join('')}</div></div>` : ''}
@@ -1012,6 +1016,7 @@ async function openSettings() {
         emploi: emploiValue,
         fonction: currentFonction,
         date_prise_service_ceb: overlay.querySelector('#settingsServiceDate').value || null,
+        lieu_travail: (overlay.querySelector('#settingsLieuTravail') && overlay.querySelector('#settingsLieuTravail').value) || currentLieuTravail,
         ecole_id: schoolId,
         ecole_nom: school ? school.name : (schoolId ? profile.ecole_nom || null : null),
         classe_id: classId,
@@ -1532,7 +1537,7 @@ async function resolveSchoolId(selection) {
   return ensureSchoolId(value);
 }
 
-async function handleRegister({ identifiant, password, matricule, nom, prenom, sexe, role, emploi, schoolName, schoolId: selectedSchoolId, classLevel, className, whatsapp, classId, followedSchools, structure }) {
+async function handleRegister({ identifiant, password, matricule, nom, prenom, sexe, role, emploi, schoolName, schoolId: selectedSchoolId, classLevel, className, whatsapp, classId, followedSchools, structure, lieuTravail }) {
   if (role !== 'titulaire') {
     showToast('Les autres fonctions sont attribuées par un administrateur après vérification.');
     throw new Error('role_registration_requires_admin');
@@ -1557,6 +1562,9 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
   }
   const classeTenue = isSchoolRole ? classLevel || null : null;
   const profileStructure = isSchoolRole ? cleanSchoolName : (structure || 'CEB de Bagré');
+  const lieuTravailValue = (lieuTravail === 'Ecole' || lieuTravail === 'CEB')
+    ? lieuTravail
+    : (isSchoolRole ? 'Ecole' : 'CEB');
 
   if (isDemoMode) {
     const accounts = demoGetAccounts();
@@ -1682,6 +1690,7 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
     role,
     school_id: schoolId,
     class_id: classId || null,
+    lieu_travail: lieuTravailValue,
     est_actif: false
   });
   if (profileError) {
