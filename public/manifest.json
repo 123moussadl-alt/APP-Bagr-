@@ -1,22 +1,37 @@
 {
-  "name": "Educ CEB Bagré",
+  "id": "/",
+  "name": "Educ CEB Bagré — Gestion Scolaire",
   "short_name": "Educ CEB Bagré",
   "description": "Plateforme officielle de gestion scolaire pour la Circonscription d'Éducation de Base de Bagré (Burkina Faso).",
-  "start_url": "./index.html",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
   "background_color": "#0f3d23",
   "theme_color": "#15803d",
+  "categories": ["education", "productivity"],
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "icon-512.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

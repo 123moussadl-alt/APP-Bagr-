@@ -521,7 +521,7 @@ async function openSettings() {
             </select>
           </div>
         </div>
-        <div class="settings-actions"><button class="btn" id="setSave">Enregistrer l'apparence</button></div>
+        <div class="settings-actions"><button class="btn" id="setSave">Enregistrer l'apparence</button><button type="button" class="btn secondary" id="settingsInstallApp">📲 Installer l'application</button></div>
       </section>
       <div class="settings-actions">
         <button class="btn secondary" id="setClose">Fermer</button>
@@ -1044,6 +1044,7 @@ async function openSettings() {
     overlay.remove();
     showToast('Paramètres enregistrés.');
   });
+  overlay.querySelector('#settingsInstallApp')?.addEventListener('click', () => installPWA());
 }
 
 function initSettings() {
@@ -1667,8 +1668,26 @@ if (typeof document !== 'undefined') {
 
 if (typeof window !== 'undefined') {
   if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
-    navigator.serviceWorker.register('/sw.js').catch(error => {
+    let hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('/sw.js').then(registration => {
+      registration.update().catch(() => {});
+    }).catch(error => {
       console.error('Impossible d’enregistrer le service worker :', error);
+    });
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController) { hadController = true; return; }
+      const active = document.activeElement;
+      const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
+      if (typing) {
+        showToast('Mise à jour disponible — rechargez la page pour l’appliquer.');
+        return;
+      }
+      window.location.reload();
+    });
+    window.addEventListener('online', () => {
+      navigator.serviceWorker.getRegistration().then(registration => {
+        if (registration) registration.update().catch(() => {});
+      }).catch(() => {});
     });
   }
   window.addEventListener('beforeinstallprompt', event => {
