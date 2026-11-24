@@ -6,7 +6,7 @@
 import { esc, formatClassName } from '../utils/format.js';
 import { downloadCSV, printPage, wirePDFExportButton, wireWordExportButton } from '../utils/export.js';
 import { openPreview } from '../utils/preview.js';
-import { renderSyntheseHTML, computeSubjectRows, computeClassAverageSummary } from '../utils/synthese.js';
+import { renderSyntheseHTML, renderBilanTrimestrielHTML, computeSubjectRows, computeClassAverageSummary } from '../utils/synthese.js';
 import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTable, formatVisaStampDate, computeFicheArretMensuel, renderFicheArretMensuelHTML, schoolMonths, ANNUAL_SYNTHESIS_TITLE } from '../utils/registre.js';
 import { profileMatchesVisa, signatureUrlForProfile } from '../utils/signature.js';
 import { loadPaiRecord, normalizePaiDiscipline } from '../utils/pai.js';
@@ -671,7 +671,7 @@ export function setupEncadreur(container, state, render, supabase) {
       : '';
     currentEncQuarterly = { cls, schoolName, students: list, subjects, notes: notes || [], term, pai };
     currentEncQuarterlySheetId = 'fsSheet';
-    sheetEl.innerHTML = renderSyntheseHTML({ schoolName, cls, students: list, subjects, notes: notes || [], term, pai, teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureUrl, editable: false });
+    sheetEl.innerHTML = renderBilanTrimestrielHTML({ schoolName, cls, students: list, subjects, notes: notes || [], term, pai, teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureUrl, editable: false, activeSchoolYear: state.activeSchoolYear });
   }
 
   async function renderEcoles() {
@@ -846,7 +846,7 @@ export function setupEncadreur(container, state, render, supabase) {
     const visaDirecteurSignatureUrl = actualProfile.role === 'directeur' && profileMatchesVisa(visaDirecteur, actualProfile)
       ? signatureUrlForProfile(actualProfile)
       : '';
-    sheetEl.innerHTML = renderSyntheseHTML({ schoolName, cls, students: list, subjects, notes: notes || [], term, pai, teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureUrl, editable: false });
+    sheetEl.innerHTML = renderBilanTrimestrielHTML({ schoolName, cls, students: list, subjects, notes: notes || [], term, pai, teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureUrl, editable: false, activeSchoolYear: state.activeSchoolYear });
   }
 
   async function renderSynthese() {

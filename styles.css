@@ -1189,7 +1189,7 @@ th {
 /* BULLETINS ANNUELS â€” 3 bulletins par page A4 paysage */
 .bulletins-annuels-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 14px;
 }
 .bulletins-annuels-grid .bulletin-sheet {
@@ -1762,4 +1762,27 @@ body.bg-mint {
 .table-wrap table td,
 .table-wrap table th {
   color: inherit;
+}
+
+/* BILAN TRIMESTRIEL — impression A4 portrait propre */
+@media print {
+  .synthese-sheet {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    font-size: 9pt;
+  }
+  .synthese-sheet input,
+  .synthese-sheet select,
+  .synthese-sheet textarea,
+  .synthese-sheet button {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  .synthese-sheet input,
+  .synthese-sheet textarea {
+    height: auto !important;
+    min-height: 0 !important;
+  }
 }

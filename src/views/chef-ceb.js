@@ -10,7 +10,7 @@ import { getAgentEmployment, getAgentFunction, getAgentNameParts, agentMonths, g
 import { getClassResult } from '../utils/stats.js';
 import { openPreview } from '../utils/preview.js';
 import { profileMatchesVisa, signatureBlockHTML, signatureUrlForProfile } from '../utils/signature.js';
-import { computeSubjectRows, renderSyntheseHTML } from '../utils/synthese.js';
+import { computeSubjectRows, renderSyntheseHTML, renderBilanTrimestrielHTML } from '../utils/synthese.js';
 import { loadPaiRecord } from '../utils/pai.js';
 import { mergeSchoolChoices } from '../utils/schools.js';
 import {
@@ -731,7 +731,7 @@ export function setupChefCEB(container, state, render, supabase) {
       }
       const visaDirecteur = (visaResult.data || []).map(config => config.visa_directeur).find(Boolean) || '';
       const matchedDirector = directorSigners.find(person => profileMatchesVisa(visaDirecteur, person));
-      reportHTML = renderSyntheseHTML({
+      reportHTML = renderBilanTrimestrielHTML({
         schoolName: schoolData.school.name,
         cls: classData.cls,
         students: classData.students,
@@ -743,7 +743,8 @@ export function setupChefCEB(container, state, render, supabase) {
         teacherSigners,
         visaDirecteur,
         visaDirecteurSignatureUrl: matchedDirector ? signatureUrlForProfile(matchedDirector) : '',
-        editable: false
+        editable: false,
+        activeSchoolYear: state.activeSchoolYear
       });
     }
 

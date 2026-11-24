@@ -9,7 +9,7 @@ import { renderBulletinsHTML } from '../utils/bulletin.js';
 import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTable, computeFicheArretMensuel, renderFicheArretMensuelHTML, monthlyClosureCSVRows, schoolMonths, formatVisaStampDate, ANNUAL_SYNTHESIS_TITLE } from '../utils/registre.js';
 import { openPreview } from '../utils/preview.js';
 import { profileMatchesVisa, signatureBlockHTML, signatureUrlForProfile } from '../utils/signature.js';
-import { computeSubjectRows } from '../utils/synthese.js';
+import { computeSubjectRows, renderSyntheseHTML, renderBilanTrimestrielHTML } from '../utils/synthese.js';
 import {
   computeExamRows,
   examLevelLabel,
@@ -1471,7 +1471,7 @@ export function setupDirecteur(container, state, render, supabase) {
       }
       const visaDirecteur = (visaResult.data || []).map(config => config.visa_directeur).find(Boolean) || '';
       const matchedDirector = profileMatchesVisa(visaDirecteur, actualProfile) ? actualProfile : null;
-      reportHTML = renderSyntheseHTML({
+      reportHTML = renderBilanTrimestrielHTML({
         schoolName: school.name,
         cls: classData.cls,
         students: classData.students,
@@ -1483,7 +1483,8 @@ export function setupDirecteur(container, state, render, supabase) {
         teacherSigners,
         visaDirecteur,
         visaDirecteurSignatureUrl: matchedDirector ? signatureUrlForProfile(matchedDirector) : '',
-        editable: false
+        editable: false,
+        activeSchoolYear: state.activeSchoolYear
       });
     }
     schoolTermExport = { mode: schoolTermMode, school, summary, classData };

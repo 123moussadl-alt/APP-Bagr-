@@ -8,7 +8,7 @@ import { renderBulletinsHTML, renderBulletinsAnnuelsHTML, annualBulletinCSVRows 
 import { getStudentAnnual, rankSuffix } from '../utils/stats.js';
 import { openPreview } from '../utils/preview.js';
 import { exportPDF, wirePDFExportButton, wireWordExportButton } from '../utils/export.js';
-import { renderSyntheseHTML, computeSubjectRows, computeClassAverageSummary } from '../utils/synthese.js';
+import { renderSyntheseHTML, renderBilanTrimestrielHTML, computeSubjectRows, computeClassAverageSummary } from '../utils/synthese.js';
 import { sumHalfDays, computeMonthlyRegister, monthlyRegisterCSVRows, computeFicheArretMensuel, renderFicheArretMensuelHTML, renderMonthlyRegisterTable, monthlyClosureCSVRows, schoolMonths, ANNUAL_SYNTHESIS_TITLE, ratePair, formatRatePercent } from '../utils/registre.js';
 import { loadPaiRecord, normalizePaiDiscipline, savePaiRecord, writePaiBackup } from '../utils/pai.js';
 import { profileMatchesVisa, signatureBlockHTML, signaturePeopleHTML, signatureUrlForProfile } from '../utils/signature.js';
@@ -1502,7 +1502,7 @@ export function setupTitulaire(container, state, render, supabase) {
         <div id="paiSaveStatus" class="no-print" role="status" aria-live="polite" style="display:none;margin-top:10px;padding:10px 12px;border-radius:6px;font-weight:700"></div>
       </div>
       <div class="card" style="margin-top:16px">
-        <div id="syntheseSheet">${renderSyntheseHTML({ schoolName, cls, students: list, subjects, notes: allNotes, term, pai, teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureUrl: directorSignatureUrl, editable: true })}</div>
+        <div id="syntheseSheet">${renderBilanTrimestrielHTML({ schoolName, cls, students: list, subjects, notes: allNotes, term, pai, teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureUrl: directorSignatureUrl, editable: true, activeSchoolYear: state.activeSchoolYear })}</div>
       </div>`;
 
     wirePDFExportButton(

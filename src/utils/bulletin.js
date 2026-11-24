@@ -4,7 +4,7 @@
  */
 
 import { esc } from './format.js';
-import { signaturePeopleHTML } from './signature.js';
+import { signaturePeopleHTML, signatureImageHTML } from './signature.js';
 
 function findNote(notes, eleveId, matiereId, term) {
   if (!notes) return null;
@@ -161,7 +161,7 @@ function decisionMarkup(row) {
   return '<span style="color:#16a34a;font-weight:800">Passe en classe supérieure</span>';
 }
 
-export function renderBulletinsAnnuelsHTML({ rows, className, schoolName, teacherName, teacherSigners, studentId, schoolYear }) {
+export function renderBulletinsAnnuelsHTML({ rows, className, schoolName, teacherName, teacherSigners, studentId, schoolYear, directorSignatureUrl }) {
   const list = rows || [];
   const ranks = {
     t1: rankRows(list, 't1'),
@@ -171,78 +171,53 @@ export function renderBulletinsAnnuelsHTML({ rows, className, schoolName, teache
   };
   const totalStudents = list.length;
   const selected = studentId ? list.filter(row => String(row.s.id) === String(studentId)) : list;
-  const periodRow = (row, label, field, rankMap) => {
-    const rank = rankMap[row.s.id];
-    const average = row[field] == null ? '—' : `${row[field].toFixed(2)} / 10`;
-    const rankText = row.abandon
-      ? 'Abandon (A)'
-      : (rank ? `${rankSuffix(rank.rank, row.isGirl, rank.tie)} / ${totalStudents} élèves` : '—');
-    return `<tr>
-      <th style="border:1px solid #333;padding:4px 6px;text-align:left">${label}</th>
-      <td style="border:1px solid #333;padding:4px 6px;text-align:center">${average}</td>
-      <td style="border:1px solid #333;padding:4px 6px;text-align:center">${rankText}</td>
-    </tr>`;
-  };
+  const boxRow = (label, checked) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:9pt">
+      <span>${label}</span><span style="font-size:12pt">[ ${checked ? '☑' : '☐'} ]</span>
+    </div>`;
 
   return selected.map(row => {
-    const nameStyle = row.isGirl ? 'color:#dc2626;font-weight:700' : 'color:#111;font-weight:700';
-    const annualRank = row.abandon
-      ? `Abandon (A) — ${rankSuffix(totalStudents, row.isGirl, false)} / ${totalStudents} élèves`
-      : (ranks.annual[row.s.id]
-        ? `${rankSuffix(ranks.annual[row.s.id].rank, row.isGirl, ranks.annual[row.s.id].tie)} / ${totalStudents} élèves`
-        : '—');
-    return `<div class="bulletin-sheet bulletin-annuel-sheet" style="font-family:Arial,sans-serif;width:100%;max-width:100%;margin:0 auto 22px;background:#fff;color:#111;padding:12px;box-sizing:border-box">
-      <div style="border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:8px">
-        <div style="font-size:11pt;font-weight:800;letter-spacing:.2px">
-          CEB DE BAGRÉ — BULLETIN ANNUEL${schoolYear ? ' ' + esc(schoolYear) : ''}
-        </div>
-        <div style="font-size:8.5pt;line-height:1.3;color:#334155">
-          ${esc(schoolName || '—')} • Classe : ${esc(className || '—')} • Effectif : ${totalStudents}
-        </div>
-        <div style="font-size:7.5pt;line-height:1.2;color:#475569">
-          Burkina Faso — La Patrie ou la Mort, nous vaincrons
-        </div>
+    const isGirl = row.isGirl || row.s.gender === 'F';
+    const nameStyle = isGirl ? 'color:#dc2626;font-weight:800;' : 'color:#111827;font-weight:800;';
+    const parts = String(row.s.full_name || '').trim().split(/\s+/);
+    const nom = parts[0] || '';
+    const prenom = parts.slice(1).join(' ');
+    const rank = ranks.annual[row.s.id];
+    const rangText = row.abandon ? 'Abandon (A)' : (rank ? String(rank.rank) : '—');
+    const decision = String(row.decision || '').trim();
+    const exclu = !!row.abandon || decision === 'Abandon (A)';
+    const redouble = !exclu && decision === 'Redouble';
+    const passe = !exclu && !redouble;
+    const img = signatureImageHTML(directorSignatureUrl, 'Signature du Directeur', 'max-height:36px;width:auto;height:auto;object-fit:contain;margin:2px auto 0;display:block');
+    return `<div class="bulletin-sheet bulletin-annuel-sheet" style="font-family:Arial,sans-serif;width:100%;max-width:100%;margin:0 auto 18px;background:#fff;color:#111;padding:10px;box-sizing:border-box;font-size:10pt;line-height:1.3">
+      <div style="text-align:center;font-weight:800;font-size:9.5pt">CIRCONSCRIPTION D'EDUCATION DE BASE DE BAGRE</div>
+      <div style="text-align:center;font-size:8.5pt;margin-top:2px">ECOLE PRIMAIRE PUBLIQUE DE ${esc(schoolName || '—')}</div>
+      <div style="display:flex;justify-content:space-between;gap:8px;font-size:8.5pt;margin-top:4px">
+        <span>Année Scolaire : ${esc(schoolYear || '')}</span>
+        <span>Classe : ${esc(className || '—')}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;gap:8px;border:1px solid #333;padding:6px 8px;margin-bottom:6px;font-size:9pt">
-        <div><strong>Décision :</strong> ${decisionMarkup(row)}</div>
-        <div><strong>Effectif :</strong> ${totalStudents} élèves</div>
-      </div>
-      <div style="display:flex;justify-content:space-between;gap:8px;border:1px solid #333;padding:6px 8px;margin-bottom:6px;font-size:9pt">
-        <div><strong>Nom et Prénom :</strong> <span style="${nameStyle}">${esc(row.s.full_name || '')}</span></div>
-        <div><strong>Sexe :</strong> ${row.s.gender === 'F' ? 'F' : 'M'}</div>
-      </div>
-      <table style="width:100%;max-width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.5pt;line-height:1.25">
-        <thead>
-          <tr>
-            <th style="border:1px solid #333;padding:4px 6px;text-align:left">Période</th>
-            <th style="border:1px solid #333;padding:4px 6px">Moyenne</th>
-            <th style="border:1px solid #333;padding:4px 6px">Rang</th>
-          </tr>
-        </thead>
+      <div style="font-size:8.5pt;font-weight:700;margin-top:2px">Effectif : ${totalStudents}</div>
+      <div style="border:1.5px solid #111;text-align:center;font-weight:800;font-size:10pt;margin:5px 0;padding:2px 0">BULLETIN DE FIN D'ANNÉE</div>
+      <div style="margin:2px 0">NOM : <span style="${nameStyle}">${esc(nom)}</span></div>
+      <div style="margin:2px 0">PRENOM : <span style="${nameStyle}">${esc(prenom)}</span></div>
+      <table style="width:100%;border-collapse:collapse;margin-top:4px;font-size:9pt">
         <tbody>
-          ${periodRow(row, '1er Trimestre', 't1', ranks.t1)}
-          ${periodRow(row, '2e Trimestre', 't2', ranks.t2)}
-          ${periodRow(row, '3e Trimestre', 't3', ranks.t3)}
-          <tr style="-webkit-print-color-adjust:exact;print-color-adjust:exact">
-            <th style="border:1px solid #333;padding:4px 6px;text-align:left">Bilan Annuel</th>
-            <td style="border:1px solid #333;padding:4px 6px;text-align:center;color:#1d4ed8;font-weight:800">${row.annual == null ? '—' : `${row.annual.toFixed(2)} / 10`}</td>
-            <td style="border:1px solid #333;padding:4px 6px;text-align:center;color:#7e22ce;font-weight:800">${annualRank}</td>
-          </tr>
+          <tr><td style="border:1px solid #333;padding:3px 5px">1ère COMPOSITION</td><td style="border:1px solid #333;padding:3px 5px;text-align:right">${row.t1 != null ? row.t1.toFixed(2) : '—'} /10</td></tr>
+          <tr><td style="border:1px solid #333;padding:3px 5px">2ème COMPOSITION</td><td style="border:1px solid #333;padding:3px 5px;text-align:right">${row.t2 != null ? row.t2.toFixed(2) : '—'} /10</td></tr>
+          <tr><td style="border:1px solid #333;padding:3px 5px">3ème COMPOSITION</td><td style="border:1px solid #333;padding:3px 5px;text-align:right">${row.t3 != null ? row.t3.toFixed(2) : '—'} /10</td></tr>
+          <tr><td style="border:1px solid #333;padding:3px 5px;font-weight:800;color:#1d4ed8">MOYENNE GENERALE</td><td style="border:1px solid #333;padding:3px 5px;text-align:right;font-weight:800;color:#1d4ed8">${row.annual != null ? row.annual.toFixed(2) : '—'} /10</td></tr>
+          <tr><td style="border:1px solid #333;padding:3px 5px;font-weight:800;color:#7e22ce">RANG</td><td style="border:1px solid #333;padding:3px 5px;text-align:right;font-weight:800;color:#7e22ce">${rangText} / ${totalStudents}</td></tr>
         </tbody>
       </table>
-      <div style="display:flex;justify-content:space-between;gap:6px;margin-top:16px;font-size:7.5pt">
-        <div style="flex:1;text-align:center">
-          <div style="font-weight:700">Le Titulaire</div>
-          <div style="border-top:1px solid #333;padding-top:4px;margin:6px 6px 0;min-height:34px;font-size:7.5pt">${signaturePeopleHTML(teacherSigners, teacherName || '')}</div>
-        </div>
-        <div style="flex:1;text-align:center">
-          <div style="font-weight:700">Le Directeur</div>
-          <div style="border-top:1px solid #333;padding-top:4px;margin:6px 6px 0;min-height:34px;font-size:7.5pt">&nbsp;</div>
-        </div>
-        <div style="flex:1;text-align:center">
-          <div style="font-weight:700">Parents</div>
-          <div style="border-top:1px solid #333;padding-top:4px;margin:6px 6px 0;min-height:34px;font-size:7.5pt">&nbsp;</div>
-        </div>
+      <div style="margin-top:6px">
+        <div style="font-weight:800;margin-bottom:2px">Décision du conseil des maîtres :</div>
+        ${boxRow('PASSE', passe)}
+        ${boxRow('REDOUBLE', redouble)}
+        ${boxRow('EXCLU(e)', exclu)}
+      </div>
+      <div style="margin-top:8px;text-align:center;font-size:8.5pt">
+        <div style="font-weight:700">Le Directeur</div>
+        <div style="border-top:1px solid #333;margin:4px 10px 0;padding-top:3px;min-height:34px">${img}</div>
       </div>
     </div>`;
   }).join('');
