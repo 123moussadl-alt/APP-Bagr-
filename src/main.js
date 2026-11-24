@@ -21,6 +21,8 @@ import {
 const viewModules = {
   login: () => import('./views/login.js'),
   'admin-login': () => import('./views/login.js'),
+  landing: () => import('./views/login.js'),
+  forgot: () => import('./views/login.js'),
   register: () => import('./views/register.js'),
   dashboard: () => import('./views/dashboard.js'),
   titulaire: () => import('./views/titulaire.js'),
@@ -285,7 +287,9 @@ const viewExports = {
   'chef-personnel': 'ChefPersonnel',
   statisticien: 'Statisticien',
   'responsable-examens': 'ResponsableExamens',
-  'admin-principal': 'AdminPrincipal'
+  'admin-principal': 'AdminPrincipal',
+  landing: 'Landing',
+  forgot: 'ForgotPassword'
 };
 
 function renderViewFallback(view, error) {
@@ -339,20 +343,42 @@ function render() {
 
   loader().then(module => {
     try {
-      if (view === 'login' || view === 'admin-login' || view === 'register') {
+      if (view === 'login' || view === 'admin-login' || view === 'register' || view === 'landing' || view === 'forgot') {
       const isLoginView = view === 'login' || view === 'admin-login';
+      const isLandingView = view === 'landing';
+      const isForgotView = view === 'forgot';
       const renderFn = view === 'register'
         ? module.renderRegister
-        : view === 'admin-login'
-          ? module.renderAdminLogin
-          : module.renderLogin;
-      const setupFn = isLoginView ? module.setupLogin : module.setupRegister;
+        : isLandingView
+          ? module.renderLanding
+          : isForgotView
+            ? module.renderForgotPassword
+            : view === 'admin-login'
+              ? module.renderAdminLogin
+              : module.renderLogin;
       if (!renderFn) return;
-      if (isLoginView) {
+      if (isLandingView) {
+        const handlers = {
+          onGoLogin: () => { state.view = 'login'; render(); },
+          onGoRegister: () => { state.view = 'register'; render(); }
+        };
+        appRoot.innerHTML = renderFn(handlers);
+        if (module.setupLogin) module.setupLogin(appRoot, handlers);
+      } else if (isForgotView) {
+        const handlers = {
+          onDone: () => { state.view = 'login'; render(); },
+          supabase
+        };
+        appRoot.innerHTML = renderFn(handlers);
+        if (module.setupForgotPassword) module.setupForgotPassword(appRoot, handlers);
+      } else if (isLoginView) {
         const handlers = {
           onRegister: () => { state.view = 'register'; render(); },
           onLogin: handleLogin,
-          onInstall: installPWA
+          onInstall: installPWA,
+          onForgot: () => { state.view = 'forgot'; render(); },
+          onGoLogin: () => { state.view = 'login'; render(); },
+          onGoRegister: () => { state.view = 'register'; render(); }
         };
         appRoot.innerHTML = renderFn(handlers);
         if (setupFn) setupFn(appRoot, handlers);
@@ -1431,7 +1457,7 @@ function exitPreview() {
 }
 
 function renderLoginView() {
-  state.view = isAdminEntryRequested() ? 'admin-login' : 'login';
+  state.view = isAdminEntryRequested() ? 'admin-login' : 'landing';
   render();
 }
 

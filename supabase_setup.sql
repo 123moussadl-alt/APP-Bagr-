@@ -681,3 +681,137 @@ create table if not exists public.annees_scolaires (
   is_active boolean default false,
   created_at timestamptz default now()
 );
+
+create or replace function public.self_reset_password(
+  p_identifiant text,
+  p_matricule text,
+  p_telephone text,
+  p_new_password text
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid;
+  v_phone text;
+begin
+  select id, coalesce(whatsapp, whatsapp_phone, telephone, '') into v_user_id, v_phone
+  from public.profiles
+  where lower(identifiant) = lower(trim(p_identifiant))
+     or lower(full_name) = lower(trim(p_identifiant))
+  limit 1;
+
+  if v_user_id is null then
+    return false;
+  end if;
+
+  if not exists (
+    select 1 from public.profiles
+    where id = v_user_id
+      and lower(coalesce(matricule, '')) = lower(trim(p_matricule))
+      and regexp_replace(coalesce(whatsapp, whatsapp_phone, telephone, ''), '[^0-9]', '', 'g')
+          = regexp_replace(coalesce(p_telephone, ''), '[^0-9]', '', 'g')
+  ) then
+    return false;
+  end if;
+
+  perform auth.users_password_reset(v_user_id, p_new_password);
+  return true;
+end;
+$$;
+
+create or replace function public.admin_reset_password(
+  target_user_id uuid,
+  new_password text
+) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_principal_admin() then
+    raise exception 'Accès réservé à l''Administrateur Principal.';
+  end if;
+  if new_password is null or length(new_password) < 6 then
+    raise exception 'Mot de passe trop court.';
+  end if;
+  perform auth.users_password_reset(target_user_id, new_password);
+  return true;
+end;
+$$;
+
+revoke all on function public.self_reset_password(text, text, text, text) from public;
+grant execute on function public.self_reset_password(text, text, text, text) to anon, authenticated;
+revoke all on function public.admin_reset_password(uuid, text) from public;
+grant execute on function public.admin_reset_password(uuid, text) to authenticated;
+
+create or replace function public.self_reset_password(
+  p_identifiant text,
+  p_matricule text,
+  p_telephone text,
+  p_new_password text
+) returns boolean
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_user_id uuid;
+begin
+  select id into v_user_id
+  from public.profiles
+  where lower(identifiant) = lower(trim(p_identifiant))
+     or lower(full_name) = lower(trim(p_identifiant))
+  limit 1;
+
+  if v_user_id is null then
+    return false;
+  end if;
+
+  if not exists (
+    select 1 from public.profiles
+    where id = v_user_id
+      and lower(coalesce(matricule, '')) = lower(trim(p_matricule))
+      and regexp_replace(coalesce(whatsapp, whatsapp_phone, telephone, ''), '[^0-9]', '', 'g')
+          = regexp_replace(coalesce(p_telephone, ''), '[^0-9]', '', 'g')
+  ) then
+    return false;
+  end if;
+
+  update auth.users
+  set encrypted_password = extensions.crypt(p_new_password, extensions.gen_salt('bf')),
+      updated_at = now()
+  where id = v_user_id;
+
+  return true;
+end;
+$$;
+
+create or replace function public.admin_reset_password(
+  target_user_id uuid,
+  new_password text
+) returns boolean
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if not public.is_principal_admin() then
+    raise exception 'Accès réservé à l''Administrateur Principal.';
+  end if;
+  if new_password is null or length(new_password) < 6 then
+    raise exception 'Mot de passe trop court.';
+  end if;
+  update auth.users
+  set encrypted_password = extensions.crypt(new_password, extensions.gen_salt('bf')),
+      updated_at = now()
+  where id = target_user_id;
+  return true;
+end;
+$$;
+
+revoke all on function public.self_reset_password(text, text, text, text) from public;
+grant execute on function public.self_reset_password(text, text, text, text) to anon, authenticated;
+revoke all on function public.admin_reset_password(uuid, text) from public;
+grant execute on function public.admin_reset_password(uuid, text) to authenticated;

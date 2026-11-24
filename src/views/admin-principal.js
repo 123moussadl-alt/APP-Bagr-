@@ -168,6 +168,7 @@ export function setupAdminPrincipal(container, state, render, supabase) {
             ${readOnly ? '<span>Protégé</span>' : `
               <button type="button" class="btn" data-action="save-user">💾 Enregistrer</button>
               <button type="button" class="btn" data-action="toggle-access">${profile.est_actif === false ? '✅ Donner accès' : '⛔ Suspendre'}</button>
+              <button type="button" class="btn secondary" data-action="reset-mdp">🔑 Réinitialiser MDP</button>
               <button type="button" class="btn secondary" data-action="delete-user">🗑️ Supprimer</button>`}
           </td>
         </tr>`;
@@ -267,6 +268,23 @@ export function setupAdminPrincipal(container, state, render, supabase) {
         statusEl.style.color = nextActive ? '#15803d' : '#b45309';
       }
       accountStatus.textContent = nextActive ? 'Accès accordé à l’utilisateur.' : 'Accès suspendu pour l’utilisateur.';
+      accountStatus.style.color = '#15803d';
+    } else if (button.dataset.action === 'reset-mdp') {
+      const newPassword = window.prompt('Nouveau mot de passe pour ce compte (minimum 6 caractères) :');
+      if (!newPassword || newPassword.trim().length < 6) {
+        accountStatus.textContent = '❌ Mot de passe trop court (6 caractères minimum).';
+        accountStatus.style.color = '#b91c1c';
+        return;
+      }
+      button.disabled = true;
+      const { error } = await supabase.rpc('admin_reset_password', { target_user_id: profileId, new_password: newPassword.trim() });
+      button.disabled = false;
+      if (error) {
+        accountStatus.textContent = `Échec : ${error.message}`;
+        accountStatus.style.color = '#b91c1c';
+        return;
+      }
+      accountStatus.textContent = '✅ Mot de passe réinitialisé.';
       accountStatus.style.color = '#15803d';
     } else if (button.dataset.action === 'delete-user') {
       const name = row.querySelector('strong')?.textContent || profileId;
