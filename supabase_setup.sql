@@ -815,3 +815,5 @@ revoke all on function public.self_reset_password(text, text, text, text) from p
 grant execute on function public.self_reset_password(text, text, text, text) to anon, authenticated;
 revoke all on function public.admin_reset_password(uuid, text) from public;
 grant execute on function public.admin_reset_password(uuid, text) to authenticated;
+alter table public.presences_agents add column if not exists heure numeric;
+alter table public.presences_agents add column if not exists jour numeric;

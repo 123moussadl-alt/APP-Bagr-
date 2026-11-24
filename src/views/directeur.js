@@ -10,6 +10,7 @@ import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTa
 import { openPreview } from '../utils/preview.js';
 import { profileMatchesVisa, signatureBlockHTML, signatureUrlForProfile } from '../utils/signature.js';
 import { computeSubjectRows, renderSyntheseHTML, renderBilanTrimestrielHTML } from '../utils/synthese.js';
+import { renderFicheA, renderFicheB } from '../utils/presence-officielle.js';
 import {
   computeExamRows,
   examLevelLabel,
@@ -364,6 +365,17 @@ export function setupDirecteur(container, state, render, supabase) {
     }
   });
   viewContainer.addEventListener('input', (e) => {
+    if (e.target.matches('.fiche-heure, .fiche-jour')) {
+      const id = String(e.target.dataset.agentId);
+      const key = e.target.classList.contains('fiche-heure') ? 'heure' : 'jour';
+      const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+      agentAttendanceById.set(id, {
+        ...(agentAttendanceById.get(id) || {}),
+        [key]: Number.isFinite(value) ? value : 0
+      });
+      persistAgentAttendanceLocally();
+      return;
+    }
     if (e.target.matches('.agent-observation')) {
       const id = String(e.target.dataset.agentId);
       agentAttendanceById.set(id, {
@@ -452,23 +464,20 @@ export function setupDirecteur(container, state, render, supabase) {
     if (!panel) return;
     if (agentAttendanceTab === 'daily') {
       panel.innerHTML = `
-        <div class="card">
+        <div class="card no-print">
           <div style="display:flex;gap:12px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap">
             <div class="form-group" style="margin:0;min-width:220px">
               <label for="agentAttendanceDate">Date ouvrée</label>
               <input id="agentAttendanceDate" type="date" value="${esc(agentCurrentDate)}" max="${formatISODate(new Date())}">
             </div>
-            <button type="button" class="btn" data-action="agent-save-daily" style="background:linear-gradient(145deg,#15803d,#16a34a);box-shadow:0 4px 0 #166534;font-weight:700">Enregistrer l'appel des agents</button>
+            <button type="button" class="btn" data-action="agent-save-daily" style="background:linear-gradient(145deg,#15803d,#16a34a);box-shadow:0 4px 0 #166534;font-weight:700">💾 Enregistrer FICHE A</button>
+            <button type="button" class="btn secondary" data-action="print-page">🖨️ Imprimer / PDF</button>
           </div>
           <p id="agentAttendanceStatus" role="status" style="margin:10px 0 0"></p>
         </div>
         <div class="card" style="margin-top:16px">
-          <h3>Appel Journalier des Agents — ${esc((agentSchool && agentSchool.name) || 'École')}</h3>
           <div class="table-wrap">
-            <table>
-              <thead><tr><th>N°</th><th>Matricule</th><th>Nom</th><th>Prénom</th><th>Emploi</th><th>Fonction</th><th>Présence</th><th>Observation</th></tr></thead>
-              <tbody id="agentAttendanceRows"></tbody>
-            </table>
+            <div id="agentDailySheet"></div>
           </div>
         </div>
       `;
@@ -513,6 +522,8 @@ export function setupDirecteur(container, state, render, supabase) {
         date_jour: agentCurrentDate,
         mois: monthNameForDate(agentCurrentDate),
         present: current.present !== false,
+        heure: current.heure != null ? current.heure : 0,
+        jour: current.jour != null ? current.jour : 0,
         observation: String(current.observation || '')
       };
     });
@@ -559,29 +570,40 @@ export function setupDirecteur(container, state, render, supabase) {
   }
 
   function renderAgentDailyRows() {
-    const tbody = viewContainer.querySelector('#agentAttendanceRows');
-    if (!tbody) return;
-    tbody.innerHTML = agentProfiles.map((agent, index) => {
-      const id = String(agent.id);
-      const value = agentAttendanceById.get(id) || {};
-      const { nom, prenom } = getAgentNameParts(agent);
-      const present = value.present !== false;
-      return `<tr>
-        <td>${index + 1}</td>
-        <td>${esc(agent.matricule || agent.identifiant || '—')}</td>
-        <td>${esc(nom || '—')}</td>
-        <td>${esc(prenom || '—')}</td>
-        <td>${esc(getAgentEmployment(agent))}</td>
-        <td>${esc(getAgentFunction(agent))}</td>
-        <td style="white-space:nowrap">
-          <button type="button" class="btn" data-action="agent-set-presence" data-agent-id="${esc(id)}" data-present="true"
-            style="padding:5px 10px;${present ? 'background:#16a34a;color:#fff' : 'background:#e2e8f0;color:#334155'}">Oui</button>
-          <button type="button" class="btn" data-action="agent-set-presence" data-agent-id="${esc(id)}" data-present="false"
-            style="padding:5px 10px;${present ? 'background:#e2e8f0;color:#334155' : 'background:#dc2626;color:#fff'}">Non</button>
-        </td>
-        <td><input class="agent-observation" data-agent-id="${esc(id)}" value="${esc(value.observation || '')}" aria-label="Observation pour ${esc(nom)}"></td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="8">Aucun agent inscrit dans cette école.</td></tr>';
+    const sheet = viewContainer.querySelector('#agentDailySheet');
+    if (!sheet) return;
+    const agents = agentProfiles.map(agent => {
+      const value = agentAttendanceById.get(String(agent.id)) || {};
+      return {
+        id: agent.id,
+        full_name: agent.full_name || '',
+        gender: agent.gender || agent.sexe || '',
+        matricule: agent.matricule || '',
+        emploi: getAgentEmployment(agent),
+        fonction: getAgentFunction(agent),
+        present: value.present !== false,
+        heure: value.heure != null ? value.heure : '',
+        jour: value.jour != null ? value.jour : ''
+      };
+    });
+    const dateFr = (() => {
+      const d = new Date(agentCurrentDate + 'T00:00:00');
+      if (isNaN(d.getTime())) return agentCurrentDate;
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}/${mm}/${d.getFullYear()}`;
+    })();
+    sheet.innerHTML = renderFicheA({
+      structure: (agentSchool && agentSchool.name) || 'École',
+      date: dateFr,
+      heure: '',
+      agents,
+      signerLabel: 'Le Directeur',
+      signatureUrl: state.profile ? signatureUrlForProfile(state.profile) : '',
+      actionName: 'data-action="agent-set-presence"',
+      agentAttr: 'data-agent-id',
+      editable: true
+    }) || '<p style="color:#64748b">Aucun agent inscrit dans cette école.</p>';
   }
 
   async function saveDailyAgentAttendance() {
