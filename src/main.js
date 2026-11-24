@@ -1005,9 +1005,10 @@ async function openSettings() {
             .order('created_at', { ascending: true })
             .limit(200);
           if (classLookupError) throw classLookupError;
+          const normalizedSettingsDivision = (settingsDivision && settingsDivision !== 'UNIQUE') ? settingsDivision : 'Unique';
           const existingClass = (existingClasses || []).find(cls =>
-            String(cls.level || '').trim().toLowerCase() === String(classLevel || '').trim().toLowerCase() &&
-            String(cls.name || '').trim().toLowerCase() === String(canonicalClassName || classLevel || '').trim().toLowerCase()
+            String(cls.name || '').trim().toLowerCase() === String(classLevel || '').trim().toLowerCase() &&
+            String(cls.division || 'Unique').trim().toLowerCase() === normalizedSettingsDivision.toLowerCase()
           ) || null;
 
           if (existingClass) {
@@ -1023,8 +1024,9 @@ async function openSettings() {
             const { data: createdClass, error: classInsertError } = await supabase
               .from('classes')
               .insert({
-                name: canonicalClassName || classLevel,
+                name: classLevel,
                 level: classLevel,
+                division: normalizedSettingsDivision,
                 school_id: schoolId,
                 titulaire_id: userId,
                 titulaire_nom: `${nomValue} ${prenomValue}`.trim(),
@@ -1580,19 +1582,20 @@ async function resolveSchoolId(selection) {
   return ensureSchoolId(value);
 }
 
-async function ensureSharedClass({ schoolId, level, fallbackName, teacherId, teacherName }) {
+async function ensureSharedClass({ schoolId, level, name, division, teacherId, teacherName }) {
   try {
-    const canonical = String(fallbackName || level || '').trim();
+    const normalizedDivision = (division && String(division).trim() !== '') ? String(division).trim() : 'Unique';
+    const className = String(name || level || '').trim();
     const { data: existing } = await supabase
       .from('classes')
       .select('*')
       .eq('school_id', schoolId)
       .order('created_at', { ascending: true })
-      .limit(200);
+      .limit(500);
     const match = (existing || []).find(cls => {
-      const name = String(cls.name || '').trim().toLowerCase();
-      const clsLevel = String(cls.level || '').trim().toLowerCase();
-      return name === canonical.toLowerCase() && clsLevel === String(level || '').trim().toLowerCase();
+      const clsName = String(cls.name || '').trim().toLowerCase();
+      const clsDivision = String(cls.division || 'Unique').trim().toLowerCase();
+      return clsName === className.toLowerCase() && clsDivision === normalizedDivision.toLowerCase();
     });
     if (match) {
       const cls = match;
@@ -1606,8 +1609,9 @@ async function ensureSharedClass({ schoolId, level, fallbackName, teacherId, tea
       return cls.id;
     }
     const { data: newClass, error } = await supabase.from('classes').insert({
-      name: fallbackName,
+      name: className,
       level,
+      division: normalizedDivision,
       school_id: schoolId,
       titulaire_id: teacherId,
       titulaire_nom: teacherName || '',
@@ -1796,11 +1800,11 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
   }
 
   if (isSchoolRole && classLevel && !createdClassId && !isDemoMode) {
-    const fallbackName = (className && className.trim()) || canonicalClassName || classLevel;
     createdClassId = await ensureSharedClass({
       schoolId,
       level: classLevel,
-      fallbackName,
+      name: classLevel,
+      division: (division && division !== 'UNIQUE') ? division : 'Unique',
       teacherId: data.user.id,
       teacherName: `${cleanNom} ${cleanPrenom}`.trim()
     });

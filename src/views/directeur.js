@@ -1677,24 +1677,37 @@ export function setupDirecteur(container, state, render, supabase) {
   async function renderClasses() {
     const classes = await getClasses();
     const { stats } = await getClassStats(classes);
+    const { data: classProfiles } = await supabase
+      .from('profiles')
+      .select('id,full_name,class_id,classe_tenue,division_classe,role')
+      .order('full_name');
+    const teachersByClass = {};
+    (classProfiles || []).forEach(profile => {
+      if (!profile.class_id) return;
+      const key = String(profile.class_id);
+      if (!teachersByClass[key]) teachersByClass[key] = [];
+      const label = profile.full_name || profile.identifiant || profile.id;
+      if (!teachersByClass[key].includes(label)) teachersByClass[key].push(label);
+    });
 
     viewContainer.innerHTML = `
       <div class="card">
         <h3>Toutes les classes de l'école</h3>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>Classe</th><th>Année</th><th>Garçons</th><th>Filles</th><th>Total</th></tr></thead>
+            <thead><tr><th>N°</th><th>Classe</th><th>Titulaires</th><th>Année</th><th>Garçons</th><th>Filles</th><th>Total</th></tr></thead>
             <tbody>
               ${stats.map((c, i) => `
                 <tr>
                   <td>${i + 1}</td>
                   <td><strong>${esc(formatClassName(c.cls))}</strong></td>
+                  <td>${esc((teachersByClass[String(c.cls.id)] || []).join(' / ') || '—')}</td>
                   <td>${esc(c.cls.year || '')}</td>
                   <td>${c.boys}</td>
                   <td>${c.girls}</td>
                   <td><strong>${c.total}</strong></td>
                 </tr>
-              `).join('') || '<tr><td colspan="6">Aucune classe</td></tr>'}
+              `).join('') || '<tr><td colspan="7">Aucune classe</td></tr>'}
             </tbody>
           </table>
         </div>

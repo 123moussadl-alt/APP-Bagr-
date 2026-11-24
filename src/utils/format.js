@@ -20,7 +20,8 @@ export function formatNumber(val) {
 }
 
 export function formatClassName(classe) {
-  const parts = [classe && classe.level, classe && classe.name]
+  const division = String((classe && classe.division) || '').trim();
+  const parts = [classe && classe.level, classe && classe.name, division && division.toLowerCase() !== 'unique' ? division : '']
     .map(value => String(value || '').trim())
     .filter(Boolean);
   const seen = new Set();
