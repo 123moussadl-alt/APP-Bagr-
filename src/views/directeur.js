@@ -32,6 +32,9 @@ import {
 export function renderDirecteur(state, render, supabase) {
   const profile = state.profile;
   if (!profile) return '<div>Chargement...</div>';
+  if (state.isDualDirector === undefined) {
+    state.isDualDirector = !!(profile.class_id || profile.classe_id);
+  }
 
   return `
     <div class="role-layout">
@@ -59,7 +62,7 @@ export function renderDirecteur(state, render, supabase) {
       <div class="role-content">
         ${state.isDualDirector ? `<div style="background:#0f3d23;color:#fff;padding:8px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <strong style="font-size:13px">Mode :</strong>
-          <button class="btn" onclick="window.switchToClasseMode()" style="background:#2563eb">📚 Ma Classe (Titulaire)</button>
+          <button class="btn" onclick="window.switchToClasseMode()" style="background:#2563eb">👨‍🏫 Ma Classe (Espace Titulaire)</button>
           <button class="btn secondary" onclick="window.switchToDirectionMode()">🏫 Direction de l'École</button>
         </div>` : ''}
         <header class="role-topbar">

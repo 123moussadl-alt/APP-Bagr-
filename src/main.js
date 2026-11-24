@@ -247,7 +247,9 @@ function routeToDashboard() {
 
 window.switchToClasseMode = () => {
   if (!state.profile || (state.authenticatedRole !== 'directeur' && !state.preview)) return;
+  state.realProfile = state.realProfile || { ...state.profile };
   state.profile = { ...state.profile, role: 'titulaire' };
+  state.isDualDirector = true;
   state.view = 'titulaire';
   render();
 };
@@ -255,6 +257,7 @@ window.switchToClasseMode = () => {
 window.switchToDirectionMode = () => {
   if (!state.profile || (state.authenticatedRole !== 'directeur' && !state.preview)) return;
   state.profile = { ...state.profile, role: 'directeur' };
+  state.isDualDirector = true;
   state.view = 'directeur';
   render();
 };
