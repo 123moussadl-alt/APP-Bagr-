@@ -338,6 +338,16 @@ export function setupTitulaire(container, state, render, supabase) {
           <label>Nom de la classe (optionnel)</label>
           <input type="text" id="newClassName" placeholder="Ex: CM2 A">
         </div>
+        <div class="form-group">
+          <label>Division / Groupe</label>
+          <select id="newClassDivision">
+            <option value="">Classe unique</option>
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+          </select>
+          <small>« Classe unique » affiche « CP1 » ; « A » affiche « CP1 A ».</small>
+        </div>
         <button class="btn" data-action="create-class" style="margin-top:8px">+ Créer ma classe</button>
         ${available.length > 0 ? `
           <hr style="margin:18px 0;border:none;border-top:1px solid #e2e8f0">
@@ -357,21 +367,26 @@ export function setupTitulaire(container, state, render, supabase) {
   async function createClass() {
     const schoolId = state.profile && state.profile.school_id;
     const level = (viewContainer.querySelector('#newClassLevel') && viewContainer.querySelector('#newClassLevel').value) || 'CP1';
-    const name = ((viewContainer.querySelector('#newClassName') && viewContainer.querySelector('#newClassName').value) || '').trim() || level;
+    const division = ((viewContainer.querySelector('#newClassDivision') && viewContainer.querySelector('#newClassDivision').value) || '').trim().toUpperCase();
+    const name = ((viewContainer.querySelector('#newClassName') && viewContainer.querySelector('#newClassName').value) || '').trim()
+      || (division && division !== 'UNIQUE' ? `${level} ${division}` : level);
     if (!schoolId) { alert("Votre compte n'est rattaché à aucune école. Contactez le Chef CEB."); return; }
     const userId = state.user && state.user.id;
 
-    // La classe existe-t-elle déjà dans l'école (même niveau) ? → classe canonique partagée
-    const { data: existing } = await supabase
+    // La classe existe-t-elle déjà dans l'école (même niveau + même nom canonique) ? → classe partagée
+    const { data: existingList } = await supabase
       .from('classes')
       .select('*')
       .eq('school_id', schoolId)
-      .eq('level', level)
       .order('created_at', { ascending: true })
-      .limit(1);
+      .limit(200);
+    const existing = (existingList || []).find(cls =>
+      String(cls.level || '').trim().toLowerCase() === level.toLowerCase() &&
+      String(cls.name || '').trim().toLowerCase() === name.toLowerCase()
+    );
 
-    if (existing && existing.length > 0) {
-      const ex = existing[0];
+    if (existing) {
+      const ex = existing;
       await supabase.from('class_teachers').upsert(
         { class_id: ex.id, teacher_id: userId },
         { onConflict: 'class_id,teacher_id', ignoreDuplicates: true }
@@ -396,7 +411,7 @@ export function setupTitulaire(container, state, render, supabase) {
         { onConflict: 'class_id,teacher_id', ignoreDuplicates: true }
       );
       await supabase.from('profiles').update({ class_id: newClass.id }).eq('id', userId);
-      if (state.profile) state.profile.class_id = newClass.id;
+      if (state.profile) { state.profile.class_id = newClass.id; state.profile.division_classe = division && division !== 'UNIQUE' ? division : null; }
       localClass = newClass;
     } else {
       // Mode démo : pas d'id renvoyé par le mock

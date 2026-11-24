@@ -98,6 +98,16 @@ export function renderRegister({ onLogin, onRegister }) {
                 <label for="classNameInput" id="classNameLabel">Classe tenue — Nom (optionnel)</label>
                 <input type="text" name="className" id="classNameInput" placeholder="Ex: CM2 A">
               </div>
+              <div class="form-group">
+                <label for="divisionSelect">Division / Groupe</label>
+                <select name="division_classe" id="divisionSelect">
+                  <option value="">Classe unique</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                </select>
+                <small>« Classe unique » affiche « CP1 » ; « A » affiche « CP1 A ».</small>
+              </div>
             </div>
             </div>
             <div id="encadreurSchoolsGroup" class="form-group" style="display:none">
@@ -271,8 +281,12 @@ export function setupRegister(container, { onLogin, onRegister }) {
 
       const formData = new FormData(form);
       const classLevel = ((role === 'titulaire' || role === 'directeur') && classLevelSelect) ? (classLevelSelect.value || null) : null;
+      const divisionClasse = ((formData.get('division_classe') || '').trim() || '').toUpperCase();
+      const canonicalClassName = classLevel && classLevel !== 'Aucune'
+        ? (divisionClasse && divisionClasse !== 'UNIQUE' ? `${classLevel} ${divisionClasse}` : classLevel)
+        : null;
       const className = (role === 'titulaire' || role === 'directeur') && classLevel && classLevel !== 'Aucune'
-        ? ((formData.get('className') || '').trim() || null)
+        ? ((formData.get('className') || '').trim() || canonicalClassName)
         : null;
 
       try {
@@ -291,6 +305,7 @@ export function setupRegister(container, { onLogin, onRegister }) {
             : schoolName,
           classLevel,
           className,
+          divisionClasse: divisionClasse && divisionClasse !== 'UNIQUE' ? divisionClasse : null,
           lieuTravail: (formData.get('lieu_travail') || '').trim() || null,
           whatsapp: (formData.get('whatsapp') || '').trim(),
           identifiant: formData.get('identifiant'),

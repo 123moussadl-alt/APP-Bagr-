@@ -661,6 +661,7 @@ alter table public.students add column if not exists lieu_naissance text;
 alter table public.students add column if not exists option_cep text;
 alter table public.profiles add column if not exists est_actif boolean default true;
 alter table public.profiles add column if not exists lieu_travail text;
+alter table public.profiles add column if not exists division_classe text;
 alter table public.profiles add column if not exists derniere_activite timestamptz;
 alter table public.exam_blancs add column if not exists niveau text;
 alter table public.exam_blancs add column if not exists session_label text;

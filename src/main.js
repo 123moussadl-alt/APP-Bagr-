@@ -521,6 +521,9 @@ async function openSettings() {
   const profileSchoolId = profile.ecole_id || profile.school_id || '';
   let savedSignature = signatureUrlForProfile(profile);
   const currentClass = profile.classe_niveau || profile.classe_tenue || '';
+  const currentDivision = (String(profile.division_classe || '').trim().toUpperCase() === 'A' || String(profile.division_classe || '').trim().toUpperCase() === 'B' || String(profile.division_classe || '').trim().toUpperCase() === 'C')
+    ? String(profile.division_classe).trim().toUpperCase()
+    : '';
   let savedEncadreeIds = parseSchoolIdList(profile.ecoles_encadrees);
   if (!savedEncadreeIds.length) savedEncadreeIds = parseSchoolIdList(profile.followed_schools);
   if (!savedEncadreeIds.length && profile.id) {
@@ -585,6 +588,7 @@ async function openSettings() {
           <div class="form-group"><label for="settingsLieuTravail">Lieu de travail</label><select id="settingsLieuTravail"><option value="Ecole"${currentLieuTravail === 'Ecole' ? ' selected' : ''}>École</option><option value="CEB"${currentLieuTravail === 'CEB' ? ' selected' : ''}>Bureau de la CEB</option></select></div>
           ${isSchoolRole ? `<div class="form-group"><label for="settingsSchool">École</label><select id="settingsSchool"><option value="">-- Choisir --</option>${schools.map(school => `<option value="${esc(school.id)}">${esc(school.name)}</option>`).join('')}</select></div>` : ''}
           ${canAssignClass ? `<div class="form-group"><label for="settingsClass">Classe tenue</label><select id="settingsClass" required><option value="">-- Choisir --</option>${classOptions.map(value => `<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select></div>` : ''}
+          ${canAssignClass ? `<div class="form-group"><label for="settingsDivision">Division / Groupe</label><select id="settingsDivision"><option value="">Classe unique</option><option value="A"${currentDivision === 'A' ? ' selected' : ''}>A</option><option value="B"${currentDivision === 'B' ? ' selected' : ''}>B</option><option value="C"${currentDivision === 'C' ? ' selected' : ''}>C</option></select><small>« Classe unique » affiche « CP1 » ; « A » affiche « CP1 A ».</small></div>` : ''}
           ${isEncadreur ? `<div class="form-group" style="grid-column:1/-1"><label>Écoles encadrées / Zone d'encadrement</label><div id="settingsEncadreeSchools" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px">${schools.map(school => `<label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff"><input type="checkbox" name="settingsEncadreeSchool" value="${esc(school.id)}" ${savedEncadreeIds.includes(String(school.id)) ? 'checked' : ''}><span>${esc(school.name)}</span></label>`).join('')}</div></div>` : ''}
           ${isDistrictRole ? `<div class="form-group"><label for="settingsStructure">Structure</label><input id="settingsStructure" value="CEB de Bagré" readonly></div>` : ''}
           <div class="form-group"><label for="settingsWhatsApp">Contact WhatsApp</label><input id="settingsWhatsApp" type="tel" value="${esc(profile.whatsapp || profile.whatsapp_phone || '')}"></div>
@@ -961,15 +965,17 @@ async function openSettings() {
               subjects: defaultSubjects(classLevel)
             };
         } else {
-          const { data: existingClass, error: classLookupError } = await supabase
+          const { data: existingClasses, error: classLookupError } = await supabase
             .from('classes')
             .select('*')
             .eq('school_id', schoolId)
-            .eq('level', classLevel)
             .order('created_at', { ascending: true })
-            .limit(1)
-            .maybeSingle();
+            .limit(200);
           if (classLookupError) throw classLookupError;
+          const existingClass = (existingClasses || []).find(cls =>
+            String(cls.level || '').trim().toLowerCase() === String(classLevel || '').trim().toLowerCase() &&
+            String(cls.name || '').trim().toLowerCase() === String(canonicalClassName || classLevel || '').trim().toLowerCase()
+          ) || null;
 
           if (existingClass) {
             const coTeachers = Array.isArray(existingClass.co_titulaires) ? existingClass.co_titulaires : [];
@@ -984,7 +990,7 @@ async function openSettings() {
             const { data: createdClass, error: classInsertError } = await supabase
               .from('classes')
               .insert({
-                name: classLevel,
+                name: canonicalClassName || classLevel,
                 level: classLevel,
                 school_id: schoolId,
                 titulaire_id: userId,
@@ -1007,6 +1013,12 @@ async function openSettings() {
       const nomComplet = `${nomValue} ${prenomValue}`.trim();
       const classTenue = canAssignClass ? classLevel : null;
       const classNiveau = canAssignClass && classLevel ? classLevel : null;
+      const settingsDivision = canAssignClass && overlay.querySelector('#settingsDivision')
+        ? (overlay.querySelector('#settingsDivision').value || '').trim().toUpperCase()
+        : '';
+      const canonicalClassName = classLevel
+        ? (settingsDivision && settingsDivision !== 'UNIQUE' ? `${classLevel} ${settingsDivision}` : classLevel)
+        : null;
       const legacyPhone = whatsappValue || profile.whatsapp_phone || '';
       const profilePayload = {
         matricule: overlay.querySelector('#settingsMatricule').value.trim() || null,
@@ -1025,6 +1037,7 @@ async function openSettings() {
         classe_id: classId,
         classe_niveau: classNiveau,
         classe_tenue: classTenue,
+        division_classe: canAssignClass ? (settingsDivision && settingsDivision !== 'UNIQUE' ? settingsDivision : null) : null,
         ecoles_encadrees: ecolesEncadrees,
         followed_schools: ecolesEncadrees,
         structure,
@@ -1542,15 +1555,20 @@ async function resolveSchoolId(selection) {
 
 async function ensureSharedClass({ schoolId, level, fallbackName, teacherId, teacherName }) {
   try {
+    const canonical = String(fallbackName || level || '').trim();
     const { data: existing } = await supabase
       .from('classes')
       .select('*')
       .eq('school_id', schoolId)
-      .eq('level', level)
       .order('created_at', { ascending: true })
-      .limit(1);
-    if (existing && existing[0]) {
-      const cls = existing[0];
+      .limit(200);
+    const match = (existing || []).find(cls => {
+      const name = String(cls.name || '').trim().toLowerCase();
+      const clsLevel = String(cls.level || '').trim().toLowerCase();
+      return name === canonical.toLowerCase() && clsLevel === String(level || '').trim().toLowerCase();
+    });
+    if (match) {
+      const cls = match;
       await supabase.from('class_teachers').upsert(
         { class_id: cls.id, teacher_id: teacherId },
         { onConflict: 'class_id,teacher_id', ignoreDuplicates: true }
@@ -1582,7 +1600,7 @@ async function ensureSharedClass({ schoolId, level, fallbackName, teacherId, tea
   }
 }
 
-async function handleRegister({ identifiant, password, matricule, nom, prenom, sexe, role, emploi, schoolName, schoolId: selectedSchoolId, classLevel, className, whatsapp, classId, followedSchools, structure, lieuTravail }) {
+async function handleRegister({ identifiant, password, matricule, nom, prenom, sexe, role, emploi, schoolName, schoolId: selectedSchoolId, classLevel, className, divisionClasse, whatsapp, classId, followedSchools, structure, lieuTravail }) {
   if (role !== 'titulaire') {
     showToast('Les autres fonctions sont attribuées par un administrateur après vérification.');
     throw new Error('role_registration_requires_admin');
@@ -1711,6 +1729,12 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
     }
   }
 
+  let createdClassId = classId || null;
+  const division = (divisionClasse || '').trim().toUpperCase();
+  const canonicalClassName = classLevel
+    ? (division && division !== 'UNIQUE' ? `${classLevel} ${division}` : classLevel)
+    : null;
+
   const { error: profileError } = await supabase.from('profiles').insert({
     id: data.user.id,
     identifiant: cleanId,
@@ -1736,6 +1760,7 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
     school_id: schoolId,
     class_id: classId || null,
     lieu_travail: lieuTravailValue,
+    division_classe: isSchoolRole && division && division !== 'UNIQUE' ? division : null,
     est_actif: false
   });
   if (profileError) {
@@ -1743,9 +1768,8 @@ async function handleRegister({ identifiant, password, matricule, nom, prenom, s
     throw profileError;
   }
 
-  let createdClassId = classId || null;
   if (isSchoolRole && classLevel && !createdClassId && !isDemoMode) {
-    const fallbackName = (className && className.trim()) || classLevel;
+    const fallbackName = (className && className.trim()) || canonicalClassName || classLevel;
     createdClassId = await ensureSharedClass({
       schoolId,
       level: classLevel,
