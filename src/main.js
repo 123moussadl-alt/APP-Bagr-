@@ -918,6 +918,12 @@ async function openSettings() {
     let school = schools.find(item => String(item.id) === String(schoolId)) || null;
     const classLevel = classSel ? (classSel.value || null) : null;
     const shouldLinkClass = canAssignClass && !!classLevel && classLevel !== 'Aucune';
+    const settingsDivision = canAssignClass && overlay.querySelector('#settingsDivision')
+      ? (overlay.querySelector('#settingsDivision').value || '').trim().toUpperCase()
+      : '';
+    const canonicalClassName = classLevel
+      ? (settingsDivision && settingsDivision !== 'UNIQUE' ? `${classLevel} ${settingsDivision}` : classLevel)
+      : null;
     const directorProfile = profile.role === 'directeur' || !!state.isDualDirector;
     let ecolesEncadrees = isEncadreur
       ? Array.from(overlay.querySelectorAll('input[name="settingsEncadreeSchool"]:checked')).map(input => input.value)
@@ -1013,12 +1019,6 @@ async function openSettings() {
       const nomComplet = `${nomValue} ${prenomValue}`.trim();
       const classTenue = canAssignClass ? classLevel : null;
       const classNiveau = canAssignClass && classLevel ? classLevel : null;
-      const settingsDivision = canAssignClass && overlay.querySelector('#settingsDivision')
-        ? (overlay.querySelector('#settingsDivision').value || '').trim().toUpperCase()
-        : '';
-      const canonicalClassName = classLevel
-        ? (settingsDivision && settingsDivision !== 'UNIQUE' ? `${classLevel} ${settingsDivision}` : classLevel)
-        : null;
       const legacyPhone = whatsappValue || profile.whatsapp_phone || '';
       const profilePayload = {
         matricule: overlay.querySelector('#settingsMatricule').value.trim() || null,
