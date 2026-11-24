@@ -347,6 +347,7 @@ function render() {
       const isLoginView = view === 'login' || view === 'admin-login';
       const isLandingView = view === 'landing';
       const isForgotView = view === 'forgot';
+      const setupFn = isLoginView ? module.setupLogin : module.setupRegister;
       const renderFn = view === 'register'
         ? module.renderRegister
         : isLandingView
