@@ -189,9 +189,9 @@ export function renderBulletinsAnnuelsHTML({ rows, className, schoolName, teache
     const redouble = !exclu && decision === 'Redouble';
     const passe = !exclu && !redouble;
     const img = signatureImageHTML(directorSignatureUrl, 'Signature du Directeur', 'max-height:36px;width:auto;height:auto;object-fit:contain;margin:2px auto 0;display:block');
-    return `<div class="bulletin-sheet bulletin-annuel-sheet" style="font-family:Arial,sans-serif;width:100%;max-width:100%;margin:0 auto 18px;background:#fff;color:#111;padding:10px;box-sizing:border-box;font-size:10pt;line-height:1.3">
-      <div style="text-align:center;font-weight:800;font-size:9.5pt">CIRCONSCRIPTION D'EDUCATION DE BASE DE BAGRE</div>
-      <div style="text-align:center;font-size:8.5pt;margin-top:2px">ECOLE PRIMAIRE PUBLIQUE DE ${esc(schoolName || '—')}</div>
+    return `<div class="bulletin-sheet bulletin-annuel-sheet" style="font-family:Arial,sans-serif;width:100%;max-width:100%;margin:0 auto 18px;background:#fff;color:#111;padding:8px 10px;box-sizing:border-box;font-size:10pt;line-height:1.45;border:1.5px solid #000">
+      <div style="text-align:center;font-weight:800;font-size:10pt">CIRCONSCRIPTION D'EDUCATION DE BASE DE : BAGRE</div>
+      <div style="text-align:center;font-size:10pt;margin-top:2px">ECOLE PRIMAIRE PUBLIQUE DE : ${esc(schoolName || '—')}</div>
       <div style="display:flex;justify-content:space-between;gap:8px;font-size:8.5pt;margin-top:4px">
         <span>Année Scolaire : ${esc(schoolYear || '')}</span>
         <span>Classe : ${esc(className || '—')}</span>

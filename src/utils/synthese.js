@@ -393,29 +393,29 @@ export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects
         <strong style="font-size:15pt;font-weight:800;letter-spacing:.3px">BILAN Trimestriel n° ${esc(termLabel)}</strong>
       </div>
 
-      <div style="display:grid;grid-template-columns:45% 55%;gap:10px;align-items:start">
+      <div style="display:grid;grid-template-columns:44% 56%;gap:10px;align-items:start">
         <div>
-          <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
-            <tbody>
-              <tr>
-                <td style="border:1px solid #333;padding:5px 6px;font-weight:700;width:50%">Effectif début d'année</td>
-                <td style="border:1px solid #333;padding:5px 6px;text-align:center;font-weight:700">Garçons : ${boys.length}<br>Filles : <span style="color:#dc2626">${girls.length}</span><br>Total : <span style="color:#16a34a">${list.length}</span></td>
-              </tr>
-              <tr>
-                <td style="border:1px solid #333;padding:5px 6px;font-weight:700">Effectif composé</td>
-                <td style="border:1px solid #333;padding:5px 6px;text-align:center;font-weight:700">Garçons : ${compBoys}<br>Filles : <span style="color:#dc2626">${compGirls}</span><br>Total : <span style="color:#16a34a">${composed.length}</span></td>
-              </tr>
-            </tbody>
-          </table>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <div style="text-decoration:underline;font-weight:700">Effectif début d'année</div>
+              <div>Garçons : ${boys.length}</div>
+              <div style="color:#dc2626">Filles : ${girls.length}</div>
+              <div style="color:#16a34a">Total : ${list.length}</div>
+            </div>
+            <div>
+              <div style="text-decoration:underline;font-weight:700">Effectif composé</div>
+              <div>Garçons : ${compBoys}</div>
+              <div style="color:#dc2626">Filles : ${compGirls}</div>
+              <div style="color:#16a34a">Total : ${composed.length}</div>
+            </div>
+          </div>
 
-          <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
-            <thead><tr><th colspan="1" style="border:1px solid #333;padding:5px;background:#f1f5f9;text-align:left">Ayant la moyenne</th></tr></thead>
-            <tbody>
-              <tr><td style="border:1px solid #333;padding:5px">Garçons : ${ayantBoys} &nbsp; soit ${pctAyant(ayantBoys, compBoys)} %</td></tr>
-              <tr><td style="border:1px solid #333;padding:5px;color:#dc2626">Filles : ${ayantGirls} &nbsp; soit ${pctAyant(ayantGirls, compGirls)} %</td></tr>
-              <tr><td style="border:1px solid #333;padding:5px;color:#16a34a">Total : ${ayantMoyenne.length} &nbsp; soit ${pctAyant(ayantMoyenne.length, composed.length)} %</td></tr>
-            </tbody>
-          </table>
+          <div style="margin-bottom:10px">
+            <div style="text-decoration:underline;font-weight:700">Ayant la moyenne</div>
+            <div>Garçons : ${ayantBoys} &nbsp; soit ${pctAyant(ayantBoys, compBoys)} %</div>
+            <div style="color:#dc2626">Filles : ${ayantGirls} &nbsp; soit ${pctAyant(ayantGirls, compGirls)} %</div>
+            <div style="color:#16a34a">Total : ${ayantMoyenne.length} &nbsp; soit ${pctAyant(ayantMoyenne.length, composed.length)} %</div>
+          </div>
 
           <table style="width:100%;border-collapse:collapse;margin-bottom:10px;table-layout:fixed">
             <tbody>
@@ -428,33 +428,27 @@ export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects
             </tbody>
           </table>
 
-          <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
-            <tbody>
-              <tr><td style="border:1px solid #333;padding:5px 6px;font-weight:700">Forte moyenne</td><td style="border:1px solid #333;padding:5px 6px;text-align:center">${forte != null ? forte.toFixed(2) : '—'}</td></tr>
-              <tr><td style="border:1px solid #333;padding:5px 6px;font-weight:700">Faible moyenne</td><td style="border:1px solid #333;padding:5px 6px;text-align:center">${faible != null ? faible.toFixed(2) : '—'}</td></tr>
-              <tr><td style="border:1px solid #333;padding:5px 6px;font-weight:700">Moyenne de la classe</td><td style="border:1px solid #333;padding:5px 6px;text-align:center"><strong>${moyenne != null ? moyenne.toFixed(2) : '—'}</strong></td></tr>
-              <tr><td style="border:1px solid #333;padding:5px 6px;font-weight:700">Taux de fréquentation</td><td style="border:1px solid #333;padding:5px 6px;text-align:center">${attendanceRate != null ? attendanceRate.toFixed(2) + ' %' : '—'}</td></tr>
-            </tbody>
-          </table>
+          <div style="margin-bottom:10px">
+            <div>Forte moyenne : ${forte != null ? forte.toFixed(2) : '—'}</div>
+            <div>Faible moyenne : ${faible != null ? faible.toFixed(2) : '—'}</div>
+            <div>Moyenne de la classe : ${moyenne != null ? moyenne.toFixed(2) : '—'}</div>
+            <div>Taux de fréquentation : ${attendanceRate != null ? attendanceRate.toFixed(2) + ' %' : '—'}</div>
+          </div>
 
-          <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
-            <thead><tr><th colspan="2" style="border:1px solid #333;padding:5px;background:#f1f5f9">PAI</th></tr></thead>
-            <tbody>
-              <tr><td style="border:1px solid #333;padding:5px;font-weight:700;width:42%">Discipline</td><td style="border:1px solid #333;padding:5px">${disciplineControl}</td></tr>
-              <tr><td style="border:1px solid #333;padding:5px;font-weight:700">% de début</td><td style="border:1px solid #333;padding:5px">${tauxControl}</td></tr>
-              <tr><td style="border:1px solid #333;padding:5px;font-weight:700">% du trimestre</td><td style="border:1px solid #333;padding:5px">${tauxTrimFinal != null ? tauxTrimFinal + '%' : '—'}</td></tr>
-              <tr><td style="border:1px solid #333;padding:5px;font-weight:700">Écart</td><td style="border:1px solid #333;padding:5px;text-align:center"><strong>${esc(ecartText)}</strong></td></tr>
-              <tr><td style="border:1px solid #333;padding:5px;font-weight:700">Décision</td><td style="border:1px solid #333;padding:5px">${decisionControl}</td></tr>
-            </tbody>
-          </table>
+          <div style="margin-bottom:10px">
+            <div style="text-decoration:underline;font-weight:700">PAI</div>
+            <div>Discipline : ${disciplineControl}</div>
+            <div>% de début : ${tauxControl}</div>
+            <div>% du trimestre : ${tauxTrimFinal != null ? tauxTrimFinal + ' %' : '—'}</div>
+            <div>Ecart : ${esc(ecartText)}</div>
+            <div>Décision : ${decisionControl}</div>
+          </div>
 
-          <div style="border:1px solid #333;padding:8px">
-            <strong>Difficultés rencontrées et suggestions</strong>
-            <div style="margin-top:6px">
-              ${editable
-                ? `<textarea id="syntheseDifficultes" rows="3" style="width:100%;padding:6px;border:1px solid #333">${esc((pai && pai.difficultes) || '')}</textarea>`
-                : `<div style="border:1px solid #333;padding:6px;min-height:44px">${esc((pai && pai.difficultes) || '—')}</div>`}
-            </div>
+          <div>
+            <div style="text-decoration:underline;font-weight:700">Difficultés rencontrées et suggestions</div>
+            ${editable
+              ? `<textarea id="syntheseDifficultes" rows="3" style="width:100%;padding:4px;border:1px dotted #333;resize:vertical">${esc((pai && pai.difficultes) || '')}</textarea>`
+              : `<div style="border-bottom:1px dotted #333;min-height:20px">${esc((pai && pai.difficultes) || '')}</div>`}
           </div>
         </div>
 
