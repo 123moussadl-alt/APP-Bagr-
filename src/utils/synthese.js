@@ -5,7 +5,7 @@
 
 import { esc, formatClassName, normalizeNotes } from './format.js';
 import { normalizePaiDiscipline } from './pai.js';
-import { signatureImageHTML, signaturePeopleHTML } from './signature.js';
+import { signatureImageHTML, signaturePeopleHTML, signatureUrlForProfile } from './signature.js';
 
 function round1(v) { return Math.round(v * 10) / 10; }
 
@@ -277,7 +277,7 @@ export function renderSyntheseHTML({ schoolName, cls, students, subjects, notes,
  * BILAN TRIMESTRIEL OFFICIEL — mise en page réglementaire (CEB de Bagré).
  * En-tête deux colonnes, corps scindé (gauche 45 % / droite 55 %), pied de page signatures.
  */
-export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects, notes, term, pai, teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureUrl, editable, activeSchoolYear }) {
+export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects, notes, term, pai, teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureUrl, editable, activeSchoolYear, conseilByClass }) {
   const list = students || [];
   const boys = list.filter(s => s.gender === 'M');
   const girls = list.filter(s => s.gender === 'F');
@@ -378,62 +378,68 @@ export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects
         <div style="font-size:11pt;line-height:1.35;text-align:left;flex:1">
           <strong style="font-size:11pt">CIRCONSCRIPTION D'EDUCATION DE BASE DE BAGRE</strong><br>
           <span>*-*-*-*-*-*</span><br>
-          <strong>ECOLE PRIMAIRE PUBLIQUE DE ${esc(schoolName || '—')}</strong>
-        </div>
-        <div style="font-size:11pt;line-height:1.35;text-align:right;flex:1">
-          <strong style="font-size:11pt">BURKINA FASO</strong><br>
-          <span>*-*-*-*-*-*</span><br>
-          <em>La Patrie ou la Mort nous Vaincrons</em><br>
-          <strong>Année Scolaire : ${esc(year)}</strong><br>
+          <strong>ECOLE PRIMAIRE PUBLIQUE DE ${esc(schoolName || '—')}</strong><br>
           <strong>Classe : ${esc(className)}</strong>
+        </div>
+        <div style="font-size:11pt;line-height:1.35;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center">
+          <strong style="font-size:11pt">BURKINA FASO</strong>
+          <span>*-*-*-*-*-*</span>
+          <em>La Patrie ou la Mort nous Vaincrons</em>
+          <strong style="color:#1d4ed8">Année Scolaire : ${esc(year)}</strong>
         </div>
       </div>
 
       <div style="width:100%;text-align:center;margin:10px 0 12px">
-        <strong style="font-size:15pt;font-weight:800;letter-spacing:.3px">BILAN Trimestriel n° ${esc(termLabel)}</strong>
+        <strong style="font-size:15pt;font-weight:800;letter-spacing:.3px;text-decoration:underline">BILAN Trimestriel n° ${esc(termLabel)}</strong>
       </div>
 
       <div style="display:grid;grid-template-columns:44% 56%;gap:10px;align-items:start">
         <div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-            <div>
-              <div style="text-decoration:underline;font-weight:700">Effectif début d'année</div>
-              <div>Garçons : ${boys.length}</div>
-              <div style="color:#dc2626">Filles : ${girls.length}</div>
-              <div style="color:#16a34a">Total : ${list.length}</div>
-            </div>
-            <div>
-              <div style="text-decoration:underline;font-weight:700">Effectif composé</div>
-              <div>Garçons : ${compBoys}</div>
-              <div style="color:#dc2626">Filles : ${compGirls}</div>
-              <div style="color:#16a34a">Total : ${composed.length}</div>
-            </div>
+            <table style="width:100%;border-collapse:collapse;border:1px solid #000">
+              <tbody>
+                <tr><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-weight:700;text-decoration:underline">Effectif début d'année</td></tr>
+                <tr><td style="border:1px solid #000;padding:3px 6px">Garçons</td><td style="border:1px solid #000;padding:3px 6px;text-align:center">${boys.length}</td></tr>
+                <tr><td style="border:1px solid #000;padding:3px 6px;color:#dc2626">Filles</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#dc2626">${girls.length}</td></tr>
+                <tr><td style="border:1px solid #000;padding:3px 6px;color:#16a34a">Total</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#16a34a">${list.length}</td></tr>
+              </tbody>
+            </table>
+            <table style="width:100%;border-collapse:collapse;border:1px solid #000">
+              <tbody>
+                <tr><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-weight:700;text-decoration:underline">Effectif composé</td></tr>
+                <tr><td style="border:1px solid #000;padding:3px 6px">Garçons</td><td style="border:1px solid #000;padding:3px 6px;text-align:center">${compBoys}</td></tr>
+                <tr><td style="border:1px solid #000;padding:3px 6px;color:#dc2626">Filles</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#dc2626">${compGirls}</td></tr>
+                <tr><td style="border:1px solid #000;padding:3px 6px;color:#16a34a">Total</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#16a34a">${composed.length}</td></tr>
+              </tbody>
+            </table>
           </div>
 
-          <div style="margin-bottom:10px">
-            <div style="text-decoration:underline;font-weight:700">Ayant la moyenne</div>
-            <div>Garçons : ${ayantBoys} &nbsp; soit ${pctAyant(ayantBoys, compBoys)} %</div>
-            <div style="color:#dc2626">Filles : ${ayantGirls} &nbsp; soit ${pctAyant(ayantGirls, compGirls)} %</div>
-            <div style="color:#16a34a">Total : ${ayantMoyenne.length} &nbsp; soit ${pctAyant(ayantMoyenne.length, composed.length)} %</div>
-          </div>
-
-          <table style="width:100%;border-collapse:collapse;margin-bottom:10px;table-layout:fixed">
+          <table style="width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:10px">
+            <thead>
+              <tr style="background:#f1f5f9">
+                <th style="border:1px solid #000;padding:4px 6px;text-align:left">Ayant la moyenne</th>
+                <th style="border:1px solid #000;padding:4px 6px">Nombre</th>
+                <th style="border:1px solid #000;padding:4px 6px">Pourcentage (%)</th>
+              </tr>
+            </thead>
             <tbody>
-              <tr><td style="border:1px solid #333;padding:4px 6px;background:#f1f5f9;font-weight:700;text-align:center">Moyen</td>
-                ${brackets.map(b => `<td style="border:1px solid #333;padding:3px;font-size:9pt;text-align:center">${b.label}</td>`).join('')}
-              </tr>
-              <tr><td style="border:1px solid #333;padding:4px 6px;font-weight:700;text-align:center">Nbre</td>
-                ${brackets.map(b => `<td style="border:1px solid #333;padding:3px;font-size:9pt;text-align:center">${b.count}</td>`).join('')}
-              </tr>
+              <tr><td style="border:1px solid #000;padding:3px 6px">Garçons</td><td style="border:1px solid #000;padding:3px 6px;text-align:center">${ayantBoys}</td><td style="border:1px solid #000;padding:3px 6px;text-align:center">${pctAyant(ayantBoys, compBoys)} %</td></tr>
+              <tr><td style="border:1px solid #000;padding:3px 6px;color:#dc2626">Filles</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#dc2626">${ayantGirls}</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#dc2626">${pctAyant(ayantGirls, compGirls)} %</td></tr>
+              <tr><td style="border:1px solid #000;padding:3px 6px;color:#16a34a">Total</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#16a34a">${ayantMoyenne.length}</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#16a34a">${pctAyant(ayantMoyenne.length, composed.length)} %</td></tr>
             </tbody>
           </table>
 
-          <div style="margin-bottom:10px">
-            <div>Forte moyenne : ${forte != null ? forte.toFixed(2) : '—'}</div>
-            <div>Faible moyenne : ${faible != null ? faible.toFixed(2) : '—'}</div>
-            <div>Moyenne de la classe : ${moyenne != null ? moyenne.toFixed(2) : '—'}</div>
-            <div>Taux de fréquentation : ${attendanceRate != null ? attendanceRate.toFixed(2) + ' %' : '—'}</div>
-          </div>
+          <div style="font-weight:700;text-decoration:underline;margin-bottom:4px">Nombre d'élèves par moyenne</div>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:10px;table-layout:fixed;border:1px solid #000">
+            <tbody>
+              <tr><td style="border:1px solid #000;padding:3px 4px;background:#f1f5f9;font-weight:700;text-align:center">Moyenne</td>
+                ${brackets.map(b => `<td style="border:1px solid #000;padding:2px 3px;font-size:9pt;text-align:center">${b.label}</td>`).join('')}
+              </tr>
+              <tr><td style="border:1px solid #000;padding:3px 4px;font-weight:700;text-align:center">Nombre</td>
+                ${brackets.map(b => `<td style="border:1px solid #000;padding:2px 3px;font-size:9pt;text-align:center">${b.count}</td>`).join('')}
+              </tr>
+            </tbody>
+          </table>
 
           <div style="margin-bottom:10px">
             <div style="text-decoration:underline;font-weight:700">PAI</div>
@@ -442,13 +448,6 @@ export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects
             <div>% du trimestre : ${tauxTrimFinal != null ? tauxTrimFinal + ' %' : '—'}</div>
             <div>Ecart : ${esc(ecartText)}</div>
             <div>Décision : ${decisionControl}</div>
-          </div>
-
-          <div>
-            <div style="text-decoration:underline;font-weight:700">Difficultés rencontrées et suggestions</div>
-            ${editable
-              ? `<textarea id="syntheseDifficultes" rows="3" style="width:100%;padding:4px;border:1px dotted #333;resize:vertical">${esc((pai && pai.difficultes) || '')}</textarea>`
-              : `<div style="border-bottom:1px dotted #333;min-height:20px">${esc((pai && pai.difficultes) || '')}</div>`}
           </div>
         </div>
 
@@ -485,13 +484,39 @@ export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects
               `).join('') || '<tr><td colspan="7" style="border:1px solid #333;padding:5px;text-align:center">Aucune matière</td></tr>'}
             </tbody>
           </table>
+
+          <table style="width:100%;border-collapse:collapse;border:1px solid #000;margin-top:12px">
+            <tbody>
+              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700;width:60%">Forte moyenne</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${forte != null ? forte.toFixed(2) : '—'}</td></tr>
+              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Faible moyenne</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${faible != null ? faible.toFixed(2) : '—'}</td></tr>
+              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Moyenne de la classe</td><td style="border:1px solid #000;padding:4px 8px;text-align:center"><strong>${moyenne != null ? moyenne.toFixed(2) : '—'}</strong></td></tr>
+              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Taux de fréquentation</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${attendanceRate != null ? attendanceRate.toFixed(2) + ' %' : '—'}</td></tr>
+            </tbody>
+          </table>
         </div>
+      </div>
+
+      <div style="margin:10px auto;width:80%;text-align:center">
+        <div style="font-weight:700;text-decoration:underline;margin-bottom:4px">Difficultés rencontrées et suggestions</div>
+        ${editable
+          ? `<textarea id="syntheseDifficultes" rows="3" style="width:100%;padding:4px;border:1px dotted #333;resize:vertical">${esc((pai && pai.difficultes) || '')}</textarea>`
+          : `<div style="border-bottom:1px dotted #333;min-height:22px">${esc((pai && pai.difficultes) || '')}</div><div style="border-bottom:1px dotted #333;min-height:22px"></div>`}
       </div>
 
       <div style="margin-top:16px">
         <div style="text-align:center;font-weight:800;text-decoration:underline;font-size:12pt">Le conseil des maîtres</div>
-        <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:6px 0 12px;font-size:9pt">
-          <span>CP1</span><span>CP2</span><span>CE1</span><span>CE2</span><span>CM1</span><span>CM2</span>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:6px 0 12px;font-size:9pt;text-align:center">
+          ${['CP1', 'CP2', 'CE1', 'CE2', 'CM1', 'CM2'].map(label => {
+            const signers = (conseilByClass && conseilByClass[label])
+              || (label === String(className).toUpperCase() ? (teacherSigners || []) : []);
+            const imgs = (signers || []).map(person => signatureImageHTML(signatureUrlForProfile(person), 'Signature de ' + (person.full_name || label))).join('<br>');
+            const names = (signers || []).map(person => esc(person.full_name || '')).join('<br>');
+            return `<div style="border:1px solid #000;padding:4px;min-height:48px">
+              <div style="font-weight:700;text-decoration:underline">${esc(label)}</div>
+              <div style="min-height:48px;margin-top:2px">${imgs}</div>
+              <div>${names}</div>
+            </div>`;
+          }).join('')}
         </div>
         <div style="display:flex;justify-content:space-between;gap:24px">
           <div style="flex:1;text-align:center">
