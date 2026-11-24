@@ -1,6 +1,6 @@
 /**
- * Fiche SynthÃ¨se Trimestrielle officielle (Burkina Faso / CEB de BagrÃ©).
- * UtilisÃ©e par le Titulaire et l'Encadreur.
+ * Fiche Synthèse Trimestrielle officielle (Burkina Faso / CEB de Bagré).
+ * Utilisée par le Titulaire, le Directeur, l'Encadreur et le Chef de la CEB.
  */
 
 import { esc, formatClassName, normalizeNotes } from './format.js';
@@ -79,205 +79,30 @@ export function computeClassAverageSummary(students, subjects, notes, term) {
     : { highest: null, lowest: null, classAverage: null };
 }
 
-export function renderSyntheseHTML({ schoolName, cls, students, subjects, notes, term, pai, teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureUrl, editable }) {
-  notes = normalizeNotes(notes);
-  const list = students || [];
-  const boys = list.filter(s => s.gender === 'M');
-  const girls = list.filter(s => s.gender === 'F');
-
-  // Ã‰lÃ¨ves ayant composÃ© (au moins une note ce trimestre, hors abandon)
-  const noteStudentIds = new Set();
-  (notes || []).forEach(n => {
-    if (n.trimestre === term && n.note != null) noteStudentIds.add(n.eleve_id || n.student_id);
-  });
-  const composed = list.filter(s => s.status !== 'A' && noteStudentIds.has(s.id));
-  const compBoys = composed.filter(s => s.gender === 'M').length;
-  const compGirls = composed.filter(s => s.gender === 'F').length;
-
-  const subjectRows = computeSubjectRows(list, subjects, notes, term);
-  const averageSummary = computeClassAverageSummary(list, subjects, notes, term);
-  const formatAverage = value => value == null ? 'â€”' : `${value.toFixed(2)} / 10`;
-
-  // PAI
-  const discipline = (pai && pai.discipline) ? pai.discipline : (subjects[0] ? subjects[0].name : '');
-  const tauxDepart = (pai && pai.taux_depart != null && pai.taux_depart !== '') ? parseFloat(pai.taux_depart) : null;
-  const normalizedDiscipline = normalizePaiDiscipline(discipline);
-  const paiRow = subjectRows.find(r =>
-    normalizePaiDiscipline(r.name) === normalizedDiscipline && r.tComp > 0
-  );
-  const hasPaiRow = !!paiRow;
-  const tauxTrim = paiRow ? paiRow.pctT : null;
-  const tauxTrimManual = (pai && pai.taux_trimestre != null && pai.taux_trimestre !== '') ? parseFloat(pai.taux_trimestre) : null;
-  const tauxTrimFinal = hasPaiRow ? tauxTrim : tauxTrimManual;
-  const ecart = (tauxTrimFinal != null && tauxDepart != null) ? round1(tauxTrimFinal - tauxDepart) : null;
-  const ecartColor = ecart == null ? '#64748b' : (ecart >= 0 ? '#16a34a' : '#dc2626');
-  const ecartText = ecart == null ? 'â€”' : (ecart >= 0 ? '+' : '') + ecart.toFixed(1) + '%';
-
-  const teacherStr = (teacherNames || []).filter(name => name && !String(name).includes('AperÃ§u')).join(', ') || 'Le(s) Titulaire(s)';
-  const termOrd = term === 1 ? '1er' : (term === 2 ? '2e' : '3e');
-  const bilanTitle = 'BILAN DU ' + termOrd + ' TRIMESTRE';
-  const disciplineControl = editable
-    ? `<input type="text" id="paiDiscipline" class="pai-disc" list="paiSubjectOptions" value="${esc(discipline)}" placeholder="Saisir ou choisir une discipline"><datalist id="paiSubjectOptions">${(subjects || []).map(s => `<option value="${esc(s.name)}"></option>`).join('')}</datalist>`
-    : `<strong>${esc(discipline || 'â€”')}</strong>`;
-
-  const tauxControl = editable
-    ? `<div style="position:relative;display:inline-block"><input type="number" id="paiTaux" class="pai-taux" min="0" max="100" step="0.1" value="${tauxDepart != null ? tauxDepart : ''}" placeholder="Ex: 45" style="padding-right:24px"><span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);color:#64748b;font-weight:700">%</span></div>`
-    : `<strong>${tauxDepart != null ? tauxDepart + '%' : 'â€”'}</strong>`;
-
-  return `
-    <div class="synthese-sheet">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:0">
-        <div style="font-size:14px;line-height:1.45;text-align:left">
-          <strong style="font-size:15px;font-weight:800">CEB de BagrÃ©</strong><br>
-          <strong style="font-weight:800">Ã‰cole : ${esc(schoolName || '')}</strong><br>
-          <strong style="font-weight:800">Classe : ${esc(formatClassName(cls))}</strong>
-        </div>
-        <div class="official-motto" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:13px;line-height:1.45;padding-right:24px;margin-right:10px;min-width:220px;flex:1">
-          <strong style="font-size:14px;font-weight:800">Burkina Faso</strong>
-          <em>La Patrie ou la Mort, nous vaincrons</em>
-        </div>
-      </div>
-      <div style="width:100%;text-align:center;background:#f1f5f9;border:1px solid #333;border-top:none;padding:8px 0;margin-bottom:12px">
-        <strong style="font-size:16px;font-weight:800;letter-spacing:.2px">${esc(bilanTitle)}</strong>
-      </div>
-
-      <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
-        <thead>
-          <tr>
-            <th style="border:1px solid #333;padding:6px">Effectif</th>
-            <th style="border:1px solid #333;padding:6px">GarÃ§ons</th>
-            <th style="border:1px solid #333;padding:6px">Filles</th>
-            <th style="border:1px solid #333;padding:6px">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style="border:1px solid #333;padding:6px">Inscrits dÃ©but d'annÃ©e</td>
-            <td style="border:1px solid #333;padding:6px;text-align:center">${boys.length}</td>
-            <td style="border:1px solid #333;padding:6px;text-align:center;color:#dc2626">${girls.length}</td>
-            <td style="border:1px solid #333;padding:6px;text-align:center;color:#16a34a"><strong>${list.length}</strong></td>
-          </tr>
-          <tr>
-            <td style="border:1px solid #333;padding:6px">Ayant composÃ©</td>
-            <td style="border:1px solid #333;padding:6px;text-align:center">${compBoys}</td>
-            <td style="border:1px solid #333;padding:6px;text-align:center;color:#dc2626">${compGirls}</td>
-            <td style="border:1px solid #333;padding:6px;text-align:center;color:#16a34a"><strong>${composed.length}</strong></td>
-          </tr>
-        </tbody>
-      </table>
-
-      <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
-        <thead>
-          <tr>
-            <th style="border:1px solid #333;padding:6px">MatiÃ¨re</th>
-            <th style="border:1px solid #333;padding:6px">G ayant la moyenne</th>
-            <th style="border:1px solid #333;padding:6px">% G</th>
-            <th style="border:1px solid #333;padding:6px">F ayant la moyenne</th>
-            <th style="border:1px solid #333;padding:6px">% F</th>
-            <th style="border:1px solid #333;padding:6px">Total ayant la moyenne</th>
-            <th style="border:1px solid #333;padding:6px">% Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${subjectRows.map(r => `
-            <tr>
-              <td style="border:1px solid #333;padding:6px">${esc(r.name)}</td>
-              <td style="border:1px solid #333;padding:6px;text-align:center">${r.bPass}/${r.bComp}</td>
-              <td style="border:1px solid #333;padding:6px;text-align:center">${r.pctG}%</td>
-              <td style="border:1px solid #333;padding:6px;text-align:center;color:#dc2626">${r.gPass}/${r.gComp}</td>
-                  <td style="border:1px solid #333;padding:6px;text-align:center;color:#dc2626">${r.pctF}%</td>
-              <td style="border:1px solid #333;padding:6px;text-align:center;color:#16a34a">${r.tPass}/${r.tComp}</td>
-              <td style="border:1px solid #333;padding:6px;text-align:center;color:#16a34a"><strong>${r.pctT}%</strong></td>
-            </tr>
-          `).join('') || '<tr><td colspan="7" style="border:1px solid #333;padding:6px;text-align:center">Aucune matiÃ¨re</td></tr>'}
-        </tbody>
-      </table>
-
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:0 0 16px">
-        <table style="width:100%;border-collapse:collapse;border:1px solid #333;align-self:start">
-          <thead>
-            <tr><th colspan="2" style="border:1px solid #333;padding:6px;background:#f1f5f9;font-size:13px">Moyennes de la Classe</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th style="border:1px solid #333;padding:6px;text-align:left;width:52%">Forte moyenne</th>
-              <td style="border:1px solid #333;padding:6px;text-align:center">${formatAverage(averageSummary.highest)}</td>
-            </tr>
-            <tr>
-              <th style="border:1px solid #333;padding:6px;text-align:left">Faible moyenne</th>
-              <td style="border:1px solid #333;padding:6px;text-align:center">${formatAverage(averageSummary.lowest)}</td>
-            </tr>
-            <tr>
-              <th style="border:1px solid #333;padding:6px;text-align:left">Moyenne de la classe</th>
-              <td style="border:1px solid #333;padding:6px;text-align:center"><strong>${formatAverage(averageSummary.classAverage)}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <table style="width:100%;border-collapse:collapse;border:1px solid #333;align-self:start">
-          <thead>
-            <tr><th colspan="2" style="border:1px solid #333;padding:6px;background:#f1f5f9;font-size:13px">PAI</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th style="border:1px solid #333;padding:6px;text-align:left;width:42%">Discipline PAI</th>
-              <td style="border:1px solid #333;padding:6px">${disciplineControl}</td>
-            </tr>
-            <tr>
-              <th style="border:1px solid #333;padding:6px;text-align:left">Taux du dÃ©but (%)</th>
-              <td style="border:1px solid #333;padding:6px">${tauxControl}</td>
-            </tr>
-            <tr>
-              <th style="border:1px solid #333;padding:6px;text-align:left">Taux du trimestre (%)</th>
-              <td style="border:1px solid #333;padding:6px">
-                ${editable
-                  ? `<div style="position:relative;display:inline-block"><input type="number" id="paiTauxTrim" min="0" max="100" step="0.1" value="${tauxTrimFinal != null ? tauxTrimFinal : ''}" ${hasPaiRow ? 'readonly' : ''} placeholder="Ex: 45" style="padding-right:24px"><span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);color:#64748b;font-weight:700">%</span></div><small id="paiTauxTrimMode" style="display:block;color:#64748b;font-size:10px">${hasPaiRow ? 'CalculÃ© automatiquement depuis les rÃ©sultats.' : 'Saisie manuelle : discipline non Ã©valuÃ©e.'}</small>`
-                  : `<strong data-pai-trim="${tauxTrimFinal != null ? tauxTrimFinal : ''}">${tauxTrimFinal != null ? tauxTrimFinal + '%' : 'â€”'}</strong>`}
-              </td>
-            </tr>
-            <tr>
-              <th style="border:1px solid #333;padding:6px;text-align:left">Ã‰cart (%)</th>
-              <td style="border:1px solid #333;padding:6px;text-align:center"><strong id="paiEcart" style="color:${ecartColor}">${ecartText}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      ${pai && (pai.savedAt || pai.enregistre) ? '<p style="margin:-6px 0 12px;color:#15803d;font-weight:700">âœ… PAI enregistrÃ©</p>' : ''}
-
-      <div style="border:1px solid #333;padding:10px;margin-bottom:12px">
-        <strong>DifficultÃ©s rencontrÃ©es et Suggestions</strong>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px">
-          <div style="flex:1;min-width:240px">
-            <label style="display:block;font-size:12px">DifficultÃ©s</label>
-            ${editable
-              ? `<textarea id="syntheseDifficultes" rows="3" style="width:100%;padding:8px;border:1px solid #333;border-radius:4px">${esc((pai && pai.difficultes) || '')}</textarea>`
-              : `<div style="border:1px solid #333;padding:8px;min-height:40px">${esc((pai && pai.difficultes) || 'â€”')}</div>`}
-          </div>
-          <div style="flex:1;min-width:240px">
-            <label style="display:block;font-size:12px">Suggestions</label>
-            ${editable
-              ? `<textarea id="syntheseSuggestions" rows="3" style="width:100%;padding:8px;border:1px solid #333;border-radius:4px">${esc((pai && pai.suggestions) || '')}</textarea>`
-              : `<div style="border:1px solid #333;padding:8px;min-height:40px">${esc((pai && pai.suggestions) || 'â€”')}</div>`}
-          </div>
-        </div>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-top:26px">
-        <div style="text-align:center;flex:1">
-          <div style="border-top:1px solid #333;padding-top:4px;margin:0 24px">Le(s) Titulaire(s)</div>
-          <div style="margin:0 24px">${signaturePeopleHTML(teacherSigners, teacherStr)}</div>
-        </div>
-        <div style="text-align:center;flex:1">
-          <div style="font-weight:700">Visa du Directeur / de la Directrice</div>
-          <div style="border-top:1px solid #333;padding-top:4px;margin:6px 24px 0">${signatureImageHTML(visaDirecteurSignatureUrl, 'Signature du Directeur')}${esc(visaDirecteur || 'En attente de visa')}</div>
-        </div>
-      </div>
-    </div>`;
-}
 /**
- * BILAN TRIMESTRIEL OFFICIEL — mise en page réglementaire (CEB de Bagré).
- * En-tête deux colonnes, corps scindé (gauche 45 % / droite 55 %), pied de page signatures.
+ * Taux de présence du dernier mois clôturé du trimestre.
+ * T1 : Décembre ? Novembre ? Octobre ; T2 : Mars ? Février ? Janvier ; T3 : Juin ? Mai ? Avril.
  */
-export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects, notes, term, pai, teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureUrl, editable, activeSchoolYear, conseilByClass }) {
+export function latestClosedMonthAttendanceRate(registres, term) {
+  const order = term === 1
+    ? ['Décembre', 'Novembre', 'Octobre']
+    : (term === 2 ? ['Mars', 'Février', 'Janvier'] : ['Juin', 'Mai', 'Avril']);
+  const list = registres || [];
+  for (const month of order) {
+    const row = list.find(item => String(item.mois || item.month || '').trim().toLowerCase() === month.toLowerCase());
+    if (!row) continue;
+    const possible = Number(row.presences_possibles != null ? row.presences_possibles : (row.possT != null ? row.possT : 0));
+    const effective = Number(row.presences_effectives != null ? row.presences_effectives : (row.effT != null ? row.effT : 0));
+    if (possible > 0) return Math.round((effective * 100 / possible) * 100) / 100;
+  }
+  return null;
+}
+
+export function renderBilanTrimestrielHTML({
+  schoolName, cls, students, subjects, notes, term, pai,
+  teacherNames, teacherSigners, visaDirecteur, visaDirecteurSignatureUrl,
+  editable, activeSchoolYear, conseilByClass, attendanceRate: attendanceRateProp, registres
+}) {
   const list = students || [];
   const boys = list.filter(s => s.gender === 'M');
   const girls = list.filter(s => s.gender === 'F');
@@ -294,7 +119,7 @@ export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects
   const compBoys = composed.filter(s => s.gender === 'M').length;
   const compGirls = composed.filter(s => s.gender === 'F').length;
 
-  // Moyennes individuelles pondérées
+  // Moyennes individuelles pondérées (élèves ayant composé uniquement)
   const studentAverages = [];
   list.filter(s => s.status !== 'A').forEach(student => {
     let weighted = 0;
@@ -330,12 +155,17 @@ export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects
   const forte = avgValues.length ? Math.max(...avgValues) : null;
   const faible = avgValues.length ? Math.min(...avgValues) : null;
   const moyenne = avgValues.length ? avgValues.reduce((a, b) => a + b, 0) / avgValues.length : null;
+  const fmtAvg = value => value != null ? value.toFixed(2) : '0.00';
 
-  // Taux de fréquentation (présences / possibles)
-  let attendanceRate = null;
-  try {
-    if (typeof window !== 'undefined' && window.__cebAttendanceRate != null) attendanceRate = window.__cebAttendanceRate;
-  } catch (error) { attendanceRate = null; }
+  // Taux de fréquentation : dernier mois clôturé du trimestre
+  let attendanceRate = attendanceRateProp != null ? attendanceRateProp : null;
+  if (attendanceRate == null && Array.isArray(registres)) {
+    attendanceRate = latestClosedMonthAttendanceRate(registres, term);
+  }
+  if (attendanceRate == null && typeof window !== 'undefined' && window.__cebAttendanceRate != null) {
+    attendanceRate = window.__cebAttendanceRate;
+  }
+  const attendanceText = attendanceRate != null ? attendanceRate.toFixed(2) + ' %' : '—';
 
   // Distribution par tranche entière (0 ? 10)
   const brackets = [];
@@ -371,6 +201,8 @@ export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects
     : `<strong>${esc((pai && pai.decision) || 'Poursuivre')}</strong>`;
 
   const subjectRows = computeSubjectRows(list, subjects, notes, term);
+
+  const classColumn = String(className || '').toUpperCase();
 
   return `
     <div class="synthese-sheet">
@@ -430,13 +262,15 @@ export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects
           </table>
 
           <div style="font-weight:700;text-decoration:underline;margin-bottom:4px">Nombre d'élèves par moyenne</div>
-          <table style="width:100%;border-collapse:collapse;margin-bottom:10px;table-layout:fixed;border:1px solid #000">
+          <table style="width:100%;border-collapse:collapse;table-layout:auto;border:1px solid #000;margin-bottom:10px">
             <tbody>
-              <tr><td style="border:1px solid #000;padding:3px 4px;background:#f1f5f9;font-weight:700;text-align:center">Moyenne</td>
-                ${brackets.map(b => `<td style="border:1px solid #000;padding:2px 3px;font-size:9pt;text-align:center">${b.label}</td>`).join('')}
+              <tr>
+                <td style="border:1px solid #000;padding:4px 8px;background:#f1f5f9;font-weight:700;white-space:nowrap;min-width:72px">Moyenne</td>
+                ${brackets.map(b => `<td style="border:1px solid #000;padding:2px 3px;min-width:24px;text-align:center">${b.label}</td>`).join('')}
               </tr>
-              <tr><td style="border:1px solid #000;padding:3px 4px;font-weight:700;text-align:center">Nombre</td>
-                ${brackets.map(b => `<td style="border:1px solid #000;padding:2px 3px;font-size:9pt;text-align:center">${b.count}</td>`).join('')}
+              <tr>
+                <td style="border:1px solid #000;padding:4px 8px;font-weight:700;white-space:nowrap;min-width:72px">Nombre</td>
+                ${brackets.map(b => `<td style="border:1px solid #000;padding:2px 3px;min-width:24px;text-align:center">${b.count}</td>`).join('')}
               </tr>
             </tbody>
           </table>
@@ -453,44 +287,44 @@ export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects
 
         <div>
           <div style="font-weight:800;text-align:center;margin-bottom:6px;font-size:11pt">Pourcentage de réussite par Discipline</div>
-          <table style="width:100%;border-collapse:collapse">
+          <table style="width:100%;border-collapse:collapse;border:1px solid #000">
             <thead>
               <tr style="background:#f1f5f9">
-                <th rowspan="2" style="border:1px solid #333;padding:5px">Matière</th>
-                <th colspan="2" style="border:1px solid #333;padding:5px">Garçons</th>
-                <th colspan="2" style="border:1px solid #333;padding:5px;color:#dc2626">Filles</th>
-                <th colspan="2" style="border:1px solid #333;padding:5px;color:#16a34a">Total</th>
+                <th rowspan="2" style="border:1px solid #000;padding:5px">Matière</th>
+                <th colspan="2" style="border:1px solid #000;padding:5px">Garçons</th>
+                <th colspan="2" style="border:1px solid #000;padding:5px;color:#dc2626">Filles</th>
+                <th colspan="2" style="border:1px solid #000;padding:5px;color:#16a34a">Total</th>
               </tr>
               <tr style="background:#f1f5f9">
-                <th style="border:1px solid #333;padding:4px">Nbre</th>
-                <th style="border:1px solid #333;padding:4px">%</th>
-                <th style="border:1px solid #333;padding:4px">Nbre</th>
-                <th style="border:1px solid #333;padding:4px">%</th>
-                <th style="border:1px solid #333;padding:4px">Nbre</th>
-                <th style="border:1px solid #333;padding:4px">%</th>
+                <th style="border:1px solid #000;padding:4px">Nbre</th>
+                <th style="border:1px solid #000;padding:4px">%</th>
+                <th style="border:1px solid #000;padding:4px">Nbre</th>
+                <th style="border:1px solid #000;padding:4px">%</th>
+                <th style="border:1px solid #000;padding:4px">Nbre</th>
+                <th style="border:1px solid #000;padding:4px">%</th>
               </tr>
             </thead>
             <tbody>
               ${subjectRows.map(r => `
                 <tr>
-                  <td style="border:1px solid #333;padding:5px">${esc(r.name)}</td>
-                  <td style="border:1px solid #333;padding:5px;text-align:center">${r.bPass}</td>
-                  <td style="border:1px solid #333;padding:5px;text-align:center">${r.pctG}%</td>
-                  <td style="border:1px solid #333;padding:5px;text-align:center;color:#dc2626">${r.gPass}</td>
-                  <td style="border:1px solid #333;padding:5px;text-align:center;color:#dc2626">${r.pctF}%</td>
-                  <td style="border:1px solid #333;padding:5px;text-align:center;color:#16a34a">${r.tPass}</td>
-                  <td style="border:1px solid #333;padding:5px;text-align:center;color:#16a34a"><strong>${r.pctT}%</strong></td>
+                  <td style="border:1px solid #000;padding:5px">${esc(r.name)}</td>
+                  <td style="border:1px solid #000;padding:5px;text-align:center">${r.bPass}</td>
+                  <td style="border:1px solid #000;padding:5px;text-align:center">${r.pctG}%</td>
+                  <td style="border:1px solid #000;padding:5px;text-align:center;color:#dc2626">${r.gPass}</td>
+                  <td style="border:1px solid #000;padding:5px;text-align:center;color:#dc2626">${r.pctF}%</td>
+                  <td style="border:1px solid #000;padding:5px;text-align:center;color:#16a34a">${r.tPass}</td>
+                  <td style="border:1px solid #000;padding:5px;text-align:center;color:#16a34a"><strong>${r.pctT}%</strong></td>
                 </tr>
-              `).join('') || '<tr><td colspan="7" style="border:1px solid #333;padding:5px;text-align:center">Aucune matière</td></tr>'}
+              `).join('') || '<tr><td colspan="7" style="border:1px solid #000;padding:5px;text-align:center">Aucune matière</td></tr>'}
             </tbody>
           </table>
 
           <table style="width:100%;border-collapse:collapse;border:1px solid #000;margin-top:12px">
             <tbody>
-              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700;width:60%">Forte moyenne</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${forte != null ? forte.toFixed(2) : '—'}</td></tr>
-              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Faible moyenne</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${faible != null ? faible.toFixed(2) : '—'}</td></tr>
-              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Moyenne de la classe</td><td style="border:1px solid #000;padding:4px 8px;text-align:center"><strong>${moyenne != null ? moyenne.toFixed(2) : '—'}</strong></td></tr>
-              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Taux de fréquentation</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${attendanceRate != null ? attendanceRate.toFixed(2) + ' %' : '—'}</td></tr>
+              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700;width:60%">Forte moyenne</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${fmtAvg(forte)}</td></tr>
+              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Faible moyenne</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${fmtAvg(faible)}</td></tr>
+              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Moyenne de la classe</td><td style="border:1px solid #000;padding:4px 8px;text-align:center"><strong>${fmtAvg(moyenne)}</strong></td></tr>
+              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Taux de fréquentation</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${esc(attendanceText)}</td></tr>
             </tbody>
           </table>
         </div>
@@ -508,7 +342,7 @@ export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects
         <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:6px 0 12px;font-size:9pt;text-align:center">
           ${['CP1', 'CP2', 'CE1', 'CE2', 'CM1', 'CM2'].map(label => {
             const signers = (conseilByClass && conseilByClass[label])
-              || (label === String(className).toUpperCase() ? (teacherSigners || []) : []);
+              || (label === classColumn ? (teacherSigners || []) : []);
             const imgs = (signers || []).map(person => signatureImageHTML(signatureUrlForProfile(person), 'Signature de ' + (person.full_name || label))).join('<br>');
             const names = (signers || []).map(person => esc(person.full_name || '')).join('<br>');
             return `<div style="border:1px solid #000;padding:4px;min-height:48px">
@@ -530,4 +364,8 @@ export function renderBilanTrimestrielHTML({ schoolName, cls, students, subjects
         </div>
       </div>
     </div>`;
+}
+
+export function renderSyntheseHTML(props) {
+  return renderBilanTrimestrielHTML(props);
 }
