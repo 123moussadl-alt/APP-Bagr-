@@ -1,6 +1,6 @@
 /**
- * Fiche Synthèse Trimestrielle officielle (Burkina Faso / CEB de Bagré).
- * Utilisée par le Titulaire, le Directeur, l'Encadreur et le Chef de la CEB.
+ * Fiche SynthÃ¨se Trimestrielle officielle (Burkina Faso / CEB de BagrÃ©).
+ * UtilisÃ©e par le Titulaire, le Directeur, l'Encadreur et le Chef de la CEB.
  */
 
 import { esc, formatClassName, normalizeNotes } from './format.js';
@@ -80,13 +80,13 @@ export function computeClassAverageSummary(students, subjects, notes, term) {
 }
 
 /**
- * Taux de présence du dernier mois clôturé du trimestre.
- * T1 : Décembre ? Novembre ? Octobre ; T2 : Mars ? Février ? Janvier ; T3 : Juin ? Mai ? Avril.
+ * Taux de prÃ©sence du dernier mois clÃ´turÃ© du trimestre.
+ * T1 : DÃ©cembre ? Novembre ? Octobre ; T2 : Mars ? FÃ©vrier ? Janvier ; T3 : Juin ? Mai ? Avril.
  */
 export function latestClosedMonthAttendanceRate(registres, term) {
   const order = term === 1
-    ? ['Décembre', 'Novembre', 'Octobre']
-    : (term === 2 ? ['Mars', 'Février', 'Janvier'] : ['Juin', 'Mai', 'Avril']);
+    ? ['DÃ©cembre', 'Novembre', 'Octobre']
+    : (term === 2 ? ['Mars', 'FÃ©vrier', 'Janvier'] : ['Juin', 'Mai', 'Avril']);
   const list = registres || [];
   for (const month of order) {
     const row = list.find(item => String(item.mois || item.month || '').trim().toLowerCase() === month.toLowerCase());
@@ -110,7 +110,7 @@ export function renderBilanTrimestrielHTML({
   const className = formatClassName(cls || {});
   const termLabel = term === 1 ? '1' : (term === 2 ? '2' : '3');
 
-  // Élèves ayant composé (au moins une note ce trimestre, hors abandon)
+  // Ã©lÃ¨ves ayant composÃ© (au moins une note ce trimestre, hors abandon)
   const noteStudentIds = new Set();
   (notes || []).forEach(n => {
     if (n.trimestre === term && n.note != null) noteStudentIds.add(n.eleve_id || n.student_id);
@@ -119,7 +119,7 @@ export function renderBilanTrimestrielHTML({
   const compBoys = composed.filter(s => s.gender === 'M').length;
   const compGirls = composed.filter(s => s.gender === 'F').length;
 
-  // Moyennes individuelles pondérées (élèves ayant composé uniquement)
+  // Moyennes individuelles pondÃ©rÃ©es (Ã©lÃ¨ves ayant composÃ© uniquement)
   const studentAverages = [];
   list.filter(s => s.status !== 'A').forEach(student => {
     let weighted = 0;
@@ -157,7 +157,7 @@ export function renderBilanTrimestrielHTML({
   const moyenne = avgValues.length ? avgValues.reduce((a, b) => a + b, 0) / avgValues.length : null;
   const fmtAvg = value => value != null ? value.toFixed(2) : '0.00';
 
-  // Taux de fréquentation : dernier mois clôturé du trimestre
+  // Taux de frÃ©quentation : dernier mois clÃ´turÃ© du trimestre
   let attendanceRate = attendanceRateProp != null ? attendanceRateProp : null;
   if (attendanceRate == null && Array.isArray(registres)) {
     attendanceRate = latestClosedMonthAttendanceRate(registres, term);
@@ -165,9 +165,9 @@ export function renderBilanTrimestrielHTML({
   if (attendanceRate == null && typeof window !== 'undefined' && window.__cebAttendanceRate != null) {
     attendanceRate = window.__cebAttendanceRate;
   }
-  const attendanceText = attendanceRate != null ? attendanceRate.toFixed(2) + ' %' : '—';
+  const attendanceText = attendanceRate != null ? attendanceRate.toFixed(2) + ' %' : 'â€”';
 
-  // Distribution par tranche entière (0 ? 10)
+  // Distribution par tranche entiÃ¨re (0 ? 10)
   const brackets = [];
   for (let i = 0; i <= 10; i++) brackets.push({ label: String(i), count: 0 });
   studentAverages.forEach(item => {
@@ -187,15 +187,15 @@ export function renderBilanTrimestrielHTML({
   const tauxTrimManual = (pai && pai.taux_trimestre != null && pai.taux_trimestre !== '') ? parseFloat(pai.taux_trimestre) : null;
   const tauxTrimFinal = paiRow ? tauxTrim : tauxTrimManual;
   const ecart = (tauxTrimFinal != null && tauxDepart != null) ? Math.round((tauxTrimFinal - tauxDepart) * 10) / 10 : null;
-  const ecartText = ecart == null ? '—' : (ecart >= 0 ? '+' : '') + ecart.toFixed(1) + '%';
+  const ecartText = ecart == null ? 'â€”' : (ecart >= 0 ? '+' : '') + ecart.toFixed(1) + '%';
 
-  const teacherStr = (teacherNames || []).filter(name => name && !String(name).includes('Aperçu')).join(', ') || 'Le(s) Titulaire(s)';
+  const teacherStr = (teacherNames || []).filter(name => name && !String(name).includes('AperÃ§u')).join(', ') || 'Le(s) Titulaire(s)';
   const disciplineControl = editable
     ? `<input type="text" id="paiDiscipline" class="pai-disc" list="paiSubjectOptions" value="${esc(discipline)}" placeholder="Discipline"><datalist id="paiSubjectOptions">${(subjects || []).map(s => `<option value="${esc(s.name)}"></option>`).join('')}</datalist>`
-    : `<strong>${esc(discipline || '—')}</strong>`;
+    : `<strong>${esc(discipline || 'â€”')}</strong>`;
   const tauxControl = editable
     ? `<div style="position:relative;display:inline-block"><input type="number" id="paiTaux" class="pai-taux" min="0" max="100" step="0.1" value="${tauxDepart != null ? tauxDepart : ''}" placeholder="Ex: 45" style="padding-right:24px"><span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);color:#64748b;font-weight:700">%</span></div>`
-    : `<strong>${tauxDepart != null ? tauxDepart + '%' : '—'}</strong>`;
+    : `<strong>${tauxDepart != null ? tauxDepart + '%' : 'â€”'}</strong>`;
   const decisionControl = editable
     ? `<input type="text" id="paiDecision" class="pai-decision" value="${esc((pai && pai.decision) || 'Poursuivre')}" style="width:100%">`
     : `<strong>${esc((pai && pai.decision) || 'Poursuivre')}</strong>`;
@@ -210,19 +210,19 @@ export function renderBilanTrimestrielHTML({
         <div style="font-size:11pt;line-height:1.35;text-align:left;flex:1">
           <strong style="font-size:11pt">CIRCONSCRIPTION D'EDUCATION DE BASE DE BAGRE</strong><br>
           <span>*-*-*-*-*-*</span><br>
-          <strong>ECOLE PRIMAIRE PUBLIQUE DE ${esc(schoolName || '—')}</strong><br>
+          <strong>ECOLE PRIMAIRE PUBLIQUE DE ${esc(schoolName || 'â€”')}</strong><br>
           <strong>Classe : ${esc(className)}</strong>
         </div>
         <div style="font-size:11pt;line-height:1.35;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center">
           <strong style="font-size:11pt">BURKINA FASO</strong>
           <span>*-*-*-*-*-*</span>
           <em>La Patrie ou la Mort nous Vaincrons</em>
-          <strong style="color:#1d4ed8">Année Scolaire : ${esc(year)}</strong>
+          <strong style="color:#1d4ed8">AnnÃ©e Scolaire : ${esc(year)}</strong>
         </div>
       </div>
 
       <div style="width:100%;text-align:center;margin:10px 0 12px">
-        <strong style="font-size:15pt;font-weight:800;letter-spacing:.3px;text-decoration:underline">BILAN Trimestriel n° ${esc(termLabel)}</strong>
+        <strong style="font-size:15pt;font-weight:800;letter-spacing:.3px;text-decoration:underline">BILAN Trimestriel nÂ° ${esc(termLabel)}</strong>
       </div>
 
       <div style="display:grid;grid-template-columns:44% 56%;gap:10px;align-items:start">
@@ -230,16 +230,16 @@ export function renderBilanTrimestrielHTML({
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
             <table style="width:100%;border-collapse:collapse;border:1px solid #000">
               <tbody>
-                <tr><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-weight:700;text-decoration:underline">Effectif début d'année</td></tr>
-                <tr><td style="border:1px solid #000;padding:3px 6px">Garçons</td><td style="border:1px solid #000;padding:3px 6px;text-align:center">${boys.length}</td></tr>
+                <tr><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-weight:700;text-decoration:underline">Effectif dÃ©but d'annÃ©e</td></tr>
+                <tr><td style="border:1px solid #000;padding:3px 6px">GarÃ§ons</td><td style="border:1px solid #000;padding:3px 6px;text-align:center">${boys.length}</td></tr>
                 <tr><td style="border:1px solid #000;padding:3px 6px;color:#dc2626">Filles</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#dc2626">${girls.length}</td></tr>
                 <tr><td style="border:1px solid #000;padding:3px 6px;color:#16a34a">Total</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#16a34a">${list.length}</td></tr>
               </tbody>
             </table>
             <table style="width:100%;border-collapse:collapse;border:1px solid #000">
               <tbody>
-                <tr><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-weight:700;text-decoration:underline">Effectif composé</td></tr>
-                <tr><td style="border:1px solid #000;padding:3px 6px">Garçons</td><td style="border:1px solid #000;padding:3px 6px;text-align:center">${compBoys}</td></tr>
+                <tr><td colspan="2" style="border:1px solid #000;padding:4px 6px;font-weight:700;text-decoration:underline">Effectif composÃ©</td></tr>
+                <tr><td style="border:1px solid #000;padding:3px 6px">GarÃ§ons</td><td style="border:1px solid #000;padding:3px 6px;text-align:center">${compBoys}</td></tr>
                 <tr><td style="border:1px solid #000;padding:3px 6px;color:#dc2626">Filles</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#dc2626">${compGirls}</td></tr>
                 <tr><td style="border:1px solid #000;padding:3px 6px;color:#16a34a">Total</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#16a34a">${composed.length}</td></tr>
               </tbody>
@@ -255,13 +255,13 @@ export function renderBilanTrimestrielHTML({
               </tr>
             </thead>
             <tbody>
-              <tr><td style="border:1px solid #000;padding:3px 6px">Garçons</td><td style="border:1px solid #000;padding:3px 6px;text-align:center">${ayantBoys}</td><td style="border:1px solid #000;padding:3px 6px;text-align:center">${pctAyant(ayantBoys, compBoys)} %</td></tr>
+              <tr><td style="border:1px solid #000;padding:3px 6px">GarÃ§ons</td><td style="border:1px solid #000;padding:3px 6px;text-align:center">${ayantBoys}</td><td style="border:1px solid #000;padding:3px 6px;text-align:center">${pctAyant(ayantBoys, compBoys)} %</td></tr>
               <tr><td style="border:1px solid #000;padding:3px 6px;color:#dc2626">Filles</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#dc2626">${ayantGirls}</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#dc2626">${pctAyant(ayantGirls, compGirls)} %</td></tr>
               <tr><td style="border:1px solid #000;padding:3px 6px;color:#16a34a">Total</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#16a34a">${ayantMoyenne.length}</td><td style="border:1px solid #000;padding:3px 6px;text-align:center;color:#16a34a">${pctAyant(ayantMoyenne.length, composed.length)} %</td></tr>
             </tbody>
           </table>
 
-          <div style="font-weight:700;text-decoration:underline;margin-bottom:4px">Nombre d'élèves par moyenne</div>
+          <div style="font-weight:700;text-decoration:underline;margin-bottom:4px">Nombre d'Ã©lÃ¨ves par moyenne</div>
           <table style="width:100%;border-collapse:collapse;table-layout:auto;border:1px solid #000;margin-bottom:10px">
             <tbody>
               <tr>
@@ -278,20 +278,20 @@ export function renderBilanTrimestrielHTML({
           <div style="margin-bottom:10px">
             <div style="text-decoration:underline;font-weight:700">PAI</div>
             <div>Discipline : ${disciplineControl}</div>
-            <div>% de début : ${tauxControl}</div>
-            <div>% du trimestre : ${tauxTrimFinal != null ? tauxTrimFinal + ' %' : '—'}</div>
+            <div>% de dÃ©but : ${tauxControl}</div>
+            <div>% du trimestre : ${tauxTrimFinal != null ? tauxTrimFinal + ' %' : 'â€”'}</div>
             <div>Ecart : ${esc(ecartText)}</div>
-            <div>Décision : ${decisionControl}</div>
+            <div>DÃ©cision : ${decisionControl}</div>
           </div>
         </div>
 
         <div>
-          <div style="font-weight:800;text-align:center;margin-bottom:6px;font-size:11pt">Pourcentage de réussite par Discipline</div>
+          <div style="font-weight:800;text-align:center;margin-bottom:6px;font-size:11pt">Pourcentage de rÃ©ussite par Discipline</div>
           <table style="width:100%;border-collapse:collapse;border:1px solid #000">
             <thead>
               <tr style="background:#f1f5f9">
-                <th rowspan="2" style="border:1px solid #000;padding:5px">Matière</th>
-                <th colspan="2" style="border:1px solid #000;padding:5px">Garçons</th>
+                <th rowspan="2" style="border:1px solid #000;padding:5px">MatiÃ¨re</th>
+                <th colspan="2" style="border:1px solid #000;padding:5px">GarÃ§ons</th>
                 <th colspan="2" style="border:1px solid #000;padding:5px;color:#dc2626">Filles</th>
                 <th colspan="2" style="border:1px solid #000;padding:5px;color:#16a34a">Total</th>
               </tr>
@@ -315,7 +315,7 @@ export function renderBilanTrimestrielHTML({
                   <td style="border:1px solid #000;padding:5px;text-align:center;color:#16a34a">${r.tPass}</td>
                   <td style="border:1px solid #000;padding:5px;text-align:center;color:#16a34a"><strong>${r.pctT}%</strong></td>
                 </tr>
-              `).join('') || '<tr><td colspan="7" style="border:1px solid #000;padding:5px;text-align:center">Aucune matière</td></tr>'}
+              `).join('') || '<tr><td colspan="7" style="border:1px solid #000;padding:5px;text-align:center">Aucune matiÃ¨re</td></tr>'}
             </tbody>
           </table>
 
@@ -324,21 +324,21 @@ export function renderBilanTrimestrielHTML({
               <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700;width:60%">Forte moyenne</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${fmtAvg(forte)}</td></tr>
               <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Faible moyenne</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${fmtAvg(faible)}</td></tr>
               <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Moyenne de la classe</td><td style="border:1px solid #000;padding:4px 8px;text-align:center"><strong>${fmtAvg(moyenne)}</strong></td></tr>
-              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Taux de fréquentation</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${esc(attendanceText)}</td></tr>
+              <tr><td style="border:1px solid #000;padding:4px 8px;font-weight:700">Taux de frÃ©quentation</td><td style="border:1px solid #000;padding:4px 8px;text-align:center">${esc(attendanceText)}</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
       <div style="margin:10px auto;width:80%;text-align:center">
-        <div style="font-weight:700;text-decoration:underline;margin-bottom:4px">Difficultés rencontrées et suggestions</div>
+        <div style="font-weight:700;text-decoration:underline;margin-bottom:4px">DifficultÃ©s rencontrÃ©es et suggestions</div>
         ${editable
           ? `<textarea id="syntheseDifficultes" rows="3" style="width:100%;padding:4px;border:1px dotted #333;resize:vertical">${esc((pai && pai.difficultes) || '')}</textarea>`
           : `<div style="border-bottom:1px dotted #333;min-height:22px">${esc((pai && pai.difficultes) || '')}</div><div style="border-bottom:1px dotted #333;min-height:22px"></div>`}
       </div>
 
       <div style="margin-top:16px">
-        <div style="text-align:center;font-weight:800;text-decoration:underline;font-size:12pt">Le conseil des maîtres</div>
+        <div style="text-align:center;font-weight:800;text-decoration:underline;font-size:12pt">Le conseil des maÃ®tres</div>
         <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:6px 0 12px;font-size:9pt;text-align:center">
           ${['CP1', 'CP2', 'CE1', 'CE2', 'CM1', 'CM2'].map(label => {
             const signers = (conseilByClass && conseilByClass[label])
@@ -354,11 +354,11 @@ export function renderBilanTrimestrielHTML({
         </div>
         <div style="display:flex;justify-content:space-between;gap:24px">
           <div style="flex:1;text-align:center">
-            <div style="border-top:1px solid #333;padding-top:4px;font-weight:700">Le Maître chargé du cours</div>
+            <div style="border-top:1px solid #333;padding-top:4px;font-weight:700">Le MaÃ®tre chargÃ© du cours</div>
             <div style="margin-top:4px">${signaturePeopleHTML(teacherSigners, teacherStr)}</div>
           </div>
           <div style="flex:1;text-align:center">
-            <div style="border-top:1px solid #333;padding-top:4px;font-weight:700">Monsieur le Directeur de l'école</div>
+            <div style="border-top:1px solid #333;padding-top:4px;font-weight:700">Monsieur le Directeur de l'Ã©cole</div>
             <div style="margin-top:4px">${signatureImageHTML(visaDirecteurSignatureUrl, 'Signature du Directeur')}${esc(visaDirecteur || '')}</div>
           </div>
         </div>
