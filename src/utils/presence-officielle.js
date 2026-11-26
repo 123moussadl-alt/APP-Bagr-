@@ -28,11 +28,15 @@ function grayTitle(text) {
   return `<div style="background:${GRAY};border:1.5px solid #000;padding:5px;text-align:center;font-weight:bold;text-transform:uppercase;margin:10px 0">${esc(text)}</div>`;
 }
 
-function metaBox(label, value) {
+function metaBox(label, value, isInput = false, inputProps = '') {
   return `
     <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin:3px 0">
-      <span style="font-weight:700;text-align:right;min-width:110px">${esc(label)}</span>
-      <span style="border:1px solid #000;padding:3px 12px;min-width:340px;text-align:center;font-weight:700">${esc(value)}</span>
+      <span style="font-weight:700;text-align:right;width:120px;min-width:120px">${esc(label)}</span>
+      <div class="fiche-meta-box" style="border:1px solid #000;padding:3px 12px;width:340px;min-width:340px;max-width:340px;box-sizing:border-box;text-align:center;font-weight:700;display:inline-flex;align-items:center;justify-content:center;background:#fff;height:28px">
+        ${isInput
+          ? `<input type="text" value="${esc(value || '')}" ${inputProps} style="border:none;outline:none;background:transparent;text-align:center;font-weight:700;font-size:inherit;width:100%;font-family:inherit;padding:0;margin:0">`
+          : `<span style="width:100%">${esc(value || '')}</span>`}
+      </div>
     </div>`;
 }
 
@@ -52,18 +56,25 @@ function footer(structureLabel, date, signerLabel, signatureUrl, leftNote) {
 }
 
 export function renderFicheA({
-  structure, date, heure, agents, signerLabel = 'Le Directeur', signatureUrl = '',
-  actionName = 'agent-set-presence', agentAttr = 'data-agent-id', editable = true
+  structure, date, heure = '07h30', agents = [], signerLabel = 'Le Directeur', signatureUrl = '',
+  actionName = 'data-action="agent-set-presence"', agentAttr = 'data-agent-id', editable = true
 }) {
   const rows = (agents || []).map((agent, index) => {
     const isWoman = String(agent.gender || agent.sexe || '').toUpperCase() === 'F';
     const nameStyle = isWoman ? 'color:#dc2626;font-weight:600;' : '';
-    const present = agent.present !== false;
+    const isPresent = agent.present !== false && !agent.absent;
     const agentId = esc(agent.id);
-    const heure = agent.heure != null ? agent.heure : '';
-    const jour = agent.jour != null ? agent.jour : '';
-    const presentCell = present ? 'X' : '';
-    const absentCell = present ? '' : 'X';
+    const heureVal = agent.heure != null ? agent.heure : (isPresent ? 0 : '');
+    const jourVal = agent.jour != null ? agent.jour : (isPresent ? 0 : 1);
+
+    const presentCell = isPresent
+      ? '<span style="font-weight:800;color:#16a34a;font-size:10.5pt;letter-spacing:0.5px">OUI</span>'
+      : '<span style="color:#94a3b8;font-weight:600;font-size:9.5pt">NON</span>';
+
+    const absentCell = isPresent
+      ? '<span style="color:#94a3b8;font-weight:600;font-size:9.5pt">NON</span>'
+      : '<span style="font-weight:800;color:#dc2626;font-size:10.5pt;letter-spacing:0.5px">OUI</span>';
+
     return `
       <tr>
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">${index + 1}</td>
@@ -71,15 +82,15 @@ export function renderFicheA({
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">${esc(agent.matricule || '—')}</td>
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">${esc(agent.emploi || '—')}</td>
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">${esc(agent.fonction || '—')}</td>
-        <td style="border:1px solid #000;padding:4px 6px;text-align:center;font-weight:700;color:#16a34a;cursor:pointer"
-          ${editable ? `${actionName} ${agentAttr}="${agentId}" data-present="true"` : ''}>${presentCell}</td>
-        <td style="border:1px solid #000;padding:4px 6px;text-align:center;font-weight:700;color:#dc2626;cursor:pointer"
-          ${editable ? `${actionName} ${agentAttr}="${agentId}" data-present="false"` : ''}>${absentCell}</td>
+        <td style="border:1px solid #000;padding:4px 6px;text-align:center;cursor:${editable ? 'pointer' : 'default'};user-select:none"
+          ${editable ? `${actionName} ${agentAttr}="${agentId}" data-target-present="true" title="Cliquer pour marquer Présent"` : ''}>${presentCell}</td>
+        <td style="border:1px solid #000;padding:4px 6px;text-align:center;cursor:${editable ? 'pointer' : 'default'};user-select:none"
+          ${editable ? `${actionName} ${agentAttr}="${agentId}" data-target-present="false" title="Cliquer pour marquer Absent"` : ''}>${absentCell}</td>
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">
-          ${editable ? `<input type="number" min="0" step="0.5" value="${esc(heure)}" class="fiche-heure" ${agentAttr}="${agentId}" style="width:64px;border:none;text-align:center">` : esc(heure)}
+          ${editable ? `<input type="number" min="0" step="0.5" value="${esc(heureVal)}" class="fiche-heure" ${agentAttr}="${agentId}" style="width:64px;border:none;outline:none;background:transparent;text-align:center;font-size:9.5pt;font-family:inherit">` : esc(heureVal)}
         </td>
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">
-          ${editable ? `<input type="number" min="0" step="1" value="${esc(jour)}" class="fiche-jour" ${agentAttr}="${agentId}" style="width:64px;border:none;text-align:center">` : esc(jour)}
+          ${editable ? `<input type="number" min="0" step="1" value="${esc(jourVal)}" class="fiche-jour" ${agentAttr}="${agentId}" style="width:64px;border:none;outline:none;background:transparent;text-align:center;font-size:9.5pt;font-family:inherit">` : esc(jourVal)}
         </td>
       </tr>`;
   }).join('') || '<tr><td colspan="9" style="border:1px solid #000;padding:6px;text-align:center">Aucun agent</td></tr>';
@@ -90,7 +101,7 @@ export function renderFicheA({
       ${grayTitle('FICHE A : SITUATION JOURNALIERE DE PRESENCE DES AGENTS')}
       ${metaBox('STRUCTURE :', structure || 'CEB de Bagré / Boulgou')}
       ${metaBox('Date :', date)}
-      ${metaBox('Heure :', heure || '')}
+      ${metaBox('Heure :', heure || '', editable, 'class="fiche-heure-appel" placeholder="Ex: 07h30"')}
       <table style="border:1px solid #000;border-collapse:collapse;width:100%;font-size:9pt;margin-top:8px">
         <thead>
           <tr style="background:${GRAY}">
@@ -118,12 +129,17 @@ export function renderFicheA({
 }
 
 export function renderFicheB({
-  structure, date, mois, annee, rows, signerLabel = 'Le Directeur', signatureUrl = '', editable = false
+  structure, date, mois, annee, rows = [], signerLabel = 'Le Directeur', signatureUrl = '', editable = false,
+  agentAttr = 'data-agent'
 }) {
   const body = (rows || []).map((row, index) => {
     const isWoman = String(row.gender || row.sexe || '').toUpperCase() === 'F';
     const nameStyle = isWoman ? 'color:#dc2626;font-weight:600;' : '';
     const agentId = esc(row.id);
+    const heureVal = row.heure != null ? row.heure : 0;
+    const jourVal = row.jour != null ? row.jour : 0;
+    const mesuresVal = row.mesures != null ? row.mesures : (row.mesures_prises || '');
+    const refsVal = row.references != null ? row.references : (row.references_pieces || '');
     return `
       <tr>
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">${index + 1}</td>
@@ -132,10 +148,10 @@ export function renderFicheB({
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">${esc(row.emploi || '—')}</td>
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">${esc(row.fonction || '—')}</td>
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">${esc(row.structure || '')}</td>
-        <td style="border:1px solid #000;padding:4px 6px;text-align:center">${esc(row.heure != null ? row.heure : '')}</td>
-        <td style="border:1px solid #000;padding:4px 6px;text-align:center">${esc(row.jour != null ? row.jour : '')}</td>
-        <td style="border:1px solid #000;padding:4px 6px">${editable ? `<input type="text" value="${esc(row.mesures || '')}" class="fiche-mesures" data-agent="${agentId}" style="width:100%;border:none">` : esc(row.mesures || '')}</td>
-        <td style="border:1px solid #000;padding:4px 6px">${editable ? `<input type="text" value="${esc(row.references || '')}" class="fiche-references" data-agent="${agentId}" style="width:100%;border:none">` : esc(row.references || '')}</td>
+        <td style="border:1px solid #000;padding:4px 6px;text-align:center;font-weight:600">${esc(heureVal)}</td>
+        <td style="border:1px solid #000;padding:4px 6px;text-align:center;font-weight:600">${esc(jourVal)}</td>
+        <td style="border:1px solid #000;padding:4px 6px">${editable ? `<input type="text" value="${esc(mesuresVal)}" class="fiche-mesures" ${agentAttr}="${agentId}" style="width:100%;border:none;outline:none;background:transparent;font-family:inherit;font-size:inherit" placeholder="Mesures prises...">` : esc(mesuresVal)}</td>
+        <td style="border:1px solid #000;padding:4px 6px">${editable ? `<input type="text" value="${esc(refsVal)}" class="fiche-references" ${agentAttr}="${agentId}" style="width:100%;border:none;outline:none;background:transparent;font-family:inherit;font-size:inherit" placeholder="Références...">` : esc(refsVal)}</td>
       </tr>`;
   }).join('') || '<tr><td colspan="10" style="border:1px solid #000;padding:6px;text-align:center">Aucun agent</td></tr>';
 

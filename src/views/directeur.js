@@ -128,6 +128,7 @@ export function setupDirecteur(container, state, render, supabase) {
   let agentAttendanceById = new Map();
   let agentSchool = null;
   let agentCurrentDate = previousWorkingDate();
+  let agentHeureAppel = '07h30';
   let agentCurrentMonth = agentMonths.includes(monthNameForDate(formatISODate(new Date())))
     ? monthNameForDate(formatISODate(new Date()))
     : 'Octobre';
@@ -228,16 +229,38 @@ export function setupDirecteur(container, state, render, supabase) {
     }
     const agentPresence = e.target.closest('[data-action="agent-set-presence"]');
     if (agentPresence) {
-      agentAttendanceById.set(String(agentPresence.dataset.agentId), {
-        ...(agentAttendanceById.get(String(agentPresence.dataset.agentId)) || {}),
-        present: agentPresence.dataset.present === 'true'
-      });
+      const agentId = String(agentPresence.dataset.agentId);
+      const targetPresent = agentPresence.dataset.targetPresent != null
+        ? agentPresence.dataset.targetPresent === 'true'
+        : (agentPresence.dataset.present === 'true');
+      const prev = agentAttendanceById.get(agentId) || {};
+      if (targetPresent) {
+        agentAttendanceById.set(agentId, {
+          ...prev,
+          present: true,
+          absent: false,
+          heure: 0,
+          jour: 0
+        });
+      } else {
+        agentAttendanceById.set(agentId, {
+          ...prev,
+          present: false,
+          absent: true,
+          heure: prev.heure != null && prev.heure > 0 ? prev.heure : 0,
+          jour: prev.jour != null && prev.jour > 0 ? prev.jour : 1
+        });
+      }
       persistAgentAttendanceLocally();
       renderAgentDailyRows();
       return;
     }
     if (e.target.closest('[data-action="agent-save-daily"]')) {
       await saveDailyAgentAttendance();
+      return;
+    }
+    if (e.target.closest('[data-action="agent-monthly-save"]')) {
+      await saveMonthlyFicheB();
       return;
     }
     if (e.target.closest('[data-action="agent-monthly-preview"]')) {
@@ -369,11 +392,36 @@ export function setupDirecteur(container, state, render, supabase) {
       const id = String(e.target.dataset.agentId);
       const key = e.target.classList.contains('fiche-heure') ? 'heure' : 'jour';
       const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
-      agentAttendanceById.set(id, {
-        ...(agentAttendanceById.get(id) || {}),
-        [key]: Number.isFinite(value) ? value : 0
-      });
+      const prev = agentAttendanceById.get(id) || {};
+      const numVal = Number.isFinite(value) ? value : 0;
+      const updated = {
+        ...prev,
+        [key]: numVal
+      };
+      if (numVal > 0) {
+        updated.present = false;
+        updated.absent = true;
+      }
+      agentAttendanceById.set(id, updated);
       persistAgentAttendanceLocally();
+      return;
+    }
+    if (e.target.matches('.fiche-heure-appel')) {
+      agentHeureAppel = e.target.value;
+      return;
+    }
+    if (e.target.matches('.fiche-mesures')) {
+      const agentId = e.target.dataset.agent;
+      if (agentId) {
+        localStorage.setItem(`fiche_b_mesures_${agentId}_${agentCurrentMonth}`, e.target.value);
+      }
+      return;
+    }
+    if (e.target.matches('.fiche-references')) {
+      const agentId = e.target.dataset.agent;
+      if (agentId) {
+        localStorage.setItem(`fiche_b_refs_${agentId}_${agentCurrentMonth}`, e.target.value);
+      }
       return;
     }
     if (e.target.matches('.agent-observation')) {
@@ -513,17 +561,22 @@ export function setupDirecteur(container, state, render, supabase) {
 
   function dailyAgentRecords() {
     const sid = schoolId();
+    const heureAppelInput = viewContainer.querySelector('.fiche-heure-appel');
+    const heureAppel = heureAppelInput ? heureAppelInput.value.trim() : (agentHeureAppel || '07h30');
     return agentProfiles.map(agent => {
       const current = agentAttendanceById.get(String(agent.id)) || {};
+      const isPresent = current.present !== false && !current.absent;
       return {
         ecole_id: sid,
         ecole_nom: (agentSchool && agentSchool.name) || '',
         agent_id: String(agent.id),
         date_jour: agentCurrentDate,
         mois: monthNameForDate(agentCurrentDate),
-        present: current.present !== false,
-        heure: current.heure != null ? current.heure : 0,
-        jour: current.jour != null ? current.jour : 0,
+        present: isPresent,
+        absent: !isPresent,
+        heure: isPresent ? 0 : (current.heure != null ? Number(current.heure) : 0),
+        jour: isPresent ? 0 : (current.jour != null ? Number(current.jour) : 1),
+        heure_appel: heureAppel,
         observation: String(current.observation || '')
       };
     });
@@ -554,6 +607,9 @@ export function setupDirecteur(container, state, render, supabase) {
       .eq('ecole_id', sid).eq('date_jour', agentCurrentDate);
     const remoteRecords = remoteResult.data || [];
     const records = mergeAgentAttendanceRecords(remoteRecords, localRecords);
+    if (records.length && records[0].heure_appel) {
+      agentHeureAppel = records[0].heure_appel;
+    }
     agentAttendanceById = new Map(records.map(record => [String(record.agent_id), record]));
     renderAgentDailyRows();
     if (status) {
@@ -574,6 +630,7 @@ export function setupDirecteur(container, state, render, supabase) {
     if (!sheet) return;
     const agents = agentProfiles.map(agent => {
       const value = agentAttendanceById.get(String(agent.id)) || {};
+      const isPresent = value.present !== false && !value.absent;
       return {
         id: agent.id,
         full_name: agent.full_name || '',
@@ -581,9 +638,10 @@ export function setupDirecteur(container, state, render, supabase) {
         matricule: agent.matricule || '',
         emploi: getAgentEmployment(agent),
         fonction: getAgentFunction(agent),
-        present: value.present !== false,
-        heure: value.heure != null ? value.heure : '',
-        jour: value.jour != null ? value.jour : ''
+        present: isPresent,
+        absent: !isPresent,
+        heure: isPresent ? 0 : (value.heure != null ? value.heure : 0),
+        jour: isPresent ? 0 : (value.jour != null ? value.jour : 1)
       };
     });
     const dateFr = (() => {
@@ -596,7 +654,7 @@ export function setupDirecteur(container, state, render, supabase) {
     sheet.innerHTML = renderFicheA({
       structure: (agentSchool && agentSchool.name) || 'École',
       date: dateFr,
-      heure: '',
+      heure: agentHeureAppel || '07h30',
       agents,
       signerLabel: 'Le Directeur',
       signatureUrl: state.profile ? signatureUrlForProfile(state.profile) : '',
@@ -676,81 +734,139 @@ export function setupDirecteur(container, state, render, supabase) {
   function renderAgentMonthlyDocument() {
     const content = viewContainer.querySelector('#agentMonthlyContent');
     if (!content) return;
-    const monthDates = new Set(agentMonthlyRecords.map(record => record.date_jour));
-    const rows = agentMonthlyRows.map(row => {
-      const { nom, prenom } = getAgentNameParts(row.agent);
-      return `<tr>
-        <td>${row.number}</td><td>${esc(row.agent.matricule || row.agent.identifiant || '—')}</td>
-        <td>${esc(nom || '—')}</td><td>${esc(prenom || '—')}</td><td>${esc(getAgentEmployment(row.agent))}</td><td>${esc(getAgentFunction(row.agent))}</td>
-        <td>${row.daysPointed}</td><td>${row.presences}</td><td>${row.absences}</td>
-        <td>${row.rate.toFixed(1)}%</td><td>${esc(row.observations || '—')}</td>
-      </tr>`;
-    }).join('');
+    const rows = agentProfiles.map(agent => {
+      const agentRecords = agentMonthlyRecords.filter(r => String(r.agent_id) === String(agent.id));
+      const heureSum = agentRecords.reduce((sum, r) => sum + (parseFloat(r.heure) || 0), 0);
+      const jourSum = agentRecords.reduce((sum, r) => sum + (parseFloat(r.jour) || 0), 0);
+      const savedMesure = agentRecords.find(r => r.mesures_prises)?.mesures_prises
+        || localStorage.getItem(`fiche_b_mesures_${agent.id}_${agentCurrentMonth}`) || '';
+      const savedRef = agentRecords.find(r => r.references_pieces)?.references_pieces
+        || localStorage.getItem(`fiche_b_refs_${agent.id}_${agentCurrentMonth}`) || '';
+      return {
+        id: agent.id,
+        full_name: agent.full_name || '',
+        gender: agent.gender || agent.sexe || '',
+        matricule: agent.matricule || '',
+        emploi: getAgentEmployment(agent),
+        fonction: getAgentFunction(agent),
+        structure: (agentSchool && agentSchool.name) || 'École',
+        heure: heureSum,
+        jour: jourSum,
+        mesures: savedMesure,
+        references: savedRef
+      };
+    });
     const status = agentMonthlySubmission
       ? `Bilan déposé le ${new Date(agentMonthlySubmission.date_depot).toLocaleDateString('fr-FR')}`
       : 'Bilan non déposé';
     content.innerHTML = `
-      <div id="agentMonthlyDocument" class="card landscape-sheet agent-monthly-sheet wide-sheet" style="margin-top:16px;background:#fff;color:#111">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
-          <div><strong>CEB de Bagré</strong><br><strong>École : ${esc((agentSchool && agentSchool.name) || '')}</strong><br><strong>Mois : ${esc(agentCurrentMonth)}</strong></div>
-          <div class="official-motto" style="display:flex;flex-direction:column;align-items:center;text-align:center"><strong>Burkina Faso</strong><em>La Patrie ou la Mort, nous vaincrons</em></div>
-        </div>
-        <h2 style="text-align:center;margin:20px 0">BILAN MENSUEL DE PRÉSENCE DES AGENTS</h2>
-        <p><strong>Année scolaire :</strong> ${agentSchoolYearStart}–${agentSchoolYearStart + 1}
-          <span style="float:right">${monthDates.size} jour(s) ouvré(s) pointé(s)</span></p>
-        <div class="table-wrap">
-          <table style="width:100%;border-collapse:collapse;font-size:12px">
-            <thead><tr>${['N°','Matricule','Nom','Prénom','Emploi','Fonction','Jours ouvrés pointés','Présences (jours)','Absences (jours)','Taux de présence (%)','Observations du mois']
-              .map(title => `<th style="border:1px solid #334155;padding:6px">${title}</th>`).join('')}</tr></thead>
-            <tbody>${rows || '<tr><td colspan="11">Aucun agent</td></tr>'}</tbody>
-          </table>
-        </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:32px">
-          ${signatureBlockHTML('Le Directeur / La Directrice', directorSigners, '')}
-        </div>
+      <div id="agentMonthlyDocument" class="card landscape-sheet agent-monthly-sheet wide-sheet" style="margin-top:16px;background:#fff;color:#111;padding:8px">
+        ${renderFicheB({
+          structure: (agentSchool && agentSchool.name) || 'École',
+          date: new Date().toLocaleDateString('fr-FR'),
+          mois: agentCurrentMonth,
+          annee: `${agentSchoolYearStart}-${agentSchoolYearStart + 1}`,
+          rows,
+          signerLabel: 'Le Directeur',
+          signatureUrl: state.profile ? signatureUrlForProfile(state.profile) : '',
+          editable: true,
+          agentAttr: 'data-agent'
+        })}
       </div>
-      <div class="card" style="margin-top:12px">
-        <p id="agentMonthlySubmissionStatus" role="status">${esc(status)}</p>
-        <button type="button" class="btn" data-action="agent-monthly-submit"
-          style="background:linear-gradient(145deg,#15803d,#16a34a);box-shadow:0 4px 0 #166534;font-weight:700">
-          Arrêter et déposer le bilan au Chef du Personnel
-        </button>
+      <div class="card no-print" style="margin-top:12px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+        <p id="agentMonthlySubmissionStatus" role="status" style="margin:0">${esc(status)}</p>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn" data-action="agent-monthly-save"
+            style="background:#2563eb;font-weight:700">
+            💾 Enregistrer mesures FICHE B
+          </button>
+          <button type="button" class="btn" data-action="agent-monthly-submit"
+            style="background:linear-gradient(145deg,#15803d,#16a34a);box-shadow:0 4px 0 #166534;font-weight:700">
+            Arrêter et déposer le bilan au Chef du Personnel
+          </button>
+        </div>
       </div>
     `;
   }
 
+  async function saveMonthlyFicheB() {
+    const status = viewContainer.querySelector('#agentMonthlySubmissionStatus');
+    const sid = schoolId();
+    if (!sid) return;
+    try {
+      const period = getSchoolMonthPeriod(agentSchoolYearStart, agentCurrentMonth);
+      const updates = agentProfiles.map(async agent => {
+        const agentId = String(agent.id);
+        const mInput = viewContainer.querySelector(`.fiche-mesures[data-agent="${agentId}"]`);
+        const rInput = viewContainer.querySelector(`.fiche-references[data-agent="${agentId}"]`);
+        const mesures = mInput ? mInput.value.trim() : (localStorage.getItem(`fiche_b_mesures_${agentId}_${agentCurrentMonth}`) || '');
+        const references = rInput ? rInput.value.trim() : (localStorage.getItem(`fiche_b_refs_${agentId}_${agentCurrentMonth}`) || '');
+        localStorage.setItem(`fiche_b_mesures_${agentId}_${agentCurrentMonth}`, mesures);
+        localStorage.setItem(`fiche_b_refs_${agentId}_${agentCurrentMonth}`, references);
+
+        return supabase.from('presences_agents')
+          .update({ mesures_prises: mesures, references_pieces: references })
+          .eq('agent_id', agentId)
+          .eq('ecole_id', sid)
+          .gte('date_jour', period.start)
+          .lte('date_jour', period.end);
+      });
+      await Promise.all(updates);
+      if (status) {
+        status.textContent = '✅ Mesures prises et pièces justificatives enregistrées avec succès.';
+        status.style.color = '#15803d';
+      }
+    } catch (err) {
+      if (status) {
+        status.textContent = `❌ Erreur : ${err.message || err}`;
+        status.style.color = '#dc2626';
+      }
+    }
+  }
+
   function exportAgentMonthlyCSV() {
     const rows = [[
-      'N°', 'Matricule', 'Nom', 'Prénom', 'Emploi', 'Fonction', 'Jours ouvrés pointés',
-      'Présences (jours)', 'Absences (jours)', 'Taux de présence (%)', 'Observations du mois'
+      'N° d\'ordre', 'Nom et Prénom (s)', 'Matricule', 'Emploi', 'Fonction',
+      'Structure', 'Absence (Heure)', 'Absence (Jour)', 'Mesures prises',
+      'Références des pièces justificatives de la mesure prise s\'il y a lieu'
     ]];
-    agentMonthlyRows.forEach(row => {
-      const { nom, prenom } = getAgentNameParts(row.agent);
+    agentProfiles.forEach((agent, idx) => {
+      const agentRecords = agentMonthlyRecords.filter(r => String(r.agent_id) === String(agent.id));
+      const heureSum = agentRecords.reduce((sum, r) => sum + (parseFloat(r.heure) || 0), 0);
+      const jourSum = agentRecords.reduce((sum, r) => sum + (parseFloat(r.jour) || 0), 0);
+      const savedMesure = agentRecords.find(r => r.mesures_prises)?.mesures_prises
+        || localStorage.getItem(`fiche_b_mesures_${agent.id}_${agentCurrentMonth}`) || '';
+      const savedRef = agentRecords.find(r => r.references_pieces)?.references_pieces
+        || localStorage.getItem(`fiche_b_refs_${agent.id}_${agentCurrentMonth}`) || '';
       rows.push([
-        row.number, row.agent.matricule || row.agent.identifiant || '', nom, prenom,
-        getAgentEmployment(row.agent), getAgentFunction(row.agent), row.daysPointed, row.presences, row.absences,
-        `${row.rate.toFixed(1)}%`, row.observations
+        idx + 1, agent.full_name || '', agent.matricule || '—',
+        getAgentEmployment(agent), getAgentFunction(agent),
+        (agentSchool && agentSchool.name) || 'École',
+        heureSum, jourSum, savedMesure, savedRef
       ]);
     });
-    downloadCSV(`Bilan_agents_${agentCurrentMonth}_${agentSchoolYearStart}-${agentSchoolYearStart + 1}.csv`, rows);
+    downloadCSV(`FICHE_B_${agentCurrentMonth}_${agentSchoolYearStart}-${agentSchoolYearStart + 1}.csv`, rows);
   }
 
   function exportAgentDailyCSV() {
-    const rows = [['N°', 'Matricule', 'Nom', 'Prénom', 'Emploi', 'Fonction', 'Présence', 'Observation']];
+    const rows = [['N° d\'ordre', 'Nom et Prénom (s)', 'Matricule', 'Emploi', 'Fonction', 'Présent', 'Absent', 'Absence (Heure)', 'Absence (Jour)']];
     dailyAgentRecords().forEach((record, index) => {
       const agent = agentProfiles[index];
-      const { nom, prenom } = getAgentNameParts(agent);
       rows.push([
-        index + 1, agent.matricule || agent.identifiant || '', nom, prenom,
-        getAgentEmployment(agent), getAgentFunction(agent), record.present ? 'Oui' : 'Non', record.observation
+        index + 1, agent.full_name || '', agent.matricule || '—',
+        getAgentEmployment(agent), getAgentFunction(agent),
+        record.present ? 'OUI' : 'NON',
+        record.absent ? 'OUI' : 'NON',
+        record.heure, record.jour
       ]);
     });
-    downloadCSV(`Appel_agents_${agentCurrentDate}.csv`, rows);
+    downloadCSV(`FICHE_A_${agentCurrentDate}.csv`, rows);
   }
 
   async function submitMonthlyAgentReport() {
     const status = viewContainer.querySelector('#agentMonthlySubmissionStatus');
     if (!schoolId()) return;
+    await saveMonthlyFicheB();
     const payload = {
       ecole_id: schoolId(),
       ecole_nom: (agentSchool && agentSchool.name) || '',

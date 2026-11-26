@@ -817,3 +817,13 @@ revoke all on function public.admin_reset_password(uuid, text) from public;
 grant execute on function public.admin_reset_password(uuid, text) to authenticated;
 alter table public.presences_agents add column if not exists heure numeric;
 alter table public.presences_agents add column if not exists jour numeric;
+ALTER TABLE IF EXISTS public.presences_agents ADD COLUMN IF NOT EXISTS heure NUMERIC DEFAULT 0;
+ALTER TABLE IF EXISTS public.presences_agents ADD COLUMN IF NOT EXISTS jour NUMERIC DEFAULT 0;
+ALTER TABLE IF EXISTS public.presences_agents ADD COLUMN IF NOT EXISTS present BOOLEAN DEFAULT TRUE;
+ALTER TABLE IF EXISTS public.presences_agents ADD COLUMN IF NOT EXISTS absent BOOLEAN DEFAULT FALSE;
+ALTER TABLE IF EXISTS public.presences_agents ADD COLUMN IF NOT EXISTS heure_appel TEXT;
+ALTER TABLE IF EXISTS public.presences_agents ADD COLUMN IF NOT EXISTS mesures_prises TEXT;
+ALTER TABLE IF EXISTS public.presences_agents ADD COLUMN IF NOT EXISTS references_pieces TEXT;
+
+GRANT ALL PRIVILEGES ON TABLE public.presences_agents TO anon, authenticated;
+NOTIFY pgrst, 'reload schema';

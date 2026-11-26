@@ -261,6 +261,7 @@ export function setupChefCEB(container, state, render, supabase) {
   let presenceWeekStart = startOfWeekISO(new Date());
   let presenceMonth = (new Intl.DateTimeFormat('fr-FR', { month: 'long' }).format(new Date()).charAt(0).toUpperCase() + new Intl.DateTimeFormat('fr-FR', { month: 'long' }).format(new Date()).slice(1));
   let presenceRecords = [];
+  let cebHeureAppel = '07h30';
 
   function startOfWeekISO(date) {
     const d = new Date(date);
@@ -314,35 +315,22 @@ export function setupChefCEB(container, state, render, supabase) {
     presenceProfiles = profilesResult.data || [];
     presenceSchools = schoolsResult.data || [];
     viewContainer.innerHTML = `
-      <div class="card">
+      <div class="card no-print">
         <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-          <div class="form-group" style="margin:0;min-width:200px">
-            <label for="presenceWeek">Semaine (lundi)</label>
+          <div class="form-group" style="margin:0;min-width:180px">
+            <label for="presenceWeek">Date du jour (FICHE A)</label>
             <input type="date" id="presenceWeek" value="${esc(presenceWeekStart)}">
           </div>
-          <div class="form-group" style="margin:0;min-width:200px">
-            <label for="presenceMonth">Mois du bilan</label>
+          <div class="form-group" style="margin:0;min-width:180px">
+            <label for="presenceMonth">Mois du bilan (FICHE B)</label>
             <select id="presenceMonth">${agentMonths.map(month => `<option value="${esc(month)}"${month === presenceMonth ? ' selected' : ''}>${esc(month)}</option>`).join('')}</select>
           </div>
-          <button type="button" class="btn" data-action="presence-preview">👁 Aperçu</button>
-          <button type="button" class="btn" id="presence-pdf">📄 PDF</button>
-          <button type="button" class="btn secondary" data-action="presence-excel">📥 Excel</button>
-        </div>
-        <p id="presenceStatus" role="status" style="margin:10px 0 0"></p>
-      </div>
-      <div class="card no-print" style="margin-top:16px">
-        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-          <div class="form-group" style="margin:0;min-width:200px">
-            <label for="presenceWeek">Semaine (lundi)</label>
-            <input type="date" id="presenceWeek" value="${esc(presenceWeekStart)}">
-          </div>
-          <div class="form-group" style="margin:0;min-width:200px">
-            <label for="presenceMonth">Mois du bilan</label>
-            <select id="presenceMonth">${agentMonths.map(month => `<option value="${esc(month)}"${month === presenceMonth ? ' selected' : ''}>${esc(month)}</option>`).join('')}</select>
-          </div>
-          <button type="button" class="btn" id="presence-save">💾 Enregistrer FICHE A</button>
-          <button type="button" class="btn" id="presence-pdf">📄 PDF</button>
-          <button type="button" class="btn secondary" data-action="presence-excel">📥 Excel</button>
+          <button type="button" class="btn" id="presence-save" style="background:linear-gradient(145deg,#15803d,#16a34a);box-shadow:0 4px 0 #166534;font-weight:700">💾 Enregistrer FICHE A</button>
+          <button type="button" class="btn" id="presence-b-save" style="background:#2563eb;font-weight:700">💾 Enregistrer FICHE B</button>
+          <button type="button" class="btn" id="presence-pdf">📄 PDF FICHE A</button>
+          <button type="button" class="btn" id="presence-b-pdf">📄 PDF FICHE B</button>
+          <button type="button" class="btn secondary" data-action="presence-excel">📥 Excel FICHE A</button>
+          <button type="button" class="btn secondary" data-action="presence-b-excel">📥 Excel FICHE B</button>
           <button type="button" class="btn secondary" id="presence-print">🖨️ Imprimer</button>
         </div>
         <p id="presenceStatus" role="status" style="margin:10px 0 0"></p>
@@ -363,11 +351,18 @@ export function setupChefCEB(container, state, render, supabase) {
       () => `FICHE_A_Presence_CEB_${presenceWeekStart}.pdf`,
       { orientation: 'landscape', format: 'a4', margin: 8 }
     );
+    wirePDFExportButton(
+      viewContainer.querySelector('#presence-b-pdf'),
+      () => viewContainer.querySelector('#presenceSheetB'),
+      () => `FICHE_B_Presence_CEB_${presenceMonth}_${presenceWeekStart.slice(0, 4)}.pdf`,
+      { orientation: 'landscape', format: 'a4', margin: 8 }
+    );
     viewContainer.querySelector('#presence-print')?.addEventListener('click', printPage);
     viewContainer.querySelector('#presence-save')?.addEventListener('click', async () => {
-      await loadPresenceData();
-      const status = viewContainer.querySelector('#presenceStatus');
-      if (status) { status.textContent = '✅ FICHE A enregistrée.'; status.style.color = '#15803d'; }
+      await saveDailyPresenceCEB();
+    });
+    viewContainer.querySelector('#presence-b-save')?.addEventListener('click', async () => {
+      await saveMonthlyFicheBCEB();
     });
     viewContainer.querySelector('#presenceWeek')?.addEventListener('change', async (e) => {
       const value = e.target.value;
@@ -382,18 +377,21 @@ export function setupChefCEB(container, state, render, supabase) {
       if (card) openPreview({ title: 'FICHE A — Présence des agents — CEB de Bagré', html: card.outerHTML, onPrint: printPage });
     });
     viewContainer.querySelector('[data-action="presence-excel"]')?.addEventListener('click', exportPresenceCSV);
+    viewContainer.querySelector('[data-action="presence-b-excel"]')?.addEventListener('click', exportPresenceBFICHECSV);
     await loadPresenceData();
   }
 
   async function loadPresenceData() {
     const days = presenceWeekDays();
-    const weekEnd = days[days.length - 1].iso;
     const { data: records } = await supabase.from('presences_agents').select('*')
-      .gte('date_jour', presenceWeekStart).lte('date_jour', weekEnd);
+      .eq('date_jour', presenceWeekStart);
     const monthStart = `${presenceWeekStart.slice(0, 4)}-`;
     const { data: monthRecords } = await supabase.from('presences_agents').select('*')
-      .gte('date_jour', `${monthStart}01`).lte('date_jour', `${monthStart}31`);
+      .eq('mois', presenceMonth);
     presenceRecords = records || [];
+    if (presenceRecords.length && presenceRecords[0].heure_appel) {
+      cebHeureAppel = presenceRecords[0].heure_appel;
+    }
     renderPresenceRows(days);
     renderPresenceBilan(monthRecords || []);
   }
@@ -415,6 +413,7 @@ export function setupChefCEB(container, state, render, supabase) {
     })();
     const agents = list.map(profile => {
       const record = presenceRecordFor(profile.id, presenceWeekStart);
+      const isPresent = record ? (record.present !== false && !record.absent) : true;
       return {
         id: profile.id,
         full_name: profile.full_name || '',
@@ -422,15 +421,16 @@ export function setupChefCEB(container, state, render, supabase) {
         matricule: profile.matricule || '',
         emploi: getAgentEmployment(profile),
         fonction: getAgentFunction(profile),
-        present: record ? record.present !== false : true,
-        heure: record && record.heure != null ? record.heure : 0,
-        jour: record && record.jour != null ? record.jour : 0
+        present: isPresent,
+        absent: !isPresent,
+        heure: isPresent ? 0 : (record && record.heure != null ? record.heure : 0),
+        jour: isPresent ? 0 : (record && record.jour != null ? record.jour : 1)
       };
     });
     target.innerHTML = renderFicheA({
       structure: 'CEB de Bagré / Boulgou',
       date: dateFr,
-      heure: '',
+      heure: cebHeureAppel || '07h30',
       agents,
       signerLabel: 'Le Chef de la CEB',
       signatureUrl: state.profile ? signatureUrlForProfile(state.profile) : '',
@@ -458,9 +458,13 @@ export function setupChefCEB(container, state, render, supabase) {
       return `${dd}/${mm}/${d.getFullYear()}`;
     })();
     const rows = list.map(profile => {
-      const items = records.filter(record => String(record.agent_id) === String(profile.id));
+      const items = (records || []).filter(record => String(record.agent_id) === String(profile.id));
       const heure = items.reduce((sum, item) => sum + (parseFloat(item.heure) || 0), 0);
       const jour = items.reduce((sum, item) => sum + (parseFloat(item.jour) || 0), 0);
+      const savedMesure = items.find(r => r.mesures_prises)?.mesures_prises
+        || localStorage.getItem(`ceb_fiche_b_mesures_${profile.id}_${presenceMonth}`) || '';
+      const savedRef = items.find(r => r.references_pieces)?.references_pieces
+        || localStorage.getItem(`ceb_fiche_b_refs_${profile.id}_${presenceMonth}`) || '';
       return {
         id: profile.id,
         full_name: profile.full_name || '',
@@ -471,8 +475,8 @@ export function setupChefCEB(container, state, render, supabase) {
         structure: presenceSchoolLabel(profile),
         heure,
         jour,
-        mesures: '',
-        references: ''
+        mesures: savedMesure,
+        references: savedRef
       };
     });
     target.innerHTML = renderFicheB({
@@ -483,47 +487,159 @@ export function setupChefCEB(container, state, render, supabase) {
       rows,
       signerLabel: 'Le Chef de la CEB',
       signatureUrl: state.profile ? signatureUrlForProfile(state.profile) : '',
-      editable: false
+      editable: true,
+      agentAttr: 'data-agent'
     }) || '<p style="color:#64748b">Aucun agent à appeler.</p>';
   }
 
-  async function togglePresence(btn) {
-    const agentId = btn.dataset.agent;
-    const dateJour = btn.dataset.date;
+  async function togglePresence(cell) {
+    const agentId = cell.dataset.agent;
+    const dateJour = cell.dataset.date || presenceWeekStart;
     if (!agentId || !dateJour) return;
-    const existing = presenceRecordFor(agentId, dateJour);
-    const nextPresent = btn.dataset.present != null ? btn.dataset.present === 'true' : !(existing ? existing.present !== false : true);
+    const existing = presenceRecordFor(agentId, dateJour) || {};
+    const targetPresent = cell.dataset.targetPresent != null
+      ? cell.dataset.targetPresent === 'true'
+      : (cell.dataset.present === 'true');
     const profile = presenceProfiles.find(item => String(item.id) === String(agentId)) || {};
+    const heureAppelInput = viewContainer.querySelector('.fiche-heure-appel');
+    const heureAppel = heureAppelInput ? heureAppelInput.value.trim() : (cebHeureAppel || '07h30');
+    const nextPresent = targetPresent;
     const payload = {
       agent_id: String(agentId),
       date_jour: dateJour,
       present: nextPresent,
-      observation: '',
+      absent: !nextPresent,
+      heure: nextPresent ? 0 : (existing.heure > 0 ? existing.heure : 0),
+      jour: nextPresent ? 0 : (existing.jour > 0 ? existing.jour : 1),
+      heure_appel: heureAppel,
+      observation: existing.observation || '',
       mois: presenceMonth,
-      ecole_nom: presenceSchoolLabel(profile)
+      ecole_nom: presenceSchoolLabel(profile),
+      ecole_id: profile.school_id || null
     };
     if (existing && existing.id) {
       await supabase.from('presences_agents').update(payload).eq('id', existing.id);
     } else {
       await supabase.from('presences_agents').insert(payload);
     }
-    const days = presenceWeekDays();
     await loadPresenceData();
-    renderPresenceRows(days);
+  }
+
+  async function saveDailyPresenceCEB() {
+    const status = viewContainer.querySelector('#presenceStatus');
+    const heureAppelInput = viewContainer.querySelector('.fiche-heure-appel');
+    const heureAppel = heureAppelInput ? heureAppelInput.value.trim() : (cebHeureAppel || '07h30');
+    cebHeureAppel = heureAppel;
+    const list = presenceProfilesList();
+    const records = list.map(profile => {
+      const rec = presenceRecordFor(profile.id, presenceWeekStart) || {};
+      const isPresent = rec.present !== false && !rec.absent;
+      const heureInput = viewContainer.querySelector(`.fiche-heure[data-agent="${profile.id}"]`);
+      const jourInput = viewContainer.querySelector(`.fiche-jour[data-agent="${profile.id}"]`);
+      const hVal = heureInput && heureInput.value !== '' ? parseFloat(heureInput.value) || 0 : (rec.heure || 0);
+      const jVal = jourInput && jourInput.value !== '' ? parseFloat(jourInput.value) || 0 : (rec.jour != null ? rec.jour : (isPresent ? 0 : 1));
+      return {
+        agent_id: String(profile.id),
+        date_jour: presenceWeekStart,
+        mois: presenceMonth,
+        ecole_id: profile.school_id || null,
+        ecole_nom: presenceSchoolLabel(profile),
+        present: isPresent,
+        absent: !isPresent,
+        heure: isPresent ? 0 : hVal,
+        jour: isPresent ? 0 : jVal,
+        heure_appel: heureAppel,
+        observation: rec.observation || ''
+      };
+    });
+
+    try {
+      const { error } = await supabase.from('presences_agents')
+        .upsert(records, { onConflict: 'agent_id,date_jour' });
+      if (error) throw error;
+      if (status) {
+        status.textContent = '✅ FICHE A enregistrée avec succès.';
+        status.style.color = '#15803d';
+      }
+      await loadPresenceData();
+    } catch (err) {
+      if (status) {
+        status.textContent = `❌ Erreur : ${err.message || err}`;
+        status.style.color = '#dc2626';
+      }
+    }
+  }
+
+  async function saveMonthlyFicheBCEB() {
+    const status = viewContainer.querySelector('#presenceStatus');
+    const list = presenceProfilesList();
+    try {
+      const updates = list.map(async profile => {
+        const agentId = String(profile.id);
+        const mInput = viewContainer.querySelector(`.fiche-mesures[data-agent="${agentId}"]`);
+        const rInput = viewContainer.querySelector(`.fiche-references[data-agent="${agentId}"]`);
+        const mesures = mInput ? mInput.value.trim() : (localStorage.getItem(`ceb_fiche_b_mesures_${agentId}_${presenceMonth}`) || '');
+        const references = rInput ? rInput.value.trim() : (localStorage.getItem(`ceb_fiche_b_refs_${agentId}_${presenceMonth}`) || '');
+        localStorage.setItem(`ceb_fiche_b_mesures_${agentId}_${presenceMonth}`, mesures);
+        localStorage.setItem(`ceb_fiche_b_refs_${agentId}_${presenceMonth}`, references);
+
+        return supabase.from('presences_agents')
+          .update({ mesures_prises: mesures, references_pieces: references })
+          .eq('agent_id', agentId)
+          .eq('mois', presenceMonth);
+      });
+      await Promise.all(updates);
+      if (status) {
+        status.textContent = '✅ Mesures prises et pièces justificatives FICHE B enregistrées avec succès.';
+        status.style.color = '#15803d';
+      }
+    } catch (err) {
+      if (status) {
+        status.textContent = `❌ Erreur : ${err.message || err}`;
+        status.style.color = '#dc2626';
+      }
+    }
   }
 
   function exportPresenceCSV() {
-    const days = presenceWeekDays();
-    const rows = [['N°', 'Nom et Prénom', 'Fonction', 'École / Structure', ...days.map(day => day.iso), 'Présences']];
+    const rows = [['N° d\'ordre', 'Nom et Prénom (s)', 'Matricule', 'Emploi', 'Fonction', 'Présent', 'Absent', 'Absence (Heure)', 'Absence (Jour)']];
     presenceProfilesList().forEach((profile, index) => {
-      const cells = days.map(day => {
-        const record = presenceRecordFor(profile.id, day.iso);
-        return record ? (record.present !== false ? 'Oui' : 'Non') : 'Oui';
-      });
-      const presences = cells.filter(value => value === 'Oui').length;
-      rows.push([index + 1, profile.full_name || '', getAgentFunction(profile), presenceSchoolLabel(profile), ...cells, `${presences}/${days.length}`]);
+      const record = presenceRecordFor(profile.id, presenceWeekStart);
+      const isPresent = record ? (record.present !== false && !record.absent) : true;
+      rows.push([
+        index + 1, profile.full_name || '', profile.matricule || '—',
+        getAgentEmployment(profile), getAgentFunction(profile),
+        isPresent ? 'OUI' : 'NON',
+        !isPresent ? 'OUI' : 'NON',
+        record && record.heure != null ? record.heure : (isPresent ? 0 : ''),
+        record && record.jour != null ? record.jour : (isPresent ? 0 : 1)
+      ]);
     });
-    downloadCSV(`Presence_CEB_${presenceWeekStart}.csv`, rows);
+    downloadCSV(`FICHE_A_CEB_${presenceWeekStart}.csv`, rows);
+  }
+
+  function exportPresenceBFICHECSV() {
+    const list = presenceProfilesList();
+    const rows = [[
+      'N° d\'ordre', 'Nom et Prénom (s)', 'Matricule', 'Emploi', 'Fonction',
+      'Structure', 'Absence (Heure)', 'Absence (Jour)', 'Mesures prises',
+      'Références des pièces justificatives de la mesure prise s\'il y a lieu'
+    ]];
+    list.forEach((profile, index) => {
+      const items = presenceRecords.filter(record => String(record.agent_id) === String(profile.id));
+      const heure = items.reduce((sum, item) => sum + (parseFloat(item.heure) || 0), 0);
+      const jour = items.reduce((sum, item) => sum + (parseFloat(item.jour) || 0), 0);
+      const savedMesure = items.find(r => r.mesures_prises)?.mesures_prises
+        || localStorage.getItem(`ceb_fiche_b_mesures_${profile.id}_${presenceMonth}`) || '';
+      const savedRef = items.find(r => r.references_pieces)?.references_pieces
+        || localStorage.getItem(`ceb_fiche_b_refs_${profile.id}_${presenceMonth}`) || '';
+      rows.push([
+        index + 1, profile.full_name || '', profile.matricule || '—',
+        getAgentEmployment(profile), getAgentFunction(profile),
+        presenceSchoolLabel(profile), heure, jour, savedMesure, savedRef
+      ]);
+    });
+    downloadCSV(`FICHE_B_CEB_${presenceMonth}_${presenceWeekStart.slice(0, 4)}.csv`, rows);
   }
 
   async function renderStaffDirectory() {
@@ -1096,6 +1212,12 @@ export function setupChefCEB(container, state, render, supabase) {
       renderStaffTable();
     } else if (a === 'presence-toggle') {
       await togglePresence(btn);
+    } else if (a === 'presence-excel') {
+      exportPresenceCSV();
+    } else if (a === 'presence-b-excel') {
+      exportPresenceBFICHECSV();
+    } else if (a === 'presence-b-save') {
+      await saveMonthlyFicheBCEB();
     } else if (a === 'synth-ecole') { syntheseMode = 'ecole'; renderSubView('synthese'); }
     else if (a === 'synth-globale') { syntheseMode = 'globale'; renderSubView('synthese'); }
     else if (a === 'export-trim') exportTrimCSV();
@@ -1143,6 +1265,38 @@ export function setupChefCEB(container, state, render, supabase) {
       const select = event.target;
       const input = viewContainer.querySelector('#schoolEditName');
       if (input) input.value = select.value === '__new__' ? '' : select.selectedOptions[0].dataset.name || '';
+    }
+  });
+
+  viewContainer.addEventListener('input', (e) => {
+    if (e.target.matches('.fiche-heure, .fiche-jour')) {
+      const id = String(e.target.dataset.agent);
+      const isHeure = e.target.classList.contains('fiche-heure');
+      const rec = presenceRecordFor(id, presenceWeekStart);
+      const val = parseFloat(e.target.value) || 0;
+      if (rec) {
+        if (isHeure) rec.heure = val;
+        else rec.jour = val;
+        if (val > 0) {
+          rec.present = false;
+          rec.absent = true;
+        }
+      }
+      return;
+    }
+    if (e.target.matches('.fiche-heure-appel')) {
+      cebHeureAppel = e.target.value;
+      return;
+    }
+    if (e.target.matches('.fiche-mesures')) {
+      const id = String(e.target.dataset.agent);
+      if (id) localStorage.setItem(`ceb_fiche_b_mesures_${id}_${presenceMonth}`, e.target.value);
+      return;
+    }
+    if (e.target.matches('.fiche-references')) {
+      const id = String(e.target.dataset.agent);
+      if (id) localStorage.setItem(`ceb_fiche_b_refs_${id}_${presenceMonth}`, e.target.value);
+      return;
     }
   });
 
