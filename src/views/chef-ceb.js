@@ -13,7 +13,7 @@ import { profileMatchesVisa, signatureBlockHTML, signatureUrlForProfile } from '
 import { computeSubjectRows, renderSyntheseHTML, renderBilanTrimestrielHTML } from '../utils/synthese.js';
 import { loadPaiRecord } from '../utils/pai.js';
 import { mergeSchoolChoices } from '../utils/schools.js';
-import { renderFicheA, renderFicheB } from '../utils/presence-officielle.js';
+import { renderFicheA, renderFicheB, regulatoryHoursForDate } from '../utils/presence-officielle.js';
 import {
   computeSchoolTermSynthesis, loadSchoolTermData, renderSchoolTermSynthesisHTML,
   schoolTermSynthesisCSVRows
@@ -261,7 +261,7 @@ export function setupChefCEB(container, state, render, supabase) {
   let presenceWeekStart = startOfWeekISO(new Date());
   let presenceMonth = (new Intl.DateTimeFormat('fr-FR', { month: 'long' }).format(new Date()).charAt(0).toUpperCase() + new Intl.DateTimeFormat('fr-FR', { month: 'long' }).format(new Date()).slice(1));
   let presenceRecords = [];
-  let cebHeureAppel = '07h30';
+  let cebHeureAppel = regulatoryHoursForDate(startOfWeekISO(new Date()));
 
   function startOfWeekISO(date) {
     const d = new Date(date);
@@ -366,7 +366,7 @@ export function setupChefCEB(container, state, render, supabase) {
     });
     viewContainer.querySelector('#presenceWeek')?.addEventListener('change', async (e) => {
       const value = e.target.value;
-      if (value) { presenceWeekStart = value; await loadPresenceData(); }
+      if (value) { presenceWeekStart = value; cebHeureAppel = regulatoryHoursForDate(presenceWeekStart); await loadPresenceData(); }
     });
     viewContainer.querySelector('#presenceMonth')?.addEventListener('change', async (e) => {
       presenceMonth = e.target.value;
@@ -391,6 +391,8 @@ export function setupChefCEB(container, state, render, supabase) {
     presenceRecords = records || [];
     if (presenceRecords.length && presenceRecords[0].heure_appel) {
       cebHeureAppel = presenceRecords[0].heure_appel;
+    } else {
+      cebHeureAppel = regulatoryHoursForDate(presenceWeekStart);
     }
     renderPresenceRows(days);
     renderPresenceBilan(monthRecords || []);
@@ -430,7 +432,8 @@ export function setupChefCEB(container, state, render, supabase) {
     target.innerHTML = renderFicheA({
       structure: 'CEB de Bagré / Boulgou',
       date: dateFr,
-      heure: cebHeureAppel || '07h30',
+      heure: cebHeureAppel || regulatoryHoursForDate(presenceWeekStart),
+      isoDate: presenceWeekStart,
       agents,
       signerLabel: 'Le Chef de la CEB',
       signatureUrl: state.profile ? signatureUrlForProfile(state.profile) : '',

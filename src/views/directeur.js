@@ -10,7 +10,7 @@ import { computeMonthlyRegister, monthlyRegisterCSVRows, renderMonthlyRegisterTa
 import { openPreview } from '../utils/preview.js';
 import { profileMatchesVisa, signatureBlockHTML, signatureUrlForProfile } from '../utils/signature.js';
 import { computeSubjectRows, renderSyntheseHTML, renderBilanTrimestrielHTML } from '../utils/synthese.js';
-import { renderFicheA, renderFicheB } from '../utils/presence-officielle.js';
+import { renderFicheA, renderFicheB, regulatoryHoursForDate } from '../utils/presence-officielle.js';
 import {
   computeExamRows,
   examLevelLabel,
@@ -128,7 +128,7 @@ export function setupDirecteur(container, state, render, supabase) {
   let agentAttendanceById = new Map();
   let agentSchool = null;
   let agentCurrentDate = previousWorkingDate();
-  let agentHeureAppel = '07h30';
+  let agentHeureAppel = regulatoryHoursForDate(previousWorkingDate());
   let agentCurrentMonth = agentMonths.includes(monthNameForDate(formatISODate(new Date())))
     ? monthNameForDate(formatISODate(new Date()))
     : 'Octobre';
@@ -380,6 +380,7 @@ export function setupDirecteur(container, state, render, supabase) {
         e.target.value = agentCurrentDate;
       } else {
         agentCurrentDate = selectedDate;
+        agentHeureAppel = regulatoryHoursForDate(agentCurrentDate);
       }
       await loadDailyAgentAttendance();
     } else if (e.target.id === 'agentReportMonth') {
@@ -609,6 +610,8 @@ export function setupDirecteur(container, state, render, supabase) {
     const records = mergeAgentAttendanceRecords(remoteRecords, localRecords);
     if (records.length && records[0].heure_appel) {
       agentHeureAppel = records[0].heure_appel;
+    } else {
+      agentHeureAppel = regulatoryHoursForDate(agentCurrentDate);
     }
     agentAttendanceById = new Map(records.map(record => [String(record.agent_id), record]));
     renderAgentDailyRows();
@@ -654,7 +657,8 @@ export function setupDirecteur(container, state, render, supabase) {
     sheet.innerHTML = renderFicheA({
       structure: (agentSchool && agentSchool.name) || 'École',
       date: dateFr,
-      heure: agentHeureAppel || '07h30',
+      heure: agentHeureAppel || regulatoryHoursForDate(agentCurrentDate),
+      isoDate: agentCurrentDate,
       agents,
       signerLabel: 'Le Directeur',
       signatureUrl: state.profile ? signatureUrlForProfile(state.profile) : '',

@@ -7,6 +7,20 @@ import { signatureImageHTML } from './signature.js';
 
 const GRAY = '#d9d9d9';
 
+/**
+ * Returns the regulatory work hours label for a given ISO date string (YYYY-MM-DD).
+ * Mon/Tue/Thu/Fri → "07h30 à 17h00"
+ * Wed             → "07h30 à 11h30"
+ * Fallback        → "07h30 à 17h00"
+ */
+export function regulatoryHoursForDate(isoDate) {
+  if (!isoDate) return '07h30 à 17h00';
+  const d = new Date(isoDate + 'T00:00:00');
+  if (isNaN(d.getTime())) return '07h30 à 17h00';
+  const day = d.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  return day === 3 ? '07h30 à 11h30' : '07h30 à 17h00';
+}
+
 function officialHeader() {
   return `
     <div style="display:flex;justify-content:space-between;gap:16px;border-bottom:2px solid #000;padding-bottom:6px">
@@ -55,25 +69,59 @@ function footer(structureLabel, date, signerLabel, signatureUrl, leftNote) {
     </div>`;
 }
 
+/** Dash cell — centered em-dash, muted, for read-only "not applicable" cells */
+const DASH_CELL = '<span style="color:#94a3b8;font-size:11pt;font-weight:400;letter-spacing:1px">—</span>';
+
 export function renderFicheA({
-  structure, date, heure = '07h30', agents = [], signerLabel = 'Le Directeur', signatureUrl = '',
-  actionName = 'data-action="agent-set-presence"', agentAttr = 'data-agent-id', editable = true
+  structure,
+  date,
+  heure,          // pre-computed regulatory hours string (passed from view)
+  isoDate = '',   // ISO date (YYYY-MM-DD) used to auto-compute hours if heure is absent
+  agents = [],
+  signerLabel = 'Le Directeur',
+  signatureUrl = '',
+  actionName = 'data-action="agent-set-presence"',
+  agentAttr = 'data-agent-id',
+  editable = true
 }) {
+  // Determine the displayed heure_appel value
+  const heureDisplay = heure || regulatoryHoursForDate(isoDate);
+
   const rows = (agents || []).map((agent, index) => {
     const isWoman = String(agent.gender || agent.sexe || '').toUpperCase() === 'F';
     const nameStyle = isWoman ? 'color:#dc2626;font-weight:600;' : '';
     const isPresent = agent.present !== false && !agent.absent;
     const agentId = esc(agent.id);
-    const heureVal = agent.heure != null ? agent.heure : (isPresent ? 0 : '');
-    const jourVal = agent.jour != null ? agent.jour : (isPresent ? 0 : 1);
 
+    // ── Présent column ──────────────────────────────────────────────────────
     const presentCell = isPresent
       ? '<span style="font-weight:800;color:#16a34a;font-size:10.5pt;letter-spacing:0.5px">OUI</span>'
       : '<span style="color:#94a3b8;font-weight:600;font-size:9.5pt">NON</span>';
 
+    // ── Absent column ───────────────────────────────────────────────────────
+    // When present → show a clean dash (not "NON")
     const absentCell = isPresent
-      ? '<span style="color:#94a3b8;font-weight:600;font-size:9.5pt">NON</span>'
+      ? DASH_CELL
       : '<span style="font-weight:800;color:#dc2626;font-size:10.5pt;letter-spacing:0.5px">OUI</span>';
+
+    // ── Heure / Jour columns ────────────────────────────────────────────────
+    // When present → show dash, inputs disabled; when absent → editable inputs
+    let heureCell, jourCell;
+    if (isPresent) {
+      // Always show a dash — no input, no value
+      heureCell = DASH_CELL;
+      jourCell  = DASH_CELL;
+    } else {
+      const heureVal = agent.heure != null && agent.heure !== '' ? agent.heure : 0;
+      const jourVal  = agent.jour  != null && agent.jour  !== '' ? agent.jour  : 1;
+      if (editable) {
+        heureCell = `<input type="number" min="0" step="0.5" value="${esc(heureVal)}" class="fiche-heure" ${agentAttr}="${agentId}" style="width:64px;border:1px solid #94a3b8;border-radius:3px;outline:none;background:#fefce8;text-align:center;font-size:9.5pt;font-family:inherit;padding:1px 2px">`;
+        jourCell  = `<input type="number" min="0" step="1"   value="${esc(jourVal)}"  class="fiche-jour"  ${agentAttr}="${agentId}" style="width:64px;border:1px solid #94a3b8;border-radius:3px;outline:none;background:#fefce8;text-align:center;font-size:9.5pt;font-family:inherit;padding:1px 2px">`;
+      } else {
+        heureCell = `<span>${esc(heureVal)}</span>`;
+        jourCell  = `<span>${esc(jourVal)}</span>`;
+      }
+    }
 
     return `
       <tr>
@@ -86,12 +134,8 @@ export function renderFicheA({
           ${editable ? `${actionName} ${agentAttr}="${agentId}" data-target-present="true" title="Cliquer pour marquer Présent"` : ''}>${presentCell}</td>
         <td style="border:1px solid #000;padding:4px 6px;text-align:center;cursor:${editable ? 'pointer' : 'default'};user-select:none"
           ${editable ? `${actionName} ${agentAttr}="${agentId}" data-target-present="false" title="Cliquer pour marquer Absent"` : ''}>${absentCell}</td>
-        <td style="border:1px solid #000;padding:4px 6px;text-align:center">
-          ${editable ? `<input type="number" min="0" step="0.5" value="${esc(heureVal)}" class="fiche-heure" ${agentAttr}="${agentId}" style="width:64px;border:none;outline:none;background:transparent;text-align:center;font-size:9.5pt;font-family:inherit">` : esc(heureVal)}
-        </td>
-        <td style="border:1px solid #000;padding:4px 6px;text-align:center">
-          ${editable ? `<input type="number" min="0" step="1" value="${esc(jourVal)}" class="fiche-jour" ${agentAttr}="${agentId}" style="width:64px;border:none;outline:none;background:transparent;text-align:center;font-size:9.5pt;font-family:inherit">` : esc(jourVal)}
-        </td>
+        <td style="border:1px solid #000;padding:4px 6px;text-align:center">${heureCell}</td>
+        <td style="border:1px solid #000;padding:4px 6px;text-align:center">${jourCell}</td>
       </tr>`;
   }).join('') || '<tr><td colspan="9" style="border:1px solid #000;padding:6px;text-align:center">Aucun agent</td></tr>';
 
@@ -101,7 +145,7 @@ export function renderFicheA({
       ${grayTitle('FICHE A : SITUATION JOURNALIERE DE PRESENCE DES AGENTS')}
       ${metaBox('STRUCTURE :', structure || 'CEB de Bagré / Boulgou')}
       ${metaBox('Date :', date)}
-      ${metaBox('Heure :', heure || '', editable, 'class="fiche-heure-appel" placeholder="Ex: 07h30"')}
+      ${metaBox('Heure :', heureDisplay, editable, 'class="fiche-heure-appel" placeholder="Ex: 07h30 à 17h00"')}
       <table style="border:1px solid #000;border-collapse:collapse;width:100%;font-size:9pt;margin-top:8px">
         <thead>
           <tr style="background:${GRAY}">
@@ -136,8 +180,8 @@ export function renderFicheB({
     const isWoman = String(row.gender || row.sexe || '').toUpperCase() === 'F';
     const nameStyle = isWoman ? 'color:#dc2626;font-weight:600;' : '';
     const agentId = esc(row.id);
-    const heureVal = row.heure != null ? row.heure : 0;
-    const jourVal = row.jour != null ? row.jour : 0;
+    const heureVal = (row.heure != null && Number(row.heure) !== 0 && row.heure !== '0') ? row.heure : '—';
+    const jourVal  = (row.jour  != null && Number(row.jour)  !== 0 && row.jour  !== '0') ? row.jour  : '—';
     const mesuresVal = row.mesures != null ? row.mesures : (row.mesures_prises || '');
     const refsVal = row.references != null ? row.references : (row.references_pieces || '');
     return `
@@ -148,8 +192,8 @@ export function renderFicheB({
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">${esc(row.emploi || '—')}</td>
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">${esc(row.fonction || '—')}</td>
         <td style="border:1px solid #000;padding:4px 6px;text-align:center">${esc(row.structure || '')}</td>
-        <td style="border:1px solid #000;padding:4px 6px;text-align:center;font-weight:600">${esc(heureVal)}</td>
-        <td style="border:1px solid #000;padding:4px 6px;text-align:center;font-weight:600">${esc(jourVal)}</td>
+        <td style="border:1px solid #000;padding:4px 6px;text-align:center;font-weight:${Number(row.heure) > 0 ? '700' : '400'};color:${Number(row.heure) > 0 ? '#dc2626' : '#94a3b8'}">${esc(heureVal === 0 || heureVal === '0' ? '—' : heureVal)}</td>
+        <td style="border:1px solid #000;padding:4px 6px;text-align:center;font-weight:${Number(row.jour) > 0 ? '700' : '400'};color:${Number(row.jour) > 0 ? '#dc2626' : '#94a3b8'}">${esc(jourVal === 0 || jourVal === '0' ? '—' : jourVal)}</td>
         <td style="border:1px solid #000;padding:4px 6px">${editable ? `<input type="text" value="${esc(mesuresVal)}" class="fiche-mesures" ${agentAttr}="${agentId}" style="width:100%;border:none;outline:none;background:transparent;font-family:inherit;font-size:inherit" placeholder="Mesures prises...">` : esc(mesuresVal)}</td>
         <td style="border:1px solid #000;padding:4px 6px">${editable ? `<input type="text" value="${esc(refsVal)}" class="fiche-references" ${agentAttr}="${agentId}" style="width:100%;border:none;outline:none;background:transparent;font-family:inherit;font-size:inherit" placeholder="Références...">` : esc(refsVal)}</td>
       </tr>`;
@@ -173,7 +217,7 @@ export function renderFicheB({
             <th rowspan="2" style="border:1px solid #000;padding:4px">Emploi</th>
             <th rowspan="2" style="border:1px solid #000;padding:4px">Fonction</th>
             <th rowspan="2" style="border:1px solid #000;padding:4px">Structure</th>
-            <th colspan="2" style="border:1px solid #000;padding:4px">Absence</th>
+            <th colspan="2" style="border:1px solid #000;padding:4px;text-align:center">Absence</th>
             <th rowspan="2" style="border:1px solid #000;padding:4px">Mesures prises</th>
             <th rowspan="2" style="border:1px solid #000;padding:4px">Références des pièces justificatives de la mesure prise s'il y a lieu</th>
           </tr>
