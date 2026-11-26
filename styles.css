@@ -28,10 +28,14 @@ input, textarea, select {
 
 body {
   margin: 0;
-  font-family: Arial, "Segoe UI", sans-serif;
+  font-family: 'Inter', Arial, "Segoe UI", sans-serif;
   color: var(--ink);
   background: #f1f5f9;
-  line-height: 1.35;
+  line-height: 1.45;
+}
+
+h1, h2, h3, h4, h5, h6, .brand-text strong, .role-brand strong, .ceb-staff-role-badge, .btn, .btn-primary, .btn-logout, .whatsapp-btn, .btn-danger, .topbar h1, .role-topbar h1 {
+  font-family: 'Plus Jakarta Sans', 'Inter', Arial, sans-serif;
 }
 
 button, input, select, textarea { font: inherit; }
