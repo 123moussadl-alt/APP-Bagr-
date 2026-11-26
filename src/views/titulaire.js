@@ -52,7 +52,7 @@ export function renderTitulaire(state, render, supabase) {
         </nav>
         <div class="role-footer">
           ${state.isDualDirector ? '<button class="nav-item" onclick="window.switchToDirectionMode()" style="width:100%;margin-bottom:8px">🏫 Retour Direction</button>' : ''}
-          <button class="btn-logout" onclick="window.logout()">Déconnexion</button>
+          <button class="btn-logout" onclick="window.logout()">🚪 Quitter</button>
         </div>
       </aside>
 

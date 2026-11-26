@@ -26,7 +26,7 @@ export function renderStatisticien(state) {
           <button class="nav-item active" data-view="stats">📊 Statistiques de la CEB</button>
         </nav>
         <div class="role-footer">
-          <button class="btn-logout" onclick="window.logout()">Déconnexion</button>
+          <button class="btn-logout" onclick="window.logout()">🚪 Quitter</button>
         </div>
       </aside>
 

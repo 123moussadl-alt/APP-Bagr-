@@ -1284,22 +1284,29 @@ function mountSettingsButton() {
     backupButton.type = 'button';
     backupButton.className = 'btn-settings';
     backupButton.dataset.action = 'quick-backup';
-    backupButton.textContent = '☁️ Sauvegarder';
     backupButton.addEventListener('click', () => openBackupModal());
     insertBeforeSafe(actions, backupButton, settingsButton);
   }
+  backupButton.textContent = '💾 Sauvegarder';
 
-  const logoutButton = document.querySelector('.btn-logout') ||
+  let logoutButton = actions.querySelector('.btn-logout') ||
+    document.querySelector('.btn-logout') ||
     header.querySelector('.topbar-left button[onclick*="logout"]');
-  if (logoutButton) {
+  if (!logoutButton) {
+    logoutButton = document.createElement('button');
+    logoutButton.type = 'button';
     logoutButton.className = 'btn-logout';
-    logoutButton.textContent = 'Déconnexion';
+    logoutButton.addEventListener('click', () => window.logout());
+    actions.appendChild(logoutButton);
+  } else {
+    logoutButton.className = 'btn-logout';
     actions.appendChild(logoutButton);
     const footer = logoutButton.closest('.role-footer');
     if (footer) footer.remove();
     const oldLeftActions = logoutButton.closest('.topbar-left');
     if (oldLeftActions && !oldLeftActions.children.length) oldLeftActions.remove();
   }
+  logoutButton.textContent = '🚪 Quitter';
   insertBeforeSafe(actions, settingsButton, logoutButton || null);
 }
 

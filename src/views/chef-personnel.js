@@ -32,7 +32,7 @@ export function renderChefPersonnel(state, render, supabase) {
           <button class="nav-item" data-view="agent-reports">📊 Bilans mensuels des agents (par école)</button>
         </nav>
         <div class="role-footer">
-          <button class="btn-logout" onclick="window.logout()">Déconnexion</button>
+          <button class="btn-logout" onclick="window.logout()">🚪 Quitter</button>
         </div>
       </aside>
 

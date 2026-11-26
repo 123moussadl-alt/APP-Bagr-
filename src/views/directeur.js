@@ -56,12 +56,12 @@ export function renderDirecteur(state, render, supabase) {
           <button class="nav-item" data-view="bulletins">📄 Bulletins</button>
         </nav>
         <div class="role-footer">
-          <button class="btn-logout" onclick="window.logout()">Déconnexion</button>
+          <button class="btn-logout" onclick="window.logout()">🚪 Quitter</button>
         </div>
       </aside>
 
       <div class="role-content">
-        ${state.isDualDirector ? `<div style="background:#0f3d23;color:#fff;padding:8px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        ${state.isDualDirector ? `<div class="dual-director-banner" style="background:#0f3d23;color:#fff;padding:8px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <strong style="font-size:13px">Mode :</strong>
           <button class="btn" onclick="window.switchToClasseMode()" style="background:#2563eb">👨‍🏫 Ma Classe (Espace Titulaire)</button>
           <button class="btn secondary" onclick="window.switchToDirectionMode()">🏫 Direction de l'École</button>

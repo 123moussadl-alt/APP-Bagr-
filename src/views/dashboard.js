@@ -25,7 +25,7 @@ export function renderDashboard(state, render) {
           <span>${fullName} — ${label}</span>
         </div>
         <div class="topbar-right">
-          <button type="button" class="btn-logout" onclick="window.logout()">Déconnexion</button>
+          <button type="button" class="btn-logout" onclick="window.logout()">🚪 Quitter</button>
         </div>
       </div>
 

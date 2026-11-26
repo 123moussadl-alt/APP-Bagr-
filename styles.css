@@ -322,7 +322,7 @@ nav {
   background: white;
 }
 
-/* TABLEAUX GÉNÉRAUX */
+/* TABLEAUX GÃNÃRAUX */
 .table-wrap {
   overflow-x: auto;
   border: 2px solid #000;
@@ -473,7 +473,7 @@ th {
 }
 
 /* ==========================================================================
-   LA FICHE DE SYNTHÈSE STRICTEMENT IDENTIQUE À LA CAPTURE D'ÉCRAN
+   LA FICHE DE SYNTHÃSE STRICTEMENT IDENTIQUE Ã LA CAPTURE D'ÃCRAN
    ========================================================================== */
 .ceb-bilan-fiche {
   background: white;
@@ -538,7 +538,7 @@ th {
   font-weight: 800;
 }
 
-/* GRILLE PRINCIPALE DES 3 COLONNES CONFORME À LA CAPTURE */
+/* GRILLE PRINCIPALE DES 3 COLONNES CONFORME Ã LA CAPTURE */
 .fiche-main-grid {
   display: grid;
   grid-template-columns: 215px 1fr 155px;
@@ -651,7 +651,7 @@ th {
   color: #0284c7;
 }
 
-/* ZONE DIFFICULTÉS / SUGGESTIONS (SOUS LE TABLEAU DU MILIEU) */
+/* ZONE DIFFICULTÃS / SUGGESTIONS (SOUS LE TABLEAU DU MILIEU) */
 .diff-sugg-box {
   margin-top: 10px;
   font-size: 11px;
@@ -698,7 +698,7 @@ th {
 }
 
 /* ==========================================================================
-   BULLETINS TRIMESTRIELS EXACTEMENT CONFORMES À LA DEMANDE DE L'UTILISATEUR
+   BULLETINS TRIMESTRIELS EXACTEMENT CONFORMES Ã LA DEMANDE DE L'UTILISATEUR
    ========================================================================== */
 .bulletin-sheet {
   background: white;
@@ -926,7 +926,7 @@ th {
 }
 
 /* ============================================================================
-   LAYOUT DES VUES DE RÔLE (Titulaire / Directeur / Encadreur / Chef CEB)
+   LAYOUT DES VUES DE RÃLE (Titulaire / Directeur / Encadreur / Chef CEB)
    ============================================================================ */
 .role-layout {
   display: flex;
@@ -998,7 +998,7 @@ th {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
-/* BANDEAU SLOGAN ÉDUCATIF — CEB de Bagré */
+/* BANDEAU SLOGAN ÃDUCATIF â CEB de BagrÃ© */
 .slogan-banner {
   position: sticky;
   top: 0;
@@ -1030,7 +1030,7 @@ th {
   .slogan-banner__track { animation: none; padding-left: 0; }
 }
 
-/* NAVIGATION PAR ONGLETS — collante (barre horizontale mobile) */
+/* NAVIGATION PAR ONGLETS â collante (barre horizontale mobile) */
 .role-nav {
   position: relative;
   z-index: 48;
@@ -1100,15 +1100,10 @@ th {
 }
 .whatsapp-btn:hover { background: #1da851; }
 
-@media (max-width: 720px) {
-  .role-layout { flex-direction: column; }
-  .role-sidebar { width: 100%; }
-  .role-nav { flex-direction: row; flex-wrap: wrap; }
-  .role-nav .nav-item { flex: 0 0 auto; }
-}
+/* Media query 720px fusionnée dans la section responsive 768px */
 
 /* ============================================================================
-   IMPRESSION / PDF A4 — en-tête officiel CEB + masquage de l'interface
+   IMPRESSION / PDF A4 â en-tÃªte officiel CEB + masquage de l'interface
    ============================================================================ */
 .print-only { display: none; }
 
@@ -1186,7 +1181,7 @@ th {
 .personnel-summary .femmes { color: #dc2626; }
 .personnel-summary .total { color: #16a34a; }
 
-/* BULLETINS ANNUELS — 3 bulletins par page A4 paysage */
+/* BULLETINS ANNUELS â 3 bulletins par page A4 paysage */
 .bulletins-annuels-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -1278,7 +1273,7 @@ th {
   body { background: #fff !important; }
 }
 
-/* Impression de la modale d'aperçu : n'imprimer que la feuille A4 */
+/* Impression de la modale d'aperÃ§u : n'imprimer que la feuille A4 */
 @media print {
   body.preview-open > *:not(#previewOverlay) { display: none !important; }
   body.preview-open #previewOverlay { position: static !important; background: #fff !important; padding: 0 !important; display: block !important; }
@@ -1290,10 +1285,10 @@ th {
 }
 
 /* ============================================================================
-   THÈME CLAIR VERT-BLEU, BOUTONS 3D, RESPONSIVE MOBILE, PARAMÈTRES
+   THÃME CLAIR VERT-BLEU, BOUTONS 3D, RESPONSIVE MOBILE, PARAMÃTRES
    ============================================================================ */
 
-/* Fond dégradé clair par défaut */
+/* Fond dÃ©gradÃ© clair par dÃ©faut */
 body {
   background: linear-gradient(135deg, #e0f7fa 0%, #e8f5e9 50%, #d1fae5 100%);
   background-attachment: fixed;
@@ -1311,10 +1306,10 @@ body.comfortable { font-size: 16px; }
 body.comfortable .role-main { padding: 28px; }
 body.comfortable .role-main .card { padding: 22px; }
 
-/* Fond du layout transparent pour laisser passer le dégradé */
+/* Fond du layout transparent pour laisser passer le dÃ©gradÃ© */
 .role-layout { background: transparent; }
 
-/* En-têtes/accents en dégradé vert-bleu vif */
+/* En-tÃªtes/accents en dÃ©gradÃ© vert-bleu vif */
 .role-topbar, .role-brand, .auth-header h1 {
   background: linear-gradient(135deg, #06b6d4 0%, #22c55e 100%);
   color: #fff;
@@ -1363,7 +1358,7 @@ body.comfortable .role-main .card { padding: 22px; }
 }
 .day-pill > div:first-child { font-size: 12px; }
 
-/* Modale Paramètres */
+/* Modale ParamÃ¨tres */
 #settingsOverlay {
   position: fixed; inset: 0; z-index: 11500;
   background: rgba(15,23,42,.5);
@@ -1463,7 +1458,7 @@ body.comfortable .role-main .card { padding: 22px; }
 }
 .role-page-actions { margin-bottom: 12px; }
 /* ============================================================================
-   RESPONSIVE MOBILE (360px – 430px)
+   RESPONSIVE MOBILE (360px â 430px)
    ============================================================================ */
 @media (max-width: 600px) {
   .role-layout { flex-direction: column; }
@@ -1492,107 +1487,257 @@ body.comfortable .role-main .card { padding: 22px; }
 }
 
 @media (max-width: 768px) {
-  .role-layout {
-    display: flex;
-    flex-direction: column;
-    overflow-x: hidden;
+  /* 1. Remove Overlapping Sticky / Fixed Positioning on Mobile:
+        Normal vertical document flow (position: relative; top: auto;) */
+  .slogan-banner,
+  #previewBar {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    z-index: 1 !important;
   }
+  .slogan-banner__track { font-size: 11.5px; }
+
+  .role-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+    position: relative !important;
+    overflow-x: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
   .role-sidebar,
   .role-content {
-    display: contents;
+    display: contents !important;
   }
-  .role-topbar {
-    order: 1;
-    flex: 0 0 auto;
-    flex-wrap: nowrap;
-    gap: 8px;
-    padding: 10px 12px;
-    position: sticky;
-    top: 30px;
-    z-index: 50;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+
+  /* 2. Compact Single-Line Action Bar at the Very Top */
+  .role-topbar,
+  .dashboard .topbar,
+  .topbar {
+    order: 1 !important;
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    z-index: 20 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    padding: 6px 8px !important;
+    min-height: 44px !important;
+    height: auto !important;
+    gap: 6px !important;
+    background: #0f3d23 !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
   }
+
+  .role-header-brand,
+  .topbar-brand {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-align: left !important;
+  }
+
+  .role-header-brand strong,
+  .topbar-brand strong {
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    color: #ffffff !important;
+    line-height: 1.2 !important;
+    display: block !important;
+  }
+
+  .role-header-brand span,
+  .topbar-brand span {
+    font-size: 10.5px !important;
+    color: #c7f0d8 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.2 !important;
+    display: block !important;
+  }
+
+  .role-page-heading {
+    display: none !important;
+  }
+
+  .account-header-actions,
+  .topbar-right {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex: 0 0 auto !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    margin-left: auto !important;
+  }
+
+  .account-header-actions .btn-settings,
+  .account-header-actions .btn-logout,
+  .topbar-right .btn-logout,
+  .role-topbar .btn-settings,
+  .role-topbar .btn-logout {
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+    min-height: 30px !important;
+    height: 30px !important;
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 8px !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25) !important;
+  }
+
+  .dual-director-banner {
+    order: 2 !important;
+    position: relative !important;
+    top: auto !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    z-index: 15 !important;
+    padding: 8px 10px !important;
+  }
+
+  /* 3. Full-Width Unobstructed Horizontal Scrollable Tab Bar Below */
   .role-nav {
-    order: 2;
-    position: sticky;
-    top: 0;
-    z-index: 48;
-    background: rgba(255, 255, 255, 0.97);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    order: 3 !important;
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    z-index: 10 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    white-space: nowrap !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    padding: 10px 8px !important;
+    margin-top: 4px !important;
+    margin-bottom: 0 !important;
+    gap: 6px !important;
+    background: #0B1E3D !important;
+    scrollbar-width: none !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.22) !important;
   }
-  .slogan-banner__track { font-size: 12px; }
-  .role-topbar > div:first-child {
-    flex: 1 1 auto;
-    min-width: 0;
+
+  .role-nav::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
   }
-  .role-header-brand strong {
-    overflow: hidden;
-    font-size: 16px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .role-header-brand span {
-    overflow: hidden;
-    font-size: 11px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .account-header-actions {
-    flex: 0 0 auto;
-    gap: 6px;
-  }
-  .role-nav {
-    order: 2;
-    display: flex;
-    flex: 0 0 auto;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 8px;
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-    padding: 8px 12px;
-    background: #0f3d23;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .role-nav::-webkit-scrollbar { display: none; }
+
   .role-nav .nav-item {
-    flex: 0 0 auto;
-    min-height: 34px;
-    padding: 7px 10px;
-    white-space: nowrap;
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 8px 12px !important;
+    min-height: 38px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+    border-radius: 8px !important;
+    color: #e6f4ec !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    text-align: center !important;
+    cursor: pointer !important;
+    user-select: none !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+    text-decoration: none !important;
   }
-  .role-main {
-    order: 3;
-    flex: 1 0 auto;
-    width: 100%;
-    min-width: 0;
-    padding: 12px;
+
+  .role-nav .nav-item:hover,
+  .role-nav .nav-item:active {
+    background: rgba(255, 255, 255, 0.24) !important;
+    color: #ffffff !important;
   }
+
+  .role-nav .nav-item.active {
+    background: #15803d !important;
+    color: #ffffff !important;
+    font-weight: 800 !important;
+    border-color: #4ade80 !important;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35) !important;
+  }
+
+  .role-main,
+  .dashboard-content {
+    order: 4 !important;
+    position: relative !important;
+    top: auto !important;
+    flex: 1 0 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    padding: 12px 10px !important;
+    margin: 0 !important;
+  }
+
+  .role-page-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .role-page-actions .btn {
+    flex: 1 1 auto !important;
+    min-width: 120px !important;
+    font-size: 12.5px !important;
+    padding: 8px 10px !important;
+  }
+
   .role-footer {
-    order: 4;
-    flex: 0 0 auto;
-  }
-  .dashboard .topbar {
-    flex-wrap: nowrap;
-    min-height: 0;
-    gap: 8px;
-    padding: 10px 12px;
-  }
-  .dashboard .topbar-right {
-    flex: 0 0 auto;
-    justify-content: flex-end;
+    order: 5 !important;
+    position: relative !important;
+    top: auto !important;
+    margin: 0 !important;
+    padding: 8px !important;
   }
 }
 
 /* ==========================================================================
-   TH�ME EX�CUTIF � D�grad�s multitons & boutons 3D ( palette CEB de Bagr� )
+   THÈME EXÉCUTIF  Dégradés multitons & boutons 3D ( palette CEB de Bagré )
    ========================================================================== */
 
-/* --- Arri�re-plans : d�grad�s multitons (jamais une couleur plate) --- */
+/* --- Arrière-plans : dégradés multitons (jamais une couleur plate) --- */
 body {
   background:
     radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.04) 0 22%, transparent 22%),
@@ -1622,7 +1767,7 @@ body.bg-forest {
     linear-gradient(145deg, #134E4A 0%, #1E6B7B 48%, #2A8C9E 100%) !important;
 }
 
-/* Compat : anciens choix conserv�s mais transform�s en d�grad�s */
+/* Compat : anciens choix conservés mais transformés en dégradés */
 body.bg-dark {
   background:
     radial-gradient(circle at 14% 10%, rgba(255, 255, 255, 0.05) 0 22%, transparent 22%),
@@ -1658,7 +1803,7 @@ body.bg-mint {
   background: linear-gradient(180deg, #0B1E3D 0%, #103A6E 100%) !important;
 }
 
-/* --- Boutons 3D : hi�rarchie lime / teal / bleu roi --- */
+/* --- Boutons 3D : hiérarchie lime / teal / bleu roi --- */
 .btn,
 .btn-primary,
 .btn-install,
@@ -1756,7 +1901,7 @@ body.bg-mint {
   box-shadow: 0 4px 0 #09353D;
 }
 
-/* --- Pr�servation stricte des couleurs de donn�es --- */
+/* --- Préservation stricte des couleurs de données --- */
 .card table td,
 .card table th,
 .table-wrap table td,
@@ -1764,7 +1909,7 @@ body.bg-mint {
   color: inherit;
 }
 
-/* BILAN TRIMESTRIEL � impression A4 portrait propre */
+/* BILAN TRIMESTRIEL  impression A4 portrait propre */
 @media print {
   .synthese-sheet {
     page-break-inside: avoid;
@@ -1859,55 +2004,252 @@ body.bg-mint {
   border-top: 1px solid rgba(255,255,255,.12);
 }
 
-/* ===== EN-T�TE MOBILE : 2 rang�es sans chevauchement ===== */
-@media (max-width: 760px) {
-  .role-topbar {
-    flex-wrap: nowrap !important;
-    align-items: center !important;
-    gap: 8px !important;
-    padding: 8px 10px !important;
-    overflow: hidden;
+/* ============================================================================
+   RESPONSIVE MOBILE (< 768px) — EN-TÊTE COMPACT ET ONGLETS VISIBLES
+   ============================================================================ */
+@media (max-width: 768px) {
+  /* 1. Remove Overlapping Sticky / Fixed Positioning on Mobile:
+        Normal vertical document flow (position: relative; top: auto;) */
+  .slogan-banner,
+  #previewBar {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    z-index: 1 !important;
   }
-  .role-topbar > div:first-child {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-  }
-  .role-topbar h1 { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
-  .role-topbar p { display: none; }
-  .role-topbar .top-actions {
+  .slogan-banner__track { font-size: 11.5px; }
+
+  .role-layout {
     display: flex !important;
+    flex-direction: column !important;
+    min-height: 100vh !important;
+    width: 100% !important;
+    position: relative !important;
+    overflow-x: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .role-sidebar,
+  .role-content {
+    display: contents !important;
+  }
+
+  /* 2. Compact Single-Line Action Bar at the Very Top */
+  .role-topbar,
+  .dashboard .topbar,
+  .topbar {
+    order: 1 !important;
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    z-index: 20 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    padding: 6px 8px !important;
+    min-height: 44px !important;
+    height: auto !important;
     gap: 6px !important;
+    background: #0f3d23 !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  .role-header-brand,
+  .topbar-brand {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-align: left !important;
+  }
+
+  .role-header-brand strong,
+  .topbar-brand strong {
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    color: #ffffff !important;
+    line-height: 1.2 !important;
+    display: block !important;
+  }
+
+  .role-header-brand span,
+  .topbar-brand span {
+    font-size: 10.5px !important;
+    color: #c7f0d8 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.2 !important;
+    display: block !important;
+  }
+
+  .role-page-heading {
+    display: none !important;
+  }
+
+  .account-header-actions,
+  .topbar-right {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
     flex: 0 0 auto !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
     margin-left: auto !important;
   }
-  .role-topbar .top-actions .btn,
-  .role-topbar .top-actions .btn-settings,
-  .role-topbar .top-actions .btn-logout {
+
+  .account-header-actions .btn-settings,
+  .account-header-actions .btn-logout,
+  .topbar-right .btn-logout,
+  .role-topbar .btn-settings,
+  .role-topbar .btn-logout {
     padding: 6px 8px !important;
     font-size: 12px !important;
+    font-weight: 700 !important;
     white-space: nowrap !important;
+    min-height: 30px !important;
+    height: 30px !important;
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 8px !important;
     flex: 0 0 auto !important;
+    width: auto !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25) !important;
   }
+
+  .dual-director-banner {
+    order: 2 !important;
+    position: relative !important;
+    top: auto !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    z-index: 15 !important;
+    padding: 8px 10px !important;
+  }
+
+  /* 3. Full-Width Unobstructed Horizontal Scrollable Tab Bar Below */
   .role-nav {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 48 !important;
+    order: 3 !important;
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    z-index: 10 !important;
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
     overflow-y: hidden !important;
-    -webkit-overflow-scrolling: touch;
+    -webkit-overflow-scrolling: touch !important;
     white-space: nowrap !important;
-    padding: 8px 10px !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    padding: 10px 8px !important;
+    margin-top: 4px !important;
+    margin-bottom: 0 !important;
     gap: 6px !important;
-    background: rgba(255,255,255,.98) !important;
+    background: #0B1E3D !important;
+    scrollbar-width: none !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.22) !important;
   }
+
+  .role-nav::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
   .role-nav .nav-item {
     flex: 0 0 auto !important;
-    white-space: nowrap !important;
-    padding: 8px 10px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 8px 12px !important;
+    min-height: 38px !important;
     font-size: 13px !important;
+    font-weight: 700 !important;
+    white-space: nowrap !important;
+    border-radius: 8px !important;
+    color: #e6f4ec !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    text-align: center !important;
+    cursor: pointer !important;
+    user-select: none !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+    text-decoration: none !important;
+  }
+
+  .role-nav .nav-item:hover,
+  .role-nav .nav-item:active {
+    background: rgba(255, 255, 255, 0.24) !important;
+    color: #ffffff !important;
+  }
+
+  .role-nav .nav-item.active {
+    background: #15803d !important;
+    color: #ffffff !important;
+    font-weight: 800 !important;
+    border-color: #4ade80 !important;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35) !important;
+  }
+
+  .role-main,
+  .dashboard-content {
+    order: 4 !important;
+    position: relative !important;
+    top: auto !important;
+    flex: 1 0 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    padding: 12px 10px !important;
+    margin: 0 !important;
+  }
+
+  .role-page-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .role-page-actions .btn {
+    flex: 1 1 auto !important;
+    min-width: 120px !important;
+    font-size: 12.5px !important;
+    padding: 8px 10px !important;
+  }
+
+  .role-footer {
+    order: 5 !important;
+    position: relative !important;
+    top: auto !important;
+    margin: 0 !important;
+    padding: 8px !important;
   }
 }

@@ -39,7 +39,7 @@ export function renderChefCEB(state, render, supabase) {
           <button class="nav-item" data-view="synthese-ecole">📋 Synthèse trimestrielle d'école</button>
         </nav>
         <div class="role-footer">
-          <button class="btn-logout" onclick="window.logout()">Déconnexion</button>
+          <button class="btn-logout" onclick="window.logout()">🚪 Quitter</button>
         </div>
       </aside>
 

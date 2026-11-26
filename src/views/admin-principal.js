@@ -27,7 +27,7 @@ export function renderAdminPrincipal(state) {
           </div>
           <div class="top-actions">
             <button type="button" class="btn secondary" data-action="admin-return">Retour à mon espace</button>
-            <button type="button" class="btn-logout" onclick="window.logout()">Déconnexion</button>
+            <button type="button" class="btn-logout" onclick="window.logout()">🚪 Quitter</button>
           </div>
         </header>
         <main class="role-main">

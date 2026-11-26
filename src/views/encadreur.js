@@ -38,7 +38,7 @@ export function renderEncadreur(state, render, supabase) {
           <button class="nav-item" data-view="synthese">📊 Synthèse Examens Blancs</button>
         </nav>
         <div class="role-footer">
-          <button class="btn-logout" onclick="window.logout()">Déconnexion</button>
+          <button class="btn-logout" onclick="window.logout()">🚪 Quitter</button>
         </div>
       </aside>
 
