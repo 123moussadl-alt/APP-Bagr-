@@ -203,94 +203,161 @@ export function renderExamSyntheseHTML(context) {
     niveau,
     sessionLabel,
     schoolName,
+    activeSchoolYear,
     titulaireName,
     titulaireSignature,
     directeurName,
     directeurSignature
   } = context;
   const stats = computeExamStats(rows, subjects);
-  const titre = `FICHE SYNTHÈSE — EXAMEN BLANC (${examLevelLabel(niveau)})`;
 
-  const effectifRow = `
-    <tr>
-      <td style="border:1px solid #333;padding:6px;font-weight:700">Effectif</td>
-      <td style="border:1px solid #333;padding:6px;text-align:center">${stats.boys}</td>
-      <td style="border:1px solid #333;padding:6px;text-align:center;color:#dc2626">${stats.girls}</td>
-      <td style="border:1px solid #333;padding:6px;text-align:center;color:#16a34a;font-weight:700">${stats.total}</td>
+  // Determine session number 1/2/3 from sessionLabel or examSession
+  const sessionNum = (() => {
+    if (!sessionLabel) return '';
+    const m = sessionLabel.match(/(\d)/);
+    return m ? m[1] : '';
+  })();
+  const niveauLabel = examLevelLabel(niveau);
+
+  // Compose official 7-column subject success rate table
+  // Columns: Matière | G Nbre | G % | F Nbre | F % | Total Nbre | Total %
+  const subjectRows = stats.bySubject.map(item => {
+    const gPct = item.boysTotal ? ((item.g / item.boysTotal) * 100).toFixed(1) + '%' : '—';
+    const fPct = item.girlsTotal ? ((item.f / item.girlsTotal) * 100).toFixed(1) + '%' : '—';
+    const tPct = item.total ? ((item.t / item.total) * 100).toFixed(1) + '%' : '—';
+    return `<tr>
+      <td style="border:1px solid #333;padding:5px 6px">${esc(item.subject.name)}</td>
+      <td style="border:1px solid #333;padding:5px 6px;text-align:center">${item.g}</td>
+      <td style="border:1px solid #333;padding:5px 6px;text-align:center">${gPct}</td>
+      <td style="border:1px solid #333;padding:5px 6px;text-align:center;color:#dc2626">${item.f}</td>
+      <td style="border:1px solid #333;padding:5px 6px;text-align:center;color:#dc2626">${fPct}</td>
+      <td style="border:1px solid #333;padding:5px 6px;text-align:center;color:#16a34a;font-weight:700">${item.t}</td>
+      <td style="border:1px solid #333;padding:5px 6px;text-align:center;color:#16a34a;font-weight:700">${tPct}</td>
     </tr>`;
+  }).join('') || '<tr><td colspan="7" style="border:1px solid #333;padding:6px;text-align:center">Aucune matière</td></tr>';
 
-  const disciplineRows = stats.bySubject.map(item => `
-    <tr>
-      <td style="border:1px solid #333;padding:6px">${esc(item.subject.name)}</td>
-      <td style="border:1px solid #333;padding:6px;text-align:center">${item.g} <span style="color:#64748b">(${rate(item.g, item.boysTotal)})</span></td>
-      <td style="border:1px solid #333;padding:6px;text-align:center;color:#dc2626">${item.f} <span style="color:#64748b">(${rate(item.f, item.girlsTotal)})</span></td>
-      <td style="border:1px solid #333;padding:6px;text-align:center;color:#16a34a;font-weight:700">${item.t} <span style="color:#64748b">(${rate(item.t, item.total)})</span></td>
-    </tr>`).join('') || '<tr><td colspan="4" style="border:1px solid #333;padding:6px;text-align:center">Aucune discipline</td></tr>';
+  // Boys/Girls/Total with moyenne
+  const boysWithMoy = rows.filter(r => r.gender === 'M' && r.moyenne != null && !r.abandon);
+  const girlsWithMoy = rows.filter(r => r.gender === 'F' && r.moyenne != null && !r.abandon);
+  const allWithMoy = rows.filter(r => r.moyenne != null && !r.abandon);
+  const boysAyantMoy = boysWithMoy.filter(r => r.moyenne >= 5).length;
+  const girlsAyantMoy = girlsWithMoy.filter(r => r.moyenne >= 5).length;
+  const totalAyantMoy = boysAyantMoy + girlsAyantMoy;
+  const boysCompose = rows.filter(r => r.gender === 'M' && !r.abandon).length;
+  const girlsCompose = rows.filter(r => r.gender === 'F' && !r.abandon).length;
+  const totalCompose = boysCompose + girlsCompose;
+  const boysPct = boysCompose ? ((boysAyantMoy / boysCompose) * 100).toFixed(1) + '%' : '—';
+  const girlsPct = girlsCompose ? ((girlsAyantMoy / girlsCompose) * 100).toFixed(1) + '%' : '—';
+  const totalPct = totalCompose ? ((totalAyantMoy / totalCompose) * 100).toFixed(1) + '%' : '—';
 
   const titulaireImg = signatureImageHTML(signatureUrlForProfile({ signature_url: titulaireSignature }), 'Signature du titulaire');
   const directeurImg = signatureImageHTML(signatureUrlForProfile({ signature_url: directeurSignature }), 'Signature du directeur');
 
   return `
-    <div style="font-family:Arial,sans-serif;color:#111827">
-      <div style="text-align:center;margin-bottom:8px">
-        <div style="font-weight:800;font-size:15px">BURKINA FASO</div>
-        <div style="font-weight:700">La Patrie ou la Mort, nous Vaincrons</div>
-        <div style="font-weight:700">${esc(schoolName || 'CEB de Bagré')}</div>
-        <div style="font-weight:800;font-size:15px;margin-top:4px">${esc(titre)}</div>
-        <div style="font-weight:700">Classe : ${esc(classeLabel || '')}${sessionLabel ? ' — ' + esc(sessionLabel) : ''}</div>
-      </div>
-
-      <table style="border-collapse:collapse;width:100%;margin-bottom:12px">
-        <thead>
-          <tr style="background:#f1f5f9">
-            <th style="border:1px solid #333;padding:6px">Bilan général</th>
-            <th style="border:1px solid #333;padding:6px">Garçons</th>
-            <th style="border:1px solid #333;padding:6px;color:#dc2626">Filles</th>
-            <th style="border:1px solid #333;padding:6px;color:#16a34a">Total</th>
-          </tr>
-        </thead>
+    <div style="font-family:Arial,sans-serif;color:#111827;padding:10px;box-sizing:border-box">
+      <!-- Official 2-column header -->
+      <table style="border-collapse:collapse;width:100%;margin-bottom:10px">
         <tbody>
-          ${effectifRow}
           <tr>
-            <td style="border:1px solid #333;padding:6px;font-weight:700">Moyenne de la classe</td>
-            <td colspan="3" style="border:1px solid #333;padding:6px;text-align:center">${stats.average != null ? stats.average.toFixed(2) + ' / 10' : '—'}</td>
-          </tr>
-          <tr>
-            <td style="border:1px solid #333;padding:6px;font-weight:700">Plus forte / plus faible moyenne</td>
-            <td colspan="3" style="border:1px solid #333;padding:6px;text-align:center">${stats.highest != null ? stats.highest.toFixed(2) : '—'} / ${stats.lowest != null ? stats.lowest.toFixed(2) : '—'}</td>
+            <td style="width:50%;vertical-align:top;padding:4px 8px 4px 0;font-size:10pt;line-height:1.5;text-transform:uppercase">
+              <div>CIRCONSCRIPTION D'EDUCATION DE BASE DE BAGRE</div>
+              <div style="text-align:center">*-*-*-*-*-*</div>
+              <div>ECOLE PRIMAIRE PUBLIQUE DE ${esc(schoolName || '...')}</div>
+              <div>Classe : ${esc(classeLabel || '')}</div>
+            </td>
+            <td style="width:50%;vertical-align:top;text-align:center;padding:4px 0 4px 8px;font-size:10pt;line-height:1.5">
+              <div style="font-weight:800">BURKINA FASO</div>
+              <div>*-*-*-*-*-*</div>
+              <div><em>La Patrie ou la Mort nous Vaincrons</em></div>
+              <div>Année Scolaire : ${esc(activeSchoolYear || '')}</div>
+            </td>
           </tr>
         </tbody>
       </table>
 
-      <table style="border-collapse:collapse;width:100%;margin-bottom:12px">
-        <thead>
-          <tr style="background:#f1f5f9">
-            <th style="border:1px solid #333;padding:6px">Taux de réussite par discipline</th>
-            <th style="border:1px solid #333;padding:6px">Garçons</th>
-            <th style="border:1px solid #333;padding:6px;color:#dc2626">Filles</th>
-            <th style="border:1px solid #333;padding:6px;color:#16a34a">Total</th>
-          </tr>
-        </thead>
-        <tbody>${disciplineRows}</tbody>
-      </table>
-
-      <div style="border:1px solid #333;padding:8px;margin-bottom:14px;min-height:70px">
-        <div style="font-weight:700;margin-bottom:4px">PAI / Difficultés et Suggestions</div>
-        <div style="color:#64748b;font-size:12px">Zone réservée aux observations du titulaire et du directeur.</div>
+      <!-- Centered underlined main title -->
+      <div style="text-align:center;margin:10px 0 14px;font-size:14pt;font-weight:800;text-decoration:underline;text-transform:uppercase">
+        FICHE BILAN EXAMEN BLANC${sessionNum ? ' N° ' + esc(sessionNum) : ''}
+      </div>
+      <div style="text-align:center;font-size:10pt;font-weight:700;margin-bottom:14px">
+        Niveau : ${esc(niveauLabel)}
       </div>
 
+      <!-- Section 1: Effectifs & Réussite Globale -->
+      <table style="border-collapse:collapse;width:100%;margin-bottom:14px;font-size:9.5pt">
+        <thead>
+          <tr style="background:#e2e8f0">
+            <th style="border:1px solid #333;padding:6px;text-align:left">Désignation</th>
+            <th style="border:1px solid #333;padding:6px;text-align:center">Garçons</th>
+            <th style="border:1px solid #333;padding:6px;text-align:center;color:#dc2626">Filles</th>
+            <th style="border:1px solid #333;padding:6px;text-align:center;color:#16a34a">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="border:1px solid #333;padding:6px;font-weight:700">Nombre d'élèves ayant composé</td>
+            <td style="border:1px solid #333;padding:6px;text-align:center">${boysCompose}</td>
+            <td style="border:1px solid #333;padding:6px;text-align:center;color:#dc2626">${girlsCompose}</td>
+            <td style="border:1px solid #333;padding:6px;text-align:center;color:#16a34a;font-weight:700">${totalCompose}</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #333;padding:6px;font-weight:700">Nombre d'élèves ayant eu la moyenne</td>
+            <td style="border:1px solid #333;padding:6px;text-align:center">${boysAyantMoy}</td>
+            <td style="border:1px solid #333;padding:6px;text-align:center;color:#dc2626">${girlsAyantMoy}</td>
+            <td style="border:1px solid #333;padding:6px;text-align:center;color:#16a34a;font-weight:700">${totalAyantMoy}</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #333;padding:6px;font-weight:700">Taux de réussite de l'école à l'examen blanc (%)</td>
+            <td style="border:1px solid #333;padding:6px;text-align:center">${boysPct}</td>
+            <td style="border:1px solid #333;padding:6px;text-align:center;color:#dc2626">${girlsPct}</td>
+            <td style="border:1px solid #333;padding:6px;text-align:center;color:#16a34a;font-weight:700">${totalPct}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Section 2: Taux de réussite par matière — 7 columns -->
+      <div style="font-weight:700;font-size:10pt;margin-bottom:4px;text-decoration:underline">Taux de réussite par matière</div>
+      <table style="border-collapse:collapse;width:100%;margin-bottom:14px;font-size:9pt">
+        <thead>
+          <tr style="background:#e2e8f0">
+            <th rowspan="2" style="border:1px solid #333;padding:5px 6px;text-align:left">Matière</th>
+            <th colspan="2" style="border:1px solid #333;padding:5px 6px;text-align:center">Garçons</th>
+            <th colspan="2" style="border:1px solid #333;padding:5px 6px;text-align:center;color:#dc2626">Filles</th>
+            <th colspan="2" style="border:1px solid #333;padding:5px 6px;text-align:center;color:#16a34a">Total</th>
+          </tr>
+          <tr style="background:#e2e8f0">
+            <th style="border:1px solid #333;padding:4px;text-align:center">Nbre</th>
+            <th style="border:1px solid #333;padding:4px;text-align:center">%</th>
+            <th style="border:1px solid #333;padding:4px;text-align:center;color:#dc2626">Nbre</th>
+            <th style="border:1px solid #333;padding:4px;text-align:center;color:#dc2626">%</th>
+            <th style="border:1px solid #333;padding:4px;text-align:center;color:#16a34a">Nbre</th>
+            <th style="border:1px solid #333;padding:4px;text-align:center;color:#16a34a">%</th>
+          </tr>
+        </thead>
+        <tbody>${subjectRows}</tbody>
+      </table>
+
+      <!-- Section 3: Difficultés (NO PAI block) -->
+      <div style="font-weight:700;font-size:10pt;margin-bottom:4px;text-decoration:underline">Difficultés rencontrées et suggestions</div>
+      <div style="border:1px solid #333;padding:8px;margin-bottom:16px;min-height:72px;line-height:2">
+        <div style="border-bottom:1px solid #ccc;margin-bottom:8px"></div>
+        <div style="border-bottom:1px solid #ccc;margin-bottom:8px"></div>
+        <div style="border-bottom:1px solid #ccc"></div>
+      </div>
+
+      <!-- Bottom signatures -->
       <table style="border-collapse:collapse;width:100%">
         <tbody>
           <tr>
-            <td style="width:50%;border:1px solid #333;padding:8px;text-align:center;vertical-align:top">
-              <div style="font-weight:700">Le(s) Titulaire(s)</div>
+            <td style="width:50%;border:1px solid #333;padding:10px;text-align:center;vertical-align:top">
+              <div style="font-weight:700;margin-bottom:6px">Le Titulaire</div>
               ${titulaireImg}
-              <div>${esc(titulaireName || '')}</div>
+              <div style="margin-top:4px">${esc(titulaireName || '')}</div>
             </td>
-            <td style="width:50%;border:1px solid #333;padding:8px;text-align:center;vertical-align:top">
-              <div style="font-weight:700">Le Directeur / La Directrice</div>
+            <td style="width:50%;border:1px solid #333;padding:10px;text-align:center;vertical-align:top">
+              <div style="font-weight:700;margin-bottom:6px">Le Directeur / La Directrice</div>
               ${directeurImg}
-              <div>${esc(directeurName || '')}</div>
+              <div style="margin-top:4px">${esc(directeurName || '')}</div>
             </td>
           </tr>
         </tbody>

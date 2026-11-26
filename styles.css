@@ -930,6 +930,7 @@ th {
    ============================================================================ */
 .role-layout {
   display: flex;
+  align-items: flex-start;
   min-height: 100vh;
   background: #f1f5f9;
 }
@@ -940,6 +941,11 @@ th {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
 }
 .role-brand {
   padding: 16px;

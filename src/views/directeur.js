@@ -63,8 +63,12 @@ export function renderDirecteur(state, render, supabase) {
       <div class="role-content">
         ${state.isDualDirector ? `<div class="dual-director-banner" style="background:#0f3d23;color:#fff;padding:8px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <strong style="font-size:13px">Mode :</strong>
-          <button class="btn" onclick="window.switchToClasseMode()" style="background:#2563eb">👨‍🏫 Ma Classe (Espace Titulaire)</button>
-          <button class="btn secondary" onclick="window.switchToDirectionMode()">🏫 Direction de l'École</button>
+          <span style="font-size:12px;background:rgba(255,255,255,0.15);border-radius:5px;padding:3px 10px;font-weight:700;white-space:nowrap">🏫 Direction</span>
+          <button class="btn" onclick="window.switchToClasseMode()" style="background:#2563eb;white-space:nowrap">👨‍🏫 Ma Classe (Espace Titulaire)</button>
+        </div>` : ''}
+        ${(state.isDualDirector && state.view === 'titulaire') ? `<div style="background:#1e3a5f;color:#fff;padding:6px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:12px;background:rgba(255,255,255,0.15);border-radius:5px;padding:3px 10px;font-weight:700;white-space:nowrap">👨‍🏫 Mode : Titulaire</span>
+          <button class="btn" onclick="window.switchToDirectionMode()" style="background:#0f3d23;border:1px solid #4ade80;white-space:nowrap">🔙 Retour Direction</button>
         </div>` : ''}
         <header class="role-topbar">
           <div>
