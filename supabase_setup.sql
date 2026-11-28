@@ -192,6 +192,11 @@ create table if not exists public.presences_agents (
   created_at timestamptz not null default now()
 );
 
+-- Les agents du bureau de la CEB n'appartiennent pas nÃ©cessairement Ã  une Ã©cole.
+-- Cette migration rend leurs Fiches A/B enregistrables par le Chef de la CEB.
+alter table public.presences_agents
+  alter column ecole_id drop not null;
+
 create unique index if not exists presences_agents_agent_day_uidx
   on public.presences_agents (agent_id, date_jour);
 create index if not exists presences_agents_school_day_idx
@@ -437,7 +442,7 @@ drop policy if exists presences_agents_read_scope on public.presences_agents;
 create policy presences_agents_read_scope on public.presences_agents
   for select to authenticated
   using (
-    public.current_agent_app_role() = 'chef_personnel'
+    public.current_agent_app_role() in ('chef_personnel', 'chef_ceb')
     or (
       public.current_agent_app_role() = 'directeur'
       and ecole_id = public.current_agent_app_school_id()
@@ -448,16 +453,22 @@ drop policy if exists presences_agents_write_school on public.presences_agents;
 create policy presences_agents_write_school on public.presences_agents
   for all to authenticated
   using (
-    public.current_agent_app_role() = 'directeur'
-    and ecole_id = public.current_agent_app_school_id()
+    public.current_agent_app_role() = 'chef_ceb'
+    or (
+      public.current_agent_app_role() = 'directeur'
+      and ecole_id = public.current_agent_app_school_id()
+    )
   )
   with check (
-    public.current_agent_app_role() = 'directeur'
-    and ecole_id = public.current_agent_app_school_id()
-    and exists (
-      select 1 from public.profiles agent
-      where agent.id = presences_agents.agent_id
-        and agent.school_id = presences_agents.ecole_id
+    public.current_agent_app_role() = 'chef_ceb'
+    or (
+      public.current_agent_app_role() = 'directeur'
+      and ecole_id = public.current_agent_app_school_id()
+      and exists (
+        select 1 from public.profiles agent
+        where agent.id = presences_agents.agent_id
+          and agent.school_id = presences_agents.ecole_id
+      )
     )
   );
 
@@ -731,7 +742,7 @@ set search_path = public
 as $$
 begin
   if not public.is_principal_admin() then
-    raise exception 'Accès réservé à l''Administrateur Principal.';
+    raise exception 'Accï¿½s rï¿½servï¿½ ï¿½ l''Administrateur Principal.';
   end if;
   if new_password is null or length(new_password) < 6 then
     raise exception 'Mot de passe trop court.';
@@ -798,7 +809,7 @@ set search_path = public, extensions
 as $$
 begin
   if not public.is_principal_admin() then
-    raise exception 'Accès réservé à l''Administrateur Principal.';
+    raise exception 'Accï¿½s rï¿½servï¿½ ï¿½ l''Administrateur Principal.';
   end if;
   if new_password is null or length(new_password) < 6 then
     raise exception 'Mot de passe trop court.';
